@@ -1,0 +1,36 @@
+[project]
+name = "makable-shorts"
+version = "0.2.0"
+description = "1-minute videos about makable, made by stages that share a run folder"
+readme = "README.md"
+requires-python = ">=3.12"
+# The orchestrator, the run folder and the import stage. Each other stage's packages are an extra of its own,
+# so a machine (or a Colab notebook) installs only what the stages it runs need; ffmpeg comes from the system.
+dependencies = ["pydantic>=2"]
+
+[project.optional-dependencies]
+record = ["playwright"]                                    # record: pages of the app
+browse = ["browser-use==0.13.11"]                          # record_with_browser_use.ipynb: its own environment
+gemini = ["google-genai"]                                  # write-script, film-intro
+voice = ["chatterbox-tts", "demucs"]                       # revoice-intro, speak (Chatterbox): a GPU
+omnivoice = ["omnivoice==0.2.1", "transformers==5.14.1"]   # speak (OmniVoice): clashes with voice
+assemble = ["pillow"]                                      # assemble: the captions
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+shorts = "shorts.__main__:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["shorts*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+# Stages that can't share an environment: each runs in one of its own (see shorts.orchestrator).
+conflicts = [[{ extra = "voice" }, { extra = "omnivoice" }], [{ extra = "browse" }, { extra = "voice" }]]
