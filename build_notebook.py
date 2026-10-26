@@ -22,7 +22,7 @@ from string import Template
 ROOT = Path(__file__).parent
 MODULES = [
     "__init__", "media", "script", "intro", "voice", "omnivoice_worker", "footage", "captions", "compose", "run",
-    "speech_api", "sheet", "orchestrator", "__main__", "stages/__init__", "stages/base", "stages/record",
+    "speech_api", "sheet", "browse", "orchestrator", "__main__", "stages/__init__", "stages/base", "stages/record",
     "stages/write_script", "stages/film_intro", "stages/take_voice", "stages/revoice_intro", "stages/speak",
     "stages/assemble", "stages/bring_in",
 ]  # fmt: skip

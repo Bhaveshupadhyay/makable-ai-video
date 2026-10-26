@@ -195,7 +195,8 @@ Each stage's packages are an extra of its own (`record`, `gemini`, `voice`, `omn
 The tests make small videos with ffmpeg and run the stages and the orchestrator on them:
 
 ```sh
-uv run --no-project --python 3.12 --with pydantic --with pillow --with pytest python -m pytest
+uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with pytest \
+  --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
 ```
 
 ## OmniVoice (instead of Chatterbox's narration)

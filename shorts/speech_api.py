@@ -18,6 +18,7 @@ import httpx
 
 FORMAT = "mp3_44100_128"  # what both APIs send by default
 RETRIED = {408, 409, 425, 429, 500, 502, 503, 504}
+REDIRECTS = 5
 
 
 class SpeechAPIError(RuntimeError):
@@ -39,7 +40,9 @@ class SpeechAPI:
             tries: How many times to send a request that fails on the way.
         """
         self.url = url.rstrip("/")
-        self.http = client or httpx.Client(base_url=self.url, timeout=timeout, follow_redirects=True)
+        # Redirects are followed on the API's own host only (`send`), since the key goes with them: httpx drops only
+        # Authorization on the way to another host. Modal redirects a request that runs past its web timeout.
+        self.http = client or httpx.Client(base_url=self.url, timeout=timeout, follow_redirects=False)
         self.http.headers["xi-api-key"] = key
         self.tries = tries
 
@@ -57,7 +60,7 @@ class SpeechAPI:
         for attempt in range(1, self.tries + 1):
             response: httpx.Response | None = None
             try:
-                response = self.http.request(method, path, **options)
+                response = self.send(method, path, **options)
             except httpx.TransportError as error:
                 if attempt == self.tries:
                     raise SpeechAPIError(f"{method} {path}: {error!r}, after {attempt} tries") from error
@@ -69,6 +72,21 @@ class SpeechAPI:
         raise AssertionError("unreachable")
 
     sleep = staticmethod(time.sleep)  # how it waits between tries (a test's doesn't)
+
+    def send(self, method: str, path: str, **options: Any) -> httpx.Response:
+        """Sends a request once, following its redirects while they stay on the API's host."""
+        response = self.http.request(method, path, **options)
+        home = self.http.base_url
+        for _ in range(REDIRECTS):
+            target = response.next_request  # where a redirect goes, when the client doesn't follow it
+            if target is None:
+                break
+            if (target.url.scheme, target.url.host, target.url.port) != (home.scheme, home.host, home.port):
+                raise SpeechAPIError(f"{method} {path}: not following a redirect to {target.url.host}, with the key")
+            response = self.http.send(target)
+        if response.is_redirect:
+            raise SpeechAPIError(f"{method} {path}: {response.status_code}, redirected more than {REDIRECTS} times")
+        return response
 
     def add_voice(self, name: str, sample: Path, transcript: str | None = None, language: str | None = None) -> str:
         """Clones a voice from `sample` (what's said in it, if known, helps OmniVoice). Returns its id."""

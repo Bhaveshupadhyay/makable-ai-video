@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("httpx")
 pytest.importorskip("fastapi")
 pytest.importorskip("multipart")
 
@@ -98,3 +99,18 @@ def test_without_the_api_speak_says_what_to_set(avatar_run: Run, monkeypatch: py
     run_stage(avatar_run, "take-voice")
     with pytest.raises(NotReady, match="Set SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY"):
         run_stage(avatar_run, "speak")
+
+
+@needs_ffmpeg
+def test_a_voice_the_api_couldnt_delete_is_a_warning(
+    avatar_run: Run, tone: Tone, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    from shorts.speech_api import SpeechAPIError
+
+    def unreachable(self, voice_id: str) -> None:
+        raise SpeechAPIError(f"DELETE /v1/voices/{voice_id}: ConnectError, after 4 tries")
+
+    monkeypatch.setattr(SpeechAPI, "delete_voice", unreachable)
+    run_stage(avatar_run, "take-voice")
+    assert run_stage(avatar_run, "speak") == [narration_file(0), narration_file(1)]  # the scenes are made
+    assert "Warning: the voice is still in the API" in capsys.readouterr().out

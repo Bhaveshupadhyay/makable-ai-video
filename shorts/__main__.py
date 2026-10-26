@@ -153,13 +153,15 @@ def load_env(file: Path) -> None:
 def browse_elsewhere() -> None:
     """Runs this command in SHORTS_BROWSE_PYTHON, when this Python hasn't browser-use (it pins its own packages)."""
     python = os.path.expanduser(os.environ.get("SHORTS_BROWSE_PYTHON", ""))
+    install = "uv venv ~/browse-env --python 3.12 && uv pip install --python ~/browse-env -e '.[browse]'"
+    if os.environ.get("SHORTS_BROWSE_SENT"):  # this is that Python, and it hasn't browser-use either
+        raise NotReady(f"SHORTS_BROWSE_PYTHON ({sys.executable}) hasn't browser-use either: {install}")
     if not python:
         raise NotReady(
-            "browser-use isn't installed here: set SHORTS_BROWSE_PYTHON to the Python of an environment that has it "
-            "(uv venv ~/browse-env --python 3.12 && uv pip install --python ~/browse-env -e '.[browse]')"
+            f"browser-use isn't installed here: set SHORTS_BROWSE_PYTHON to the Python of one that has it ({install})"
         )
     paths = [str(PACKAGE_ROOT), *filter(None, [os.environ.get("PYTHONPATH")])]
-    environment = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
+    environment = {**os.environ, "PYTHONPATH": os.pathsep.join(paths), "SHORTS_BROWSE_SENT": "1"}
     sys.exit(subprocess.run([python, "-m", "shorts", *sys.argv[1:]], env=environment).returncode)
 
 

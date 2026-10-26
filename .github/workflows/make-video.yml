@@ -111,3 +111,11 @@ jobs:
             runs/*/task.md
             runs/*/footage/*.steps.json
             runs/*/recordings/*.browse.json
+
+      - name: Check a video was made
+        if: always()  # the skill can stop without one (a recording that never showed the change), and still succeed
+        run: |
+          if ! find runs -path 'runs/*/final.mp4' -size +0 2>/dev/null | grep -q .; then
+            echo "::error::No video was made: see what Claude reported above, and the files uploaded with the run"
+            exit 1
+          fi

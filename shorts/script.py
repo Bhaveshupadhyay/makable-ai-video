@@ -293,7 +293,8 @@ def check(script: Script, lengths: dict[str, float | None], timed: Collection[st
         if scene.end - scene.start < SHORTEST:
             errors.append(f"Scene {number}'s stretch ({stretch}) is shorter than {SHORTEST:g} s")
         elif scene.start < 0 or (length is not None and scene.end > length + 0.05):
-            errors.append(f"Scene {number}'s stretch ({stretch}) isn't all in {scene.footage!r} (0-{length:.1f} s)")
+            bounds = f" (0-{length:.1f} s)" if length is not None else ""
+            errors.append(f"Scene {number}'s stretch ({stretch}) isn't all in {scene.footage!r}{bounds}")
         rate = speed(scene)
         if rate is not None and not SPEEDS[0] <= rate <= SPEEDS[1]:
             fix = "say more over it, or take a shorter stretch" if rate > SPEEDS[1] else "say less, or take more"

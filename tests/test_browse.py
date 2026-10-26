@@ -124,3 +124,36 @@ def test_the_tight_recording_comes_in_as_footage(run: Run, tmp_path: Path, monke
     assert run.path(footage_file("demo")).exists() and run.path(steps_file("demo")).exists()
     kept = json.loads(run.path("recordings/demo.browse.json").read_text())
     assert (kept["task"], kept["model"], kept["signed_in"]) == ("Make a site.", "anthropic:claude", False)
+
+
+def test_browse_goes_to_its_own_python_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    from shorts.__main__ import browse_elsewhere
+    from shorts.stages.base import NotReady
+
+    monkeypatch.setenv("SHORTS_BROWSE_PYTHON", sys.executable)
+    monkeypatch.setenv("SHORTS_BROWSE_SENT", "1")  # as that Python's command finds it
+    with pytest.raises(NotReady, match="hasn't browser-use either"):
+        browse_elsewhere()
+
+
+@needs_ffmpeg
+def test_a_fallback_without_its_key_isnt_used(
+    run: Run, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    async def record_task(task, out, llm, **options):
+        assert options["fallback"] is None
+        steps = [step("Done", 0, 1, {"done": {"success": True}})]
+        save_steps(video(out, 2), steps)
+        return out, steps
+
+    def chat(spec: str) -> str:
+        if spec.startswith("google:"):
+            raise ValueError("Set GEMINI_API_KEY: the model's key (in .env, or the environment)")
+        return f"model {spec}"
+
+    monkeypatch.setattr(recorder, "record_task", record_task)
+    monkeypatch.setattr(recorder, "cut_pauses", lambda recording, steps, out: (shutil.copyfile(recording, out), steps))
+    monkeypatch.setattr(recorder, "chat_model", chat)
+    browse(run, "demo", "Make a site.", model="anthropic:claude", fallback="google:gemini-3-flash-preview")
+    assert "Warning: no fallback model (Set GEMINI_API_KEY" in capsys.readouterr().out
+    assert json.loads(run.path("recordings/demo.browse.json").read_text())["fallback"] is None

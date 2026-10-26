@@ -4,9 +4,9 @@ this process, with a stand-in for the models: the same requests the pipeline sen
 import subprocess
 from pathlib import Path
 
-import httpx
 import pytest
 
+httpx = pytest.importorskip("httpx")
 pytest.importorskip("fastapi")
 pytest.importorskip("multipart")
 
@@ -133,3 +133,24 @@ def test_requests_that_fail_on_the_way_are_tried_again() -> None:
     api.http = httpx.Client(base_url="http://voice", transport=httpx.MockTransport(lambda _: httpx.Response(503)))
     with pytest.raises(SpeechAPIError, match="503"):
         api.request("GET", "/health")
+
+
+def test_redirects_are_followed_on_the_apis_host_only() -> None:
+    seen: list[tuple[str, str | None]] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append((str(request.url), request.headers.get("xi-api-key")))
+        if request.url.path == "/slow":  # as Modal answers a request past its web timeout
+            return httpx.Response(303, headers={"location": "http://voice/result?call=1"})
+        if request.url.path == "/elsewhere":
+            return httpx.Response(302, headers={"location": "https://another.example/steal"})
+        return httpx.Response(200, json={"ok": True})
+
+    client = httpx.Client(base_url="http://voice", transport=httpx.MockTransport(answer))  # not following, as its own
+    api = SpeechAPI("http://voice", KEY, client=client)
+    assert api.request("POST", "/slow").json() == {"ok": True}
+    assert seen == [("http://voice/slow", KEY), ("http://voice/result?call=1", KEY)]
+    with pytest.raises(SpeechAPIError, match="not following a redirect to another.example"):
+        api.request("GET", "/elsewhere")
+    assert not any("another.example" in url for url, _ in seen)  # the key never went there
+    assert SpeechAPI("http://voice", KEY).http.follow_redirects is False  # its own client leaves them to `send`

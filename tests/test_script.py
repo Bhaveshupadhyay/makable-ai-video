@@ -84,3 +84,8 @@ def test_a_script_the_video_cant_be_made_from_isnt_brought_in(run: Run, tmp_path
     with pytest.raises(ValueError, match="Scenes 1 and 2 overlap"):
         bring_in(run, "script", [bad])
     assert len(run.script().scenes) == 1  # the one there is kept
+
+
+def test_a_stretch_before_the_start_of_a_recording_not_measured_yet() -> None:
+    errors, _ = check(written(scene(-0.5, 6)), {"demo": None})  # a page not recorded yet, say
+    assert errors == ["Scene 1's stretch (-0.5-6 s) isn't all in 'demo'"]

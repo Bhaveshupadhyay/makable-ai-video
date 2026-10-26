@@ -16,7 +16,7 @@ voice = ["chatterbox-tts", "demucs"]                       # revoice-intro, spea
 omnivoice = ["omnivoice==0.2.1", "transformers==5.14.1"]   # speak (OmniVoice): clashes with voice
 assemble = ["pillow"]                                      # assemble: the captions
 speech = ["httpx"]                                         # speak (the voice API on Modal, or ElevenLabs)
-dev = ["pytest", "ruff", "fastapi", "python-multipart"]    # and services/voice's API, for its tests
+dev = ["pytest", "ruff", "fastapi", "python-multipart", "httpx"]  # and services/voice's API, for its tests
 
 [project.scripts]
 shorts = "shorts.__main__:main"

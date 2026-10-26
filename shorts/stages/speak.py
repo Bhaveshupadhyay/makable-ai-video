@@ -97,4 +97,7 @@ class Speak(Stage):
         except refused as error:
             raise NotReady(f"the voice API: {error}") from error
         finally:
-            voice.close()
+            try:
+                voice.close()
+            except refused as error:
+                print(f"Warning: the voice is still in the API, since it couldn't be deleted: {error}")

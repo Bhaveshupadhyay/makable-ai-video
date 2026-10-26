@@ -59,7 +59,13 @@ def browse(
     """Records `task` as the footage `name` (see the module's docstring), and returns the tight recording."""
     from ..browse import chat_model, cut_pauses, record_task
 
-    llm, backup = chat_model(model), chat_model(fallback) if fallback else None
+    llm, backup = chat_model(model), None
+    if fallback:
+        try:
+            backup = chat_model(fallback)
+        except ValueError as error:
+            print(f"Warning: no fallback model ({error}): recording with {model} alone")
+            fallback = None
     cookies = demo_cookies(url) if signed_in else None
     folder = run.path("recordings")
     folder.mkdir(parents=True, exist_ok=True)
