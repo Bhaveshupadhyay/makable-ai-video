@@ -3,6 +3,7 @@
     python -m shorts import RUN footage --name makable recordings/makable-tight.mp4   (and its .steps.json)
     python -m shorts import RUN script script.json
     python -m shorts import RUN intro gemini_generated_video.mp4          Omni's clip, in Omni's voice
+    python -m shorts import RUN outro gemini_generated_outro.mp4          and the outro's
     python -m shorts import RUN voiced-intro intro-in-your-voice.mp4      the intro in your voice already
     python -m shorts import RUN narration download*.wav                   one audio file per scene
 
@@ -13,20 +14,36 @@ changes, as speech for it would be.
 Narration files are put in order by the numbers in their names (download.wav, download (1).wav, ...,
 download (10).wav, as browsers name repeated downloads), or kept as given with `as_given`. A file that's the
 same as one before it, downloaded twice, is left out.
+
+A script is checked against the run's footage first (`check_script`), and refused if the video can't be made
+from it.
 """
 
 import hashlib
+import json
 import re
 import shutil
 from pathlib import Path
 
-from ..media import ffmpeg
-from ..run import FILMED_INTRO, SCRIPT, VOICED_INTRO, Run, Settings, fingerprint, narration_file, writing
-from ..script import Script
+from ..media import duration, ffmpeg
+from ..run import (
+    FILMED_INTRO,
+    FILMED_OUTRO,
+    SCRIPT,
+    VOICED_INTRO,
+    Run,
+    Settings,
+    fingerprint,
+    footage_file,
+    narration_file,
+    steps_file,
+    writing,
+)
+from ..script import Script, check, recording_length
 from .base import NotReady, Stage, execute, read_script
-from .record import RecordFootage
+from .record import RecordFootage, is_url
 
-SINGLE = {"script": SCRIPT, "intro": FILMED_INTRO, "voiced-intro": VOICED_INTRO}
+SINGLE = {"script": SCRIPT, "intro": FILMED_INTRO, "outro": FILMED_OUTRO, "voiced-intro": VOICED_INTRO}
 PRODUCTS = ("footage", *SINGLE, "narration")
 
 
@@ -85,6 +102,32 @@ class Import(Stage):
                     shutil.copyfile(sources[path], out)
 
 
+def footage_lengths(run: Run) -> tuple[dict[str, float | None], set[str]]:
+    """Each recording in run.json, by name, with how long it is (None: not known yet), and those with steps.
+
+    Footage that isn't copied in yet is measured where it'll be copied from.
+    """
+    lengths: dict[str, float | None] = {}
+    timed: set[str] = set()
+    for name, source in run.settings().footage.items():
+        video, steps = run.path(footage_file(name)), run.path(steps_file(name))
+        if not video.exists() and not is_url(source):
+            video = run.resolve(source)
+            steps = video.with_suffix(".steps.json")  # where browse.record_task saves them
+        if steps.exists():
+            timed.add(name)
+        if video.exists():
+            lengths[name] = duration(video)
+        else:
+            lengths[name] = recording_length(json.loads(steps.read_text())) if steps.exists() else None
+    return lengths, timed
+
+
+def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
+    """`script.check` against the run's footage: errors (the video can't be made from it) and warnings."""
+    return check(script, *footage_lengths(run))
+
+
 def bring_in(run: Run, product: str, files: list[Path], *, name: str | None = None, as_given: bool = False) -> None:
     """Brings `files` in as `product` (see the module's docstring), and makes run.json say they're yours."""
     if product not in PRODUCTS:
@@ -110,9 +153,13 @@ def bring_in(run: Run, product: str, files: list[Path], *, name: str | None = No
             print(f"Scene {index}: {file.name}: {scene.text}")
     elif len(files) != 1:
         raise ValueError(f"Bring in one file as the {product}")
-    if product == "script":
-        Script.model_validate_json(files[0].read_text())  # before it replaces the one there
-    setting = {"script": "script", "intro": "intro", "voiced-intro": "intro_voice", "narration": "narrator"}[product]
+    if product == "script":  # checked before it replaces the one there
+        errors, warnings = check_script(run, Script.model_validate_json(files[0].read_text()))
+        for warning in warnings:
+            print(f"Warning: {warning}")
+        if errors:
+            raise ValueError("the script can't be used as it is:\n" + "\n".join(f"  {error}" for error in errors))
+    setting = {"voiced-intro": "intro_voice", "narration": "narrator"}.get(product, product)
     setattr(settings, setting, "import")
     run.save_settings(settings)
     execute(run, Import(product, files), force=True)

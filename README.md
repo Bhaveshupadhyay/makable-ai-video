@@ -1,18 +1,39 @@
 # makable Shorts
 
-Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) about a change in makable: a 10-second intro of you filmed by Gemini Omni Flash, then a narrated screen recording, all in your cloned voice, with captions and music.
+Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) about a change in makable: a 10-second intro of you filmed by Gemini Omni Flash, then a narrated screen recording, then an outro, with captions and music.
+
+## With Claude Code: `/make-video`
+
+The usual way to make one. In Claude Code, in this repo:
+
+```
+/make-video 3f2a9c1 7be04d2                 # what these commits (in Bhaveshupadhyay/makable) changed
+/make-video "show how to ask for a change to a site and see it in the preview"
+/make-video makable-backend@91c0e4a --tone hype --language hi
+```
+
+The skill (`.claude/skills/make-video/`) does what needs judgment, and the pipeline below does the rest:
+
+1. **What to show:** Claude reads the commits, or looks up the functionality you describe in makable's code, and writes `changes.md`: what a user can do, where it is, the labels on the page.
+2. **The recording:** Claude writes a task for browser-use, and `python -m shorts browse` records it (signed in as the demo user). Claude looks at the recording's steps and frames, and records it again with a better task if it doesn't show the change.
+3. **The script:** Claude writes it from what's on screen when (`references/script.md`), and `python -m shorts check-script` checks each scene's stretch and pace before it comes in.
+4. **The video:** after you approve the script (filming costs about $2), `python -m shorts run --paid` films the intro and the outro (Omni, used as filmed), takes the avatar's voice from the intro, has the voice API speak the narration in it, and assembles `final.mp4`.
+
+With `--yes` it asks nothing, for GitHub Actions: `.github/workflows/make-video.yml` runs it from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription, and uploads the video. Its header lists the secrets it needs. Locally, it needs `assets/face.jpg` (a photo of you; `assets/` and `recordings/` stay out of git) and the keys in `.env` (copy `.env.example`; the environment wins over it).
 
 ## How it's built: stages that share a folder
 
-The video is made by six stages. Each is a program of its own (`python -m shorts <stage> RUN`) with its own packages, and they share nothing but the video's **run folder**: each reads the files the stages before it wrote there and writes its own, under fixed names. No stage calls or imports another, so each can run on a different machine (the voices on Colab's GPU, the rest anywhere), be swapped for another tool, or be skipped by bringing its files in (`python -m shorts import`).
+The video is made by eight stages. Each is a program of its own (`python -m shorts <stage> RUN`) with its own packages, and they share nothing but the video's **run folder**: each reads the files the stages before it wrote there and writes its own, under fixed names. No stage calls or imports another, so each can run on a different machine (the voices on Colab's GPU, the rest anywhere), be swapped for another tool, or be skipped by bringing its files in (`python -m shorts import`).
 
 | Stage | Makes (in the run folder) | From | With | Runs on |
 |---|---|---|---|---|
 | `record` | `footage/<name>.mp4` (+ `.steps.json`) | `run.json`'s `footage`: files, or pages to record | Playwright (`shorts/footage.py`) | anywhere |
-| `write-script` | `script.json` | the footage's steps (or `changes`) | Gemini (`shorts/script.py`), free tier | anywhere |
+| `write-script` | `script.json` | the footage's steps (or `changes`) | Gemini (`shorts/script.py`), free tier; or Claude writes it (`/make-video`) and it's brought in (`"script": "import"`) | anywhere |
 | `film-intro` | `intro/filmed.mp4` | the intro line, your photo | Gemini Omni Flash (`shorts/intro.py`), **about $1** | anywhere |
-| `revoice-intro` | `intro/voiced.mp4`, `intro/speech.wav` | the filmed intro, your voice sample | Demucs + Chatterbox (`shorts/voice.py`) | a GPU |
-| `speak` | `narration/01.wav`, `02.wav`, … | each scene's text, your voice sample | Chatterbox or OmniVoice | a GPU |
+| `film-outro` | `outro/filmed.mp4` | the outro line, your photo (with `"outro": "omni"`) | the same, in the intro's setting, **about $1** | anywhere |
+| `take-voice` | `voice/avatar.wav` | the filmed intro (with `"narration_voice": "intro"`) | ffmpeg: the avatar's voice, for the narration | anywhere |
+| `revoice-intro` | `intro/voiced.mp4`, `intro/speech.wav` | the filmed intro, your voice sample (with `"intro_voice": "convert"`) | Demucs + Chatterbox (`shorts/voice.py`) | a GPU |
+| `speak` | `narration/01.wav`, `02.wav`, … | each scene's text, the voice | Chatterbox or OmniVoice; or the voice API (`"narrator": "api"`) | a GPU; anywhere with the API |
 | `assemble` | `final.mp4`, `metadata.json` | all of the above, music | ffmpeg + Pillow (`shorts/compose.py`, `shorts/captions.py`) | anywhere |
 
 What the video is made from is the run's `run.json` (footage, voice sample, photo, music, language, tone, narrator and its settings; `python -m shorts new` writes it, and it's yours to edit). The contract, the names and formats every stage reads and writes, is in `shorts/run.py`.
@@ -44,6 +65,40 @@ python -m shorts run runs/crumb-and-co      # copies the footage in, then assemb
 `record_with_browser_use.ipynb` makes footage from instructions: browser-use's agent does a task described in words while Chrome's screencast is recorded in real time (`shorts/browse.py`, `shorts/signin.py`; with a drawn mouse pointer gliding to each click), with each step's goal and times, and `cut_pauses` takes out the model's thinking and the parts of its waits where nothing changes on the page, plays typing 4× as fast and zooms in on each click. browser-use pins its own `google-genai` and `numpy`, so it's not a stage the orchestrator runs: name the recording it makes in `run.json`'s `footage`, and `record` copies it in with its steps.
 
 The scripts are in English or Hindi (`--language hi`), friendly or excited like a Short (`--tone hype`). Each scene is said over its stretch of a recording, played at the speed that fits its narration, so what's said is on screen while it's said.
+
+## The voice API (`services/voice`, on Modal)
+
+With `"narrator": "api"`, `speak` sends each scene to a text-to-speech API, in a voice cloned from the voice sample (the avatar's, with `"narration_voice": "intro"`), so the narration needs no GPU where the video is made. Our API runs OmniVoice and Chatterbox on Modal's GPUs, and has the shape of ElevenLabs' API (the same paths, `xi-api-key` header and formats), so the client (`shorts/speech_api.py`) talks to either:
+
+| | Our API on Modal | ElevenLabs |
+|---|---|---|
+| `SHORTS_SPEECH_URL` | `https://<workspace>--makable-voice-web.modal.run` | `https://api.elevenlabs.io` |
+| `SHORTS_SPEECH_KEY` | the `VOICE_API_KEY` you set (below) | your ElevenLabs key |
+| run.json's `narrator_model` | `omnivoice` (the default) or `chatterbox` | `eleven_multilingual_v2`, say |
+| `narrator_options` (its `voice_settings`) | `speed=1.1` (OmniVoice), `exaggeration=0.7` (Chatterbox) | `stability=0.5`, … |
+
+The voice is cloned when the first scene is spoken, and deleted once they're all spoken. Each scene is a request of its own, so only the scenes whose text changed are spoken again. Set up our API once (with `pip install modal` and `modal setup`):
+
+```sh
+modal secret create makable-voice VOICE_API_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+modal deploy -m services.voice.app     # from the repo's root: prints the URL
+curl https://<workspace>--makable-voice-web.modal.run/health
+```
+
+Each model runs on a T4 of its own (`GPU` in `services/voice/app.py`), at most one container at a time, which stops two minutes after its last request: you pay for the GPU while it speaks, and a little while after. The first request after a while waits for the container to start and load the model; the models download once, into a Volume.
+
+## Recording from a task (`python -m shorts browse`)
+
+`python -m shorts browse RUN --name demo --task task.md --signed-in` has browser-use's agent do the task in `task.md` (plain words, what to do and show) on makable, signed in as the demo user, records it, cuts out the model's pauses (`shorts/browse.py`), and brings the tight recording into the run as the footage `demo`, with its steps. The recordings and what they were made with stay in `RUN/recordings/`. `python -m shorts frames RUN demo` makes contact sheets of its frames, labelled with their times, to see what's on screen when.
+
+The agent's model is `provider:model`, from `--model`, `SHORTS_BROWSE_MODEL` or the default `google:gemini-3.6-flash` (the Gemini API, with `GEMINI_API_KEY`). `vertex:…` is Gemini on Agent Platform, `anthropic:…` is Claude (`ANTHROPIC_API_KEY`), and `openai:…` is GPT, or any provider with OpenAI's API (`OPENAI_API_KEY`, and `OPENAI_BASE_URL` for another one's). A model that fails (429, 5xx) hands the rest of the run to `--fallback`.
+
+browser-use pins its own packages, so it lives in an environment of its own, and `browse` runs itself there when this one doesn't have it:
+
+```sh
+uv venv ~/browse-env --python 3.12 && uv pip install --python ~/browse-env -e '.[browse]'
+export SHORTS_BROWSE_PYTHON=~/browse-env/bin/python     # or in .env
+```
 
 ## Google Colab
 

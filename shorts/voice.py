@@ -2,7 +2,8 @@
 
 The intro's speech is converted (same words and timing, so the lips still match) and the narration
 is spoken by Chatterbox. Both take the voice from the same file, so they sound like one person.
-`OmniVoice` speaks the narration with OmniVoice instead, in an environment of its own.
+`OmniVoice` speaks the narration with OmniVoice instead, in an environment of its own, and `ApiVoice` has a
+text-to-speech API speak it (`speech_api`: the voice API on Modal, or ElevenLabs), with no GPU here.
 """
 
 import functools
@@ -208,6 +209,9 @@ class Voice:
         torchaudio.save(str(out), wav, self.vc.sr)
         return out
 
+    def close(self) -> None:
+        """Lets go of what it holds once the scenes are spoken (the models stay loaded, for the next Voice)."""
+
 
 class OmniVoice(Voice):
     """A Voice whose narration OmniVoice speaks, from the same voice sample; Chatterbox still converts the intro,
@@ -281,6 +285,73 @@ class OmniVoice(Voice):
         if error:
             raise RuntimeError(f"OmniVoice couldn't say {text!r}:\n{error}")
         return out
+
+
+class ApiVoice(Voice):
+    """A Voice whose narration a text-to-speech API speaks: ElevenLabs', or one with its shape, such as ours on Modal
+    (`speech_api`, set up from the environment). The voice is cloned there from the sample when the first scene is
+    spoken, and deleted by `close`, since each video's avatar voice is a new one (and ElevenLabs caps how many
+    voices an account keeps).
+
+    What it speaks is named by the model, the language, the transcript and the settings, not by the API's URL: so a
+    machine without the URL can tell what's up to date, and switching APIs means switching models anyway.
+    """
+
+    def __init__(
+        self,
+        reference: Path,
+        language: str = "en",
+        model: str = "omnivoice",
+        transcript: str | None = None,
+        pronounce: dict[str, str] | None = None,
+        api=None,
+        **settings: float | bool | str,
+    ) -> None:
+        """
+        Args:
+            reference: The voice sample: 3 to 10 seconds for OmniVoice.
+            language: What it speaks: sent as the voice's "language" label, which ElevenLabs takes too (unlike
+                `language_code`, which most of its models refuse) and our API speaks in.
+            model: The API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs.
+            transcript: What's said in the sample, for OmniVoice (None: Whisper hears it, on the API's side).
+            pronounce: Words to respell, as for Voice; the language's `PRONOUNCE` by default.
+            api: A `speech_api.SpeechAPI`; `SpeechAPI.from_environment()` when the first scene is spoken, by default.
+            settings: The API's `voice_settings`, as it takes them: OmniVoice's `speed`, ElevenLabs' `stability`.
+        """
+        super().__init__(reference, language, pronounce=pronounce)
+        self.model = model
+        self.transcript = transcript
+        self.tts_options = settings
+        self.api = api
+        self.voice_id: str | None = None
+
+    @property
+    def settings(self) -> str:
+        """The model, the language, the transcript and the settings, for naming what's spoken with them."""
+        return repr(("api", self.model, self.language, self.transcript, sorted(self.tts_options.items())))
+
+    def say(self, text: str, out: Path) -> Path:
+        """Speaks `text` in the sample's voice, through the API, and saves it as WAV."""
+        if self.api is None:
+            from .speech_api import SpeechAPI
+
+            self.api = SpeechAPI.from_environment()
+        if self.voice_id is None:
+            self.voice_id = self.api.add_voice(
+                f"makable {self.reference.stem}", self.reference, self.transcript, self.language
+            )
+        mp3 = self.api.speak(self.voice_id, self.spoken(text), self.model, settings=self.tts_options)
+        with tempfile.TemporaryDirectory() as work:
+            speech = Path(work) / "speech.mp3"
+            speech.write_bytes(mp3)
+            ffmpeg("-i", speech, "-ac", "1", out)
+        return out
+
+    def close(self) -> None:
+        """Deletes the voice from the API."""
+        if self.api is not None and self.voice_id is not None:
+            self.api.delete_voice(self.voice_id)
+            self.voice_id = None
 
 
 def mix_intro_audio(speech: Path, background: Path, out: Path, background_volume: float = 0.3) -> Path:

@@ -22,8 +22,9 @@ from string import Template
 ROOT = Path(__file__).parent
 MODULES = [
     "__init__", "media", "script", "intro", "voice", "omnivoice_worker", "footage", "captions", "compose", "run",
-    "orchestrator", "__main__", "stages/__init__", "stages/base", "stages/record", "stages/write_script",
-    "stages/film_intro", "stages/revoice_intro", "stages/speak", "stages/assemble", "stages/bring_in",
+    "speech_api", "sheet", "orchestrator", "__main__", "stages/__init__", "stages/base", "stages/record",
+    "stages/write_script", "stages/film_intro", "stages/take_voice", "stages/revoice_intro", "stages/speak",
+    "stages/assemble", "stages/bring_in",
 ]  # fmt: skip
 ENGINE_MODULES = ["__init__", "media", "script", "captions", "compose"]  # merge_intro.py's and narrate_recording.py's
 BROWSE_MODULES = ["__init__", "media", "browse", "signin"]
@@ -218,7 +219,7 @@ sys.path.insert(0, "/content")
 
 from IPython.display import Audio, Video, display
 
-from shorts.run import FILMED_INTRO, FINAL, METADATA, SCRIPT, VOICED_INTRO, Run, narration_file
+from shorts.run import FILMED_INTRO, FILMED_OUTRO, FINAL, METADATA, SCRIPT, VOICED_INTRO, Run, narration_file
 from shorts.voice import Voice
 
 run = Run(RUN)
@@ -291,6 +292,19 @@ else:
 display(Video(str(run.path(FILMED_INTRO)), embed=True, width=270))
 """),
     markdown("""
+### The outro
+
+With `OUTRO = True`, Omni also films you saying the script's `outro_line` (about $1), in the intro's setting, and the video ends on it, as filmed. A script without an `outro_line` (one written before outros) has none to film.
+"""),
+    code("""
+OUTRO = False
+
+if OUTRO:
+    shorts("new", RUN, "--outro", "omni")
+    shorts("film-outro", RUN)
+    display(Video(str(run.path(FILMED_OUTRO)), embed=True, width=270))
+"""),
+    markdown("""
 ## 5. The voices
 
 The intro's speech in your voice (with the clip's background sound under it), then each scene's narration. Only the scenes whose text, voice sample or narrator settings changed are spoken again.
@@ -347,7 +361,7 @@ You get two videos, each with its steps:
 
 - A **CPU** runtime is enough (no GPU).
 - This is a separate notebook because browser-use pins its own `google-genai` and `numpy`, and the Shorts notebook (Chatterbox, Omni) can't use those.
-- The model is Gemini on **Agent Platform (Vertex AI)**, with the same project and sign-in as the Shorts notebook. Or set `USE_VERTEX = False` and add the `GEMINI_API_KEY` secret. Each step sends the page and a screenshot (several thousand tokens), so a 10-step recording costs cents on Flash.
+- The model is `MODEL`, as provider:model: Gemini through its API (`google:…`, with the `GEMINI_API_KEY` secret), on **Agent Platform** (`vertex:…`, with the Shorts notebook's project and sign-in), Claude (`anthropic:…`, `ANTHROPIC_API_KEY`) or GPT (`openai:…`, `OPENAI_API_KEY`). Each step sends the page and a screenshot (several thousand tokens), so a 10-step recording costs cents on Flash.
 - The page has to be reachable from Colab. Section 3 records makable signed in, as a demo user with a password instead of GitHub (set up once: see the README's *Recording makable signed in*).
 """),
     markdown("""
@@ -365,16 +379,19 @@ from pathlib import Path
 
 from google.colab import auth, drive, userdata
 
-USE_VERTEX = True  # Agent Platform (Vertex AI), paid from Cloud credits; False: an AI Studio key
-PROJECT = "project-00523b00-4ba9-44e7-9e2"
-MODEL = "gemini-3.6-flash"  # ~2 s a call on Vertex; 3.8 Flash queued for 5-60 s there (Oct 2026)
-FALLBACK_MODEL = "gemini-3-flash-preview"  # used for the rest of a run when MODEL answers 429 or 5xx
+MODEL = "google:gemini-3.6-flash"  # provider:model: google (the Gemini API), vertex, anthropic or openai
+FALLBACK_MODEL = "google:gemini-3-flash-preview"  # for the rest of a run once MODEL answers 429 or 5xx
+PROJECT = "project-00523b00-4ba9-44e7-9e2"  # for vertex: Agent Platform, paid from Cloud credits
 
-os.environ["ANONYMIZED_TELEMETRY"] = "false"  # else browser-use reports usage (and syncs runs to its cloud)
-os.environ["TIMEOUT_TypeTextEvent"] = "180"  # it types a key at a time: a long prompt can take more than its 60 s
 drive.mount("/content/drive")
-if USE_VERTEX:
-    auth.authenticate_user()
+KEYS = {"google": "GEMINI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
+for spec in (MODEL, FALLBACK_MODEL):
+    provider = spec.partition(":")[0]
+    if provider == "vertex":
+        auth.authenticate_user()
+        os.environ["GOOGLE_CLOUD_PROJECT"] = PROJECT
+    elif provider in KEYS:
+        os.environ[KEYS[provider]] = userdata.get(KEYS[provider])
 
 OUT = Path("/content/drive/MyDrive/makable-shorts/recordings")
 """),
@@ -387,22 +404,12 @@ import sys
 
 sys.path.insert(0, "/content")
 
-from browser_use import ChatGoogle
 from IPython.display import Video, display
 
-from shorts.browse import cut_pauses, record_task
+from shorts.browse import chat_model, cut_pauses, record_task
 from shorts.signin import signed_in
 
-
-def gemini(model):
-    # A timeout, or a stalled request waits forever; and 2 tries, so the fallback takes over soon.
-    options = {"http_options": {"timeout": 120_000}, "max_retries": 2}
-    if USE_VERTEX:
-        return ChatGoogle(model=model, vertexai=True, project=PROJECT, location="global", **options)
-    return ChatGoogle(model=model, api_key=userdata.get("GEMINI_API_KEY"), **options)
-
-
-llm, fallback = gemini(MODEL), gemini(FALLBACK_MODEL)
+llm, fallback = chat_model(MODEL), chat_model(FALLBACK_MODEL)
 print("model:", llm.model, "| fallback:", fallback.model)
 
 

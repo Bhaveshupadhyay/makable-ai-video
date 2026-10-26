@@ -15,7 +15,8 @@ gemini = ["google-genai"]                                  # write-script, film-
 voice = ["chatterbox-tts", "demucs"]                       # revoice-intro, speak (Chatterbox): a GPU
 omnivoice = ["omnivoice==0.2.1", "transformers==5.14.1"]   # speak (OmniVoice): clashes with voice
 assemble = ["pillow"]                                      # assemble: the captions
-dev = ["pytest", "ruff"]
+speech = ["httpx"]                                         # speak (the voice API on Modal, or ElevenLabs)
+dev = ["pytest", "ruff", "fastapi", "python-multipart"]    # and services/voice's API, for its tests
 
 [project.scripts]
 shorts = "shorts.__main__:main"

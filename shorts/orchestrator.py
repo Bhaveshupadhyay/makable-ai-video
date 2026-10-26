@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .run import FINAL, PRODUCTS, Run
+from .run import FINAL, PRODUCTS, Run, Settings
 from .stages import STAGES, Import, NotReady, Stage, execute, producer, states
 from .stages.base import MISSING, TO_MAKE
 
@@ -90,9 +90,10 @@ def advice(run: Run, entry: Status) -> str:
     return f"{command} ({entry.stage.cost}; or run --paid)" if entry.stage.cost else command
 
 
-def python_for(stage: Stage) -> str:
+def python_for(stage: Stage, settings: Settings) -> str:
     """The Python that runs a stage: SHORTS_<EXTRA>_PYTHON if it's set, or this one."""
-    return os.environ.get(f"SHORTS_{stage.extra.upper()}_PYTHON", "") or sys.executable
+    extra = stage.extra_for(settings)
+    return (extra and os.environ.get(f"SHORTS_{extra.upper()}_PYTHON", "")) or sys.executable
 
 
 def missing_packages(python: str, packages: list[str]) -> list[str]:
@@ -123,7 +124,7 @@ def run_all(run: Run, *, paid: bool = False) -> bool:
         if stage.name in tried:
             print(f"{stage.name} ran, but the {entry.product} is still {entry.summary()}")
             return False
-        python = python_for(stage)
+        python = python_for(stage, run.settings())
         missing = missing_packages(python, stage.packages(run.settings()))
         if missing:
             print(f"The {entry.product}: {entry.summary()}. Next: {advice(run, entry)}")

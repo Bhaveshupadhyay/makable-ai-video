@@ -13,6 +13,8 @@ another tool).
     intro/filmed.mp4                 Omni's clip of you saying the intro line, in Omni's voice
     intro/voiced.mp4                 the same in your voice
     intro/speech.wav                 its words alone, for timing the captions (when converted here)
+    outro/filmed.mp4                 Omni's clip of you saying the outro line, used as filmed
+    voice/avatar.wav                 the intro's voice, to speak the narration in (with narration_voice "intro")
     narration/01.wav, 02.wav, ...    each scene's narration, in your voice
     final.mp4, metadata.json         the video, and what to upload it with
     .records/<product>.json          what made each of a product's files, and from what
@@ -38,6 +40,8 @@ from .script import Script
 SETTINGS = "run.json"
 SCRIPT = "script.json"
 FILMED_INTRO = "intro/filmed.mp4"
+FILMED_OUTRO = "outro/filmed.mp4"
+AVATAR_VOICE = "voice/avatar.wav"
 VOICED_INTRO = "intro/voiced.mp4"
 INTRO_SPEECH = "intro/speech.wav"
 FINAL = "final.mp4"
@@ -45,7 +49,7 @@ METADATA = "metadata.json"
 RECORDS = ".records"
 
 # What each stage makes, in the order they're made.
-PRODUCTS = ("footage", "script", "intro", "voiced-intro", "narration", "video")
+PRODUCTS = ("footage", "script", "intro", "outro", "avatar-voice", "voiced-intro", "narration", "video")
 
 
 def footage_file(name: str) -> str:
@@ -70,10 +74,16 @@ class Settings(BaseModel):
     footage: dict[str, str] = {}  # each recording, by name: a file to copy in, or a page's URL to record
     script: Literal["gemini", "import"] = "gemini"  # script.json: Gemini writes it, or you bring it in
     intro: Literal["omni", "import"] = "omni"  # intro/filmed.mp4: Gemini Omni films it (about $1), or import
+    outro: Literal["omni", "import", "none"] = "none"  # outro/filmed.mp4: the same, or the video has no outro
     # intro/voiced.mp4: Omni's speech converted to your voice, brought in, or none (the clip's voice is yours)
     intro_voice: Literal["convert", "import", "as-filmed"] = "convert"
-    narrator: Literal["chatterbox", "omnivoice", "import"] = "chatterbox"  # who speaks narration/*.wav
-    narrator_options: dict[str, float] = {}  # e.g. Chatterbox's exaggeration, or OmniVoice's speed
+    # Who speaks narration/*.wav: Chatterbox or OmniVoice here (on a GPU), a text-to-speech API (shorts.speech_api:
+    # the voice API on Modal, or ElevenLabs), or you bring it in. The narration is in the voice of the `voice`
+    # sample, or with narration_voice "intro", in the voice of the person in Omni's intro (voice/avatar.wav).
+    narrator: Literal["chatterbox", "omnivoice", "api", "import"] = "chatterbox"
+    narration_voice: Literal["sample", "intro"] = "sample"
+    narrator_model: str = "omnivoice"  # the API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs
+    narrator_options: dict[str, float | bool | str] = {}  # e.g. Chatterbox's exaggeration, OmniVoice's speed
     pronounce: dict[str, str] | None = None  # words to respell for the narrator; voice.PRONOUNCE by default
     reference_text: str | None = None  # what's said in the voice sample, for OmniVoice (None: Whisper hears it)
     face: str | None = None  # a photo of you, for Omni

@@ -13,6 +13,10 @@ time the model spent thinking, and the parts of its waits where nothing changes.
 Headless Chrome draws no mouse pointer, so `Cursor` draws one into the page and glides it to each
 element before the agent clicks or types into it, in place of browser-use's highlight box.
 
+The model that drives it is any browser-use takes, named "provider:model" (`chat_model`): Gemini through its
+API ("google:gemini-3.6-flash", the default) or Agent Platform ("vertex:..."), Claude ("anthropic:..."), or
+GPT and anything else with OpenAI's API ("openai:...", with OPENAI_BASE_URL for another provider's).
+
 browser-use pins its own google-genai and numpy, so it runs in its own notebook (or virtualenv),
 not the one with Chatterbox.
 """
@@ -31,6 +35,65 @@ from typing import Any
 from .media import changes, ffmpeg, frame_size
 
 FPS = 30
+MODEL = "google:gemini-3.6-flash"  # ~2 s a call; 3.8 Flash queued for 5-60 s on Vertex (Oct 2026)
+FALLBACK = "google:gemini-3-flash-preview"  # for the rest of a run once MODEL answers 429 or 5xx
+
+# browser-use reads these when it's imported: no usage reports (it would also sync runs to its cloud), and time
+# to type a long prompt a key at a time (more than its 60 s).
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+os.environ.setdefault("TIMEOUT_TypeTextEvent", "180")
+
+
+def _key(name: str) -> str:
+    if not os.environ.get(name):
+        raise ValueError(f"Set {name}: the model's key (in .env, or the environment)")
+    return os.environ[name]
+
+
+def _google(model: str, timeout: float, retries: int) -> Any:
+    from browser_use import ChatGoogle
+
+    options = {"http_options": {"timeout": int(timeout * 1000)}, "max_retries": retries}
+    return ChatGoogle(model=model, api_key=_key("GEMINI_API_KEY"), **options)
+
+
+def _vertex(model: str, timeout: float, retries: int) -> Any:
+    from browser_use import ChatGoogle
+
+    where = {"project": _key("GOOGLE_CLOUD_PROJECT"), "location": os.environ.get("GOOGLE_CLOUD_LOCATION") or "global"}
+    options = {"http_options": {"timeout": int(timeout * 1000)}, "max_retries": retries}
+    return ChatGoogle(model=model, vertexai=True, **where, **options)
+
+
+def _anthropic(model: str, timeout: float, retries: int) -> Any:
+    from browser_use import ChatAnthropic
+
+    return ChatAnthropic(model=model, api_key=_key("ANTHROPIC_API_KEY"), timeout=timeout, max_retries=retries)
+
+
+def _openai(model: str, timeout: float, retries: int) -> Any:
+    from browser_use import ChatOpenAI
+
+    where = os.environ.get("OPENAI_BASE_URL") or None  # another provider with OpenAI's API, such as OpenRouter
+    return ChatOpenAI(model=model, api_key=_key("OPENAI_API_KEY"), base_url=where, timeout=timeout, max_retries=retries)
+
+
+# Each provider's chat model, from its name, a timeout (seconds) and how many tries a request gets.
+CHAT_MODELS = {"google": _google, "vertex": _vertex, "anthropic": _anthropic, "openai": _openai}
+
+
+def chat_model(spec: str, *, timeout: float = 120.0, retries: int = 2) -> Any:
+    """browser-use's chat model for `spec`, "provider:model", such as "google:gemini-3.6-flash".
+
+    Each request has a `timeout` (else a stalled one waits forever), and `retries` tries, so a fallback model
+    takes over soon when this one is out of capacity. Keys come from the environment: GEMINI_API_KEY,
+    GOOGLE_CLOUD_PROJECT (and Google's sign-in) for Vertex, ANTHROPIC_API_KEY, OPENAI_API_KEY.
+    """
+    provider, _, model = spec.partition(":")
+    if provider not in CHAT_MODELS or not model:
+        raise ValueError(f"No model {spec!r}: provider:model, with provider one of {', '.join(CHAT_MODELS)}")
+    return CHAT_MODELS[provider](model, timeout, retries)
+
 
 # The pointer and the ripple of a click, added to every page of the tab. They're in a shadow root, so
 # the page's CSS can't restyle them; clicks go through them (pointer-events: none); and browser-use

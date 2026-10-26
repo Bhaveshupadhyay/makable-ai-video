@@ -1,9 +1,9 @@
-"""The intro: Gemini Omni Flash films you saying the hook, from a photo of you.
+"""The intro and the outro: Gemini Omni Flash films you saying the hook, and the sign-off, from a photo of you.
 
 About $0.10 a second at 720p (about $1 a clip). Through Agent Platform (Vertex AI) it's paid from
 Google Cloud credits (the Free Trial's, Google AI Pro's) with no prepaid balance; the Gemini API
 (AI Studio) only takes those credits while a prepaid balance is above $0. The voice in the clip is
-Omni's; `voice.py` turns it into yours.
+Omni's: the video uses it as it is, or `voice.py` turns it into yours.
 """
 
 import base64
@@ -22,22 +22,32 @@ def video_model(client: Any) -> str:
     return VERTEX_VIDEO_MODEL if client.vertexai else VIDEO_MODEL
 
 
-def intro_prompt(script: Script) -> str:
+def avatar_prompt(line: str, setting: str) -> str:
+    """What Omni is asked to film: you, in `setting`, saying `line`."""
     return (
         "Vertical selfie-style video of the person in the photo talking straight to the camera. "
-        f"{script.intro_setting} "
-        f'They say: "{script.intro_line}" '
+        f"{setting} "
+        f'They say: "{line}" '
         "Natural, friendly delivery. Quiet room, no music. No captions or text on screen."
     )
 
 
-def film_intro(client: Any, script: Script, face: Path, out: Path, *, model: str | None = None) -> Path:
-    """Generates the intro clip (9:16, 720p, with Omni's own voice) and saves it to `out`.
+def intro_prompt(script: Script) -> str:
+    return avatar_prompt(script.intro_line, script.intro_setting)
+
+
+def outro_prompt(script: Script) -> str:
+    """The outro, in the intro's setting unless the script gives it one: the two look like one shoot."""
+    return avatar_prompt(script.outro_line, script.outro_setting or script.intro_setting)
+
+
+def film(client: Any, prompt: str, face: Path, out: Path, *, model: str | None = None) -> Path:
+    """Generates a clip of you (9:16, 720p, with Omni's own voice) and saves it to `out`.
 
     Args:
         client: A `google.genai.Client` on a project with billing (Omni has no free tier), either
             `genai.Client(enterprise=True, project=..., location="global")` or a Gemini API key's.
-        script: The script; its `intro_line` and `intro_setting` make the prompt.
+        prompt: What to film: `intro_prompt(script)` or `outro_prompt(script)`.
         face: A photo of you, face clearly visible.
         out: Where to save the MP4.
         model: The Omni model; by default the one for the client's backend (`video_model`).
@@ -53,7 +63,7 @@ def film_intro(client: Any, script: Script, face: Path, out: Path, *, model: str
                 "data": base64.b64encode(face.read_bytes()).decode(),
                 "mime_type": mimetypes.guess_type(face.name)[0] or "image/jpeg",
             },
-            {"type": "text", "text": intro_prompt(script)},
+            {"type": "text", "text": prompt},
         ],
         response_format={"type": "video", "aspect_ratio": "9:16", "resolution": "720p"},
         timeout=600,

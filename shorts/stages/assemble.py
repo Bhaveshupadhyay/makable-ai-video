@@ -1,5 +1,6 @@
 """assemble: final.mp4 and metadata.json. The intro in your voice, then each scene's stretch of its recording
-while its narration plays (sped up or slowed down to fit it), with captions and music, at -14 LUFS.
+while its narration plays (sped up or slowed down to fit it), then the outro as filmed, if run.json wants one,
+with captions and music, at -14 LUFS.
 
 A scene without a stretch (a script written from what changed, not from steps) plays its recording on from
 where the scene before on it stopped. Needs only ffmpeg, and Pillow for the captions.
@@ -13,6 +14,7 @@ from ..compose import GAP, TAIL, Part, compose, even, whole_frames
 from ..media import duration, speech_span
 from ..run import (
     FILMED_INTRO,
+    FILMED_OUTRO,
     FINAL,
     INTRO_SPEECH,
     METADATA,
@@ -37,9 +39,10 @@ class Assemble(Stage):
     where = "pip install 'makable-shorts[assemble]' (Pillow), with ffmpeg"
 
     def requires(self, settings: Settings) -> tuple[str, ...]:
+        needs = self.needs + (("outro",) if settings.outro != "none" else ())
         if settings.intro_voice == "as-filmed":
-            return tuple("intro" if need == "voiced-intro" else need for need in self.needs)
-        return self.needs
+            return tuple("intro" if need == "voiced-intro" else need for need in needs)
+        return needs
 
     def packages(self, settings: Settings) -> list[str]:
         return ["PIL"] if settings.captions else []
@@ -53,6 +56,8 @@ class Assemble(Stage):
             files[f"the footage {name!r}"] = run.path(footage_file(name))
         for index in range(len(script.scenes)):
             files[f"scene {index + 1}'s narration"] = run.path(narration_file(index))
+        if settings.outro != "none":
+            files["the outro"] = run.path(FILMED_OUTRO)
         if settings.music:
             files["the music"] = run.resolve(settings.music)
         return files
@@ -87,6 +92,9 @@ class Assemble(Stage):
             stretch = f"{part.start:5.1f}-{part.end:5.1f} s" if part.end is not None else f"from {part.start:.1f} s"
             print(f"Scene {index + 1}: {scene.footage} {stretch} at {part.speed:.2f}x, {length:.2f} s: {scene.text}")
             parts.append(part)
+        if "the outro" in files:
+            outro = files["the outro"]
+            parts.append(Part(outro, whole_frames(duration(outro)), outro, script.outro_line, speech_span(outro)))
         return parts
 
     def make(self, run: Run, paths: list[str]) -> None:
