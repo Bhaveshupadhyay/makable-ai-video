@@ -21,7 +21,7 @@ from pathlib import Path
 
 import modal
 
-GPU = "T4"  # what both models ran on in Colab; "L4" is faster and costs more
+GPU = "T4"  # enough for both models; "L4" is faster and costs more
 IDLE = 120  # seconds a GPU container waits for the next request before it stops
 MODELS = "/models"  # Hugging Face's cache, on the Volume
 VOICES = "/voices"
@@ -32,14 +32,14 @@ voices = modal.Volume.from_name("makable-voices", create_if_missing=True)
 
 
 def image(*packages: str, torch: tuple[str, ...] = ()) -> modal.Image:
-    """Debian with ffmpeg, these packages (torch's first, from its CUDA index), and the shorts package."""
+    """Debian with ffmpeg, these packages (torch's first, from its CUDA index), and this code (models.py)."""
     base = modal.Image.debian_slim(python_version="3.12").apt_install("ffmpeg")
     if torch:
         base = base.uv_pip_install(*torch, index_url="https://download.pytorch.org/whl/cu126")
-    return base.uv_pip_install(*packages).env({"HF_HOME": MODELS}).add_local_python_source("shorts")
+    return base.uv_pip_install(*packages).env({"HF_HOME": MODELS}).add_local_python_source("services")
 
 
-# The versions shorts.voice.install_omnivoice installs: OmniVoice uses transformers' internals.
+# OmniVoice uses transformers' internals: the transformers of its release, not whatever came out since.
 omnivoice_image = image(
     "omnivoice==0.2.1", "transformers==5.14.1", "soundfile", torch=("torch==2.8.0", "torchaudio==2.8.0")
 )
@@ -66,38 +66,33 @@ def speak_with(say, sample: bytes) -> bytes:
 class OmniVoiceSpeaker:
     @modal.enter()
     def load(self) -> None:
-        from shorts.omnivoice_worker import Speaker
+        from services.voice.models import OmniVoiceModel
 
-        self.speaker = Speaker("cuda")
+        self.model = OmniVoiceModel("cuda")
         models.commit()  # what it downloaded, for the containers after it
 
     @modal.method()
     def say(self, text: str, sample: bytes, transcript: str | None, language: str, settings: dict) -> bytes:
-        def say(reference: Path, out: Path) -> None:
-            request = {"text": text, "reference": str(reference), "reference_text": transcript}
-            self.speaker.say({**request, "language": language, "options": settings, "out": str(out)})
-
-        return speak_with(say, sample)
+        return speak_with(
+            lambda reference, out: self.model.say(text, reference, transcript, language, settings, out), sample
+        )
 
 
 @app.cls(image=chatterbox_image, **gpu)
 class ChatterboxSpeaker:
     @modal.enter()
     def load(self) -> None:
-        from shorts.voice import _tts
+        from services.voice.models import ChatterboxModel
 
-        _tts("cuda", False)  # the English model; the multilingual one loads when a scene in another language comes
+        self.model = ChatterboxModel("cuda")
+        self.model.model(multilingual=False)  # English now; the multilingual model loads for the first other language
         models.commit()
 
     @modal.method()
     def say(self, text: str, sample: bytes, transcript: str | None, language: str, settings: dict) -> bytes:
-        from shorts.voice import Voice
-
-        def say(reference: Path, out: Path) -> None:
-            # The client respells words already (shorts.voice.PRONOUNCE), so nothing is respelled twice.
-            Voice(reference, language, device="cuda", pronounce={}, **settings).say(text, out)
-
-        return speak_with(say, sample)
+        return speak_with(
+            lambda reference, out: self.model.say(text, reference, transcript, language, settings, out), sample
+        )
 
 
 class Remote:

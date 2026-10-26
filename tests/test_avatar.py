@@ -80,7 +80,6 @@ def test_the_video_ends_on_the_outro(run: Run, tmp_path: Path) -> None:
     written = script((0, 4), (6, 9))
     written.outro_line = "Try it today."
     (tmp_path / "script.json").write_text(written.model_dump_json())
-    run.save_settings(run.settings().model_copy(update={"intro_voice": "as-filmed"}))
     bring_in(run, "footage", [video(tmp_path / "recording.mp4", 12)], name="demo")
     bring_in(run, "script", [tmp_path / "script.json"])
     bring_in(run, "intro", [video(tmp_path / "intro.mp4", 3, tone=330)])

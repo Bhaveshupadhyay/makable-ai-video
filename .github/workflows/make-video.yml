@@ -69,7 +69,7 @@ jobs:
       - name: The pipeline's environment, and browser-use's own
         run: |
           uv venv --python 3.12 .venv
-          uv pip install --python .venv -e '.[gemini,record,assemble,speech]'
+          uv pip install --python .venv -e '.[gemini,assemble,speech]'
           uv venv --python 3.12 ~/browse-env
           uv pip install --python ~/browse-env -e '.[browse]'
           uvx playwright install --with-deps chromium

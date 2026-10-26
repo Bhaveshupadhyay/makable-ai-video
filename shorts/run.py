@@ -3,19 +3,17 @@
 Each stage is a program of its own (`python -m shorts <stage> RUN`), with its own packages, that reads files
 from a video's run folder and writes others there, under these names and in these formats. No stage calls or
 imports another, so anything that writes a file under its name can stand in for the stage that makes it:
-`python -m shorts import` brings in files made elsewhere (a clip from the Gemini app, scenes spoken by
-another tool).
+`python -m shorts import` brings in files made elsewhere (the script Claude writes, a clip from the Gemini app,
+scenes spoken by another tool).
 
     run.json                         the settings: what the video is made from (yours to edit)
     footage/<name>.mp4               each recording the scenes are said over, and
     footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known
-    script.json                      what's said (`script.Script`): the intro line, and each scene over a recording
-    intro/filmed.mp4                 Omni's clip of you saying the intro line, in Omni's voice
-    intro/voiced.mp4                 the same in your voice
-    intro/speech.wav                 its words alone, for timing the captions (when converted here)
-    outro/filmed.mp4                 Omni's clip of you saying the outro line, used as filmed
+    script.json                      what's said (`script.Script`): the intro and outro lines, and each scene
+    intro/filmed.mp4                 Omni's clip of you saying the intro line, used as filmed
+    outro/filmed.mp4                 and the outro line
     voice/avatar.wav                 the intro's voice, to speak the narration in (with narration_voice "intro")
-    narration/01.wav, 02.wav, ...    each scene's narration, in your voice
+    narration/01.wav, 02.wav, ...    each scene's narration
     final.mp4, metadata.json         the video, and what to upload it with
     .records/<product>.json          what made each of a product's files, and from what
 
@@ -42,14 +40,12 @@ SCRIPT = "script.json"
 FILMED_INTRO = "intro/filmed.mp4"
 FILMED_OUTRO = "outro/filmed.mp4"
 AVATAR_VOICE = "voice/avatar.wav"
-VOICED_INTRO = "intro/voiced.mp4"
-INTRO_SPEECH = "intro/speech.wav"
 FINAL = "final.mp4"
 METADATA = "metadata.json"
 RECORDS = ".records"
 
 # What each stage makes, in the order they're made.
-PRODUCTS = ("footage", "script", "intro", "outro", "avatar-voice", "voiced-intro", "narration", "video")
+PRODUCTS = ("footage", "script", "intro", "outro", "avatar-voice", "narration", "video")
 
 
 def footage_file(name: str) -> str:
@@ -68,26 +64,22 @@ def narration_file(index: int) -> str:
 class Settings(BaseModel):
     """What a video is made from (run.json). Paths are relative to the run folder, or absolute."""
 
-    language: str = "en"  # what the script is written and spoken in: a code in script.LANGUAGES
-    tone: str = "friendly"  # how the script sounds: a name in script.TONES
-    changes: str = ""  # what changed, for a script written without a recording's steps
-    footage: dict[str, str] = {}  # each recording, by name: a file to copy in, or a page's URL to record
-    script: Literal["gemini", "import"] = "gemini"  # script.json: Gemini writes it, or you bring it in
+    language: str = "en"  # what the script is written and spoken in: one of script.LANGUAGES
+    tone: str = "friendly"  # how the script sounds: one of script.TONES
+    footage: dict[str, str] = {}  # each recording, by name: a file to copy in (browse brings its recordings in)
     intro: Literal["omni", "import"] = "omni"  # intro/filmed.mp4: Gemini Omni films it (about $1), or import
-    outro: Literal["omni", "import", "none"] = "none"  # outro/filmed.mp4: the same, or the video has no outro
-    # intro/voiced.mp4: Omni's speech converted to your voice, brought in, or none (the clip's voice is yours)
-    intro_voice: Literal["convert", "import", "as-filmed"] = "convert"
-    # Who speaks narration/*.wav: Chatterbox or OmniVoice here (on a GPU), a text-to-speech API (shorts.speech_api:
-    # the voice API on Modal, or ElevenLabs), or you bring it in. The narration is in the voice of the `voice`
-    # sample, or with narration_voice "intro", in the voice of the person in Omni's intro (voice/avatar.wav).
-    narrator: Literal["chatterbox", "omnivoice", "api", "import"] = "chatterbox"
-    narration_voice: Literal["sample", "intro"] = "sample"
+    outro: Literal["omni", "import", "none"] = "omni"  # outro/filmed.mp4: the same, or the video has no outro
+    # Who speaks narration/*.wav: a text-to-speech API (shorts.speech_api: the voice API on Modal, or ElevenLabs),
+    # or you bring it in. It's in the voice of the person in Omni's intro (voice/avatar.wav), or of the `voice`
+    # sample, with narration_voice "sample".
+    narrator: Literal["api", "import"] = "api"
+    narration_voice: Literal["intro", "sample"] = "intro"
     narrator_model: str = "omnivoice"  # the API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs
-    narrator_options: dict[str, float | bool | str] = {}  # e.g. Chatterbox's exaggeration, OmniVoice's speed
+    narrator_options: dict[str, float | bool | str] = {}  # the API's voice_settings: OmniVoice's speed, say
     pronounce: dict[str, str] | None = None  # words to respell for the narrator; voice.PRONOUNCE by default
     reference_text: str | None = None  # what's said in the voice sample, for OmniVoice (None: Whisper hears it)
     face: str | None = None  # a photo of you, for Omni
-    voice: str | None = None  # a sample of you talking: 10-20 s for Chatterbox, 3-10 s for OmniVoice
+    voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
     captions: bool = True
@@ -96,7 +88,7 @@ class Settings(BaseModel):
 class Made(BaseModel):
     """A file a stage wrote."""
 
-    by: str  # the stage, as it calls itself: "speak (chatterbox)", "import"
+    by: str  # the stage, as it calls itself: "speak (omnivoice)", "import"
     source: str  # a fingerprint of what it was made from
     sha256: str  # of the file as it was written
 
@@ -157,8 +149,7 @@ class Run:
         return (self.folder / Path(value).expanduser()).resolve()
 
     def relative(self, path: Path) -> str:
-        """`path` as the settings keep it: relative to the run folder, so the folder works from Drive in Colab
-        and from a copy of it elsewhere."""
+        """`path` as the settings keep it: relative to the run folder, so a copy of the folder elsewhere works."""
         return os.path.relpath(Path(path).expanduser().resolve(), self.folder.resolve())
 
     def settings(self) -> Settings:

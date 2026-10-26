@@ -47,12 +47,13 @@ def test_the_video_from_files_made_elsewhere(run: Run, tmp_path: Path) -> None:
     (tmp_path / "script.json").write_text(script((0, 4), (6, 9)).model_dump_json())
     bring_in(run, "footage", [recording], name="demo")
     bring_in(run, "script", [tmp_path / "script.json"])
-    bring_in(run, "voiced-intro", [video(tmp_path / "intro.mp4", 3, tone=330)])
+    bring_in(run, "intro", [video(tmp_path / "intro.mp4", 3, tone=330)])
     clips = [speech(tmp_path / "download.wav", 1.5), speech(tmp_path / "download (1).wav", 2.5, 550)]
     bring_in(run, "narration", list(reversed(clips)))  # put back in order by their numbers
 
     entries = {entry.product: entry for entry in status(run)}
-    assert not entries["intro"].needed  # the voiced intro came in: Omni's clip isn't needed
+    assert not entries["avatar-voice"].needed  # the narration came in: the avatar's voice isn't needed
+    assert not entries["outro"].needed  # this run has none
     assert entries["video"].summary() == "2 missing"
 
     assert run_all(run)

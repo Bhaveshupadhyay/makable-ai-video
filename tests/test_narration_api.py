@@ -47,12 +47,7 @@ def avatar_run(run: Run, tmp_path: Path) -> Run:
     written.scenes[1].text = "And this scene says a few more words."
     written.outro_line = "Try it today."
     (tmp_path / "script.json").write_text(written.model_dump_json())
-    settings = {
-        "intro_voice": "as-filmed",
-        "narrator": "api",
-        "narration_voice": "intro",
-        "narrator_options": {"speed": 1.1},
-    }
+    settings = {"narrator": "api", "narration_voice": "intro", "narrator_options": {"speed": 1.1}}
     run.save_settings(run.settings().model_copy(update=settings))
     bring_in(run, "footage", [video(tmp_path / "recording.mp4", 12)], name="demo")
     bring_in(run, "script", [tmp_path / "script.json"])
@@ -66,7 +61,6 @@ def test_the_narration_is_spoken_in_the_avatars_voice(avatar_run: Run, tone: Ton
     run = avatar_run
     entries = {entry.product: entry for entry in status(run)}
     assert entries["narration"].waiting == "waiting for the avatar-voice"
-    assert not entries["voiced-intro"].needed  # the intro is used as filmed
 
     run_stage(run, "take-voice")
     assert duration(run.path(AVATAR_VOICE)) == pytest.approx(3, abs=0.1)  # the intro's sound

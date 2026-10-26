@@ -1,14 +1,13 @@
 """import: files made elsewhere, brought in under their names in the contract, in place of a stage's.
 
     python -m shorts import RUN footage --name makable recordings/makable-tight.mp4   (and its .steps.json)
-    python -m shorts import RUN script script.json
-    python -m shorts import RUN intro gemini_generated_video.mp4          Omni's clip, in Omni's voice
+    python -m shorts import RUN script drafts/script.json                 the script Claude wrote
+    python -m shorts import RUN intro gemini_generated_video.mp4          Omni's clip, filmed elsewhere
     python -m shorts import RUN outro gemini_generated_outro.mp4          and the outro's
-    python -m shorts import RUN voiced-intro intro-in-your-voice.mp4      the intro in your voice already
     python -m shorts import RUN narration download*.wav                   one audio file per scene
 
-Bringing a product in sets run.json so that it's yours from then on (`narrator: "import"`, say), and the
-pipeline asks for it again instead of making it. Imported narration is out of date when its scene's text
+The script is always brought in. Bringing in another product sets run.json so that it's yours from then on
+(`narrator: "import"`, say), and the pipeline asks for it again instead of making it. Imported narration is out of date when its scene's text
 changes, as speech for it would be.
 
 Narration files are put in order by the numbers in their names (download.wav, download (1).wav, ...,
@@ -30,7 +29,6 @@ from ..run import (
     FILMED_INTRO,
     FILMED_OUTRO,
     SCRIPT,
-    VOICED_INTRO,
     Run,
     Settings,
     fingerprint,
@@ -41,9 +39,10 @@ from ..run import (
 )
 from ..script import Script, check, recording_length
 from .base import NotReady, Stage, execute, read_script
-from .record import RecordFootage, is_url
+from .record import RecordFootage
 
-SINGLE = {"script": SCRIPT, "intro": FILMED_INTRO, "outro": FILMED_OUTRO, "voiced-intro": VOICED_INTRO}
+SINGLE = {"script": SCRIPT, "intro": FILMED_INTRO, "outro": FILMED_OUTRO}
+SETTING = {"intro": "intro", "outro": "outro", "narration": "narrator"}  # what run.json calls each product's maker
 PRODUCTS = ("footage", *SINGLE, "narration")
 
 
@@ -111,7 +110,7 @@ def footage_lengths(run: Run) -> tuple[dict[str, float | None], set[str]]:
     timed: set[str] = set()
     for name, source in run.settings().footage.items():
         video, steps = run.path(footage_file(name)), run.path(steps_file(name))
-        if not video.exists() and not is_url(source):
+        if not video.exists():
             video = run.resolve(source)
             steps = video.with_suffix(".steps.json")  # where browse.record_task saves them
         if steps.exists():
@@ -159,7 +158,7 @@ def bring_in(run: Run, product: str, files: list[Path], *, name: str | None = No
             print(f"Warning: {warning}")
         if errors:
             raise ValueError("the script can't be used as it is:\n" + "\n".join(f"  {error}" for error in errors))
-    setting = {"voiced-intro": "intro_voice", "narration": "narrator"}.get(product, product)
-    setattr(settings, setting, "import")
-    run.save_settings(settings)
+    if product in SETTING:
+        setattr(settings, SETTING[product], "import")
+        run.save_settings(settings)
     execute(run, Import(product, files), force=True)

@@ -28,7 +28,7 @@ The finished video has three parts:
 The intro and outro are used as Omni filmed them.
 
 Run the pipeline with `.venv/bin/python -m shorts …`. If `.venv` is missing, set it up once:
-`uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,record,assemble,speech]'`.
+`uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech]'`.
 Keys come from `.env` (see `.env.example`) or the environment. Never print their values.
 
 **Interactive or not.** With `--yes` (GitHub Actions), never ask anything: decide, and say what you
@@ -50,7 +50,7 @@ The request gives commits, a prompt, or both:
 - **Neither:** ask for commits or a description (interactive), or stop and say what's missing (`--yes`).
 
 Pick the run's folder, `runs/<yyyy-mm-dd>-<slug>`, where the slug is a few words of what the video is about.
-Write `changes.md` in it (step 2 reads it into the run's settings), with:
+Write `changes.md` in it, with:
 - what a user can now do, in a sentence;
 - where it is in the UI, with the labels exactly as shown;
 - the steps that show it;
@@ -62,10 +62,11 @@ If a prompt is too vague to pick one flow, ask (interactive), or pick the most d
 ## 2. The run
 
 ```sh
-.venv/bin/python -m shorts new runs/<yyyy-mm-dd>-<slug> --changes runs/<…>/changes.md \
-  --script import --outro omni --intro-voice as-filmed --narration-voice intro --narrator api \
-  --face assets/face.jpg [--music assets/music.mp3] [--tone hype] [--language hi]
+.venv/bin/python -m shorts new runs/<yyyy-mm-dd>-<slug> --face assets/face.jpg [--music assets/music.mp3] \
+  [--tone hype] [--language hi]
 ```
+
+The defaults are this flow's: an outro, and narration in the avatar's voice through the voice API.
 
 - `--music` only if that file exists.
 - `--tone` and `--language` from the request (friendly and English by default).

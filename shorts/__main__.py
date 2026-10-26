@@ -1,24 +1,22 @@
 """The command line: set a video up, see where it is, and make it, a stage at a time or all that's left.
 
-    python -m shorts new RUN --footage makable=recordings/makable-tight.mp4 --voice assets/voice.wav \\
-        --face assets/face.jpg [--music assets/music.mp3] [--language hi] [--tone hype] [--narrator omnivoice] \\
-        [--outro omni]
+    python -m shorts new RUN --face assets/face.jpg [--music assets/music.mp3] [--language hi] [--tone hype]
+    python -m shorts browse RUN --name NAME --task FILE [--signed-in] [--model PROVIDER:MODEL]   footage
+                                               recorded from a task in plain words (browser-use)
+    python -m shorts import RUN PRODUCT FILE ...   files made elsewhere: the script (always), footage
+                                               (--name NAME), intro, outro, narration
     python -m shorts status RUN
     python -m shorts run RUN [--paid]          every stage that's due, each in a process of its own
-    python -m shorts <stage> RUN [--force]     one stage, here: record, write-script, film-intro,
-                                               film-outro, revoice-intro, speak, assemble
-    python -m shorts import RUN PRODUCT FILE ...   files made elsewhere: footage (--name NAME), script,
-                                               intro, outro, voiced-intro, narration
+    python -m shorts <stage> RUN [--force]     one stage, here: record, film-intro, film-outro, take-voice,
+                                               speak, assemble
     python -m shorts check-script RUN [FILE]   what each scene says over which stretch, and what's wrong
     python -m shorts frames RUN NAME [--every SECONDS | --at SECONDS ...]   a recording's frames, labelled
                                                with their times, in contact sheets (RUN/frames/NAME-1.png, ...)
-    python -m shorts browse RUN --name NAME --task FILE [--signed-in] [--model PROVIDER:MODEL]   footage
-                                               recorded from a task in plain words (browser-use)
 
 Keys and settings come from the environment, or from a .env file next to shorts/ (KEY=value lines), for what
 the environment doesn't set: GEMINI_API_KEY, SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY, ... (see .env.example).
 
-The Gemini client is set up from the environment. For Agent Platform (Vertex AI), signed in with
+Omni's Gemini client (film-intro, film-outro) is set up from the environment. For Agent Platform (Vertex AI), with
 `gcloud auth application-default login` (or, in GitHub Actions, google-github-actions/auth):
 
     GOOGLE_GENAI_USE_ENTERPRISE=true GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
@@ -40,7 +38,6 @@ from .script import LANGUAGES, TONES, Script, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
-from .stages.record import is_url
 
 
 def size(text: str) -> tuple[int, int]:
@@ -81,11 +78,9 @@ def new(run: Run, args: argparse.Namespace) -> None:
     for key in ("face", "voice", "music"):  # "" for none
         if key in updates:
             updates[key] = run.relative(Path(updates[key])) if updates[key] else None
-    if "changes" in updates:
-        updates["changes"] = Path(updates["changes"]).read_text()
     for item in args.footage_items or []:
         name, _, source = item.partition("=")
-        settings.footage[name] = source if is_url(source) else run.relative(Path(source))
+        settings.footage[name] = run.relative(Path(source))
     if args.narrator_option:
         updates["narrator_options"] = {**settings.narrator_options, **dict(args.narrator_option)}
     if args.respellings:
@@ -172,19 +167,16 @@ def main() -> None:
 
     setup = commands.add_parser("new", help="write run.json, or change settings in it")
     setup.add_argument("run", type=Path)
-    setup.add_argument("--footage", dest="footage_items", action="append", metavar="NAME=FILE_OR_URL")
-    setup.add_argument("--changes", type=Path, help="a text file: what changed, for a script without steps")
+    setup.add_argument("--footage", dest="footage_items", action="append", metavar="NAME=FILE")
     setup.add_argument("--face", help="a photo of you, for Omni")
-    setup.add_argument("--voice", help="a sample of you talking")
+    setup.add_argument("--voice", help="a sample of you talking, for --narration-voice sample")
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
-    setup.add_argument("--language", choices=sorted(LANGUAGES))
-    setup.add_argument("--tone", choices=list(TONES))
-    setup.add_argument("--script", choices=["gemini", "import"])
+    setup.add_argument("--language", choices=LANGUAGES)
+    setup.add_argument("--tone", choices=TONES)
     setup.add_argument("--intro", choices=["omni", "import"])
     setup.add_argument("--outro", choices=["omni", "import", "none"], help="an outro after the recording, or none")
-    setup.add_argument("--intro-voice", choices=["convert", "import", "as-filmed"])
-    setup.add_argument("--narrator", choices=["chatterbox", "omnivoice", "api", "import"])
-    setup.add_argument("--narration-voice", choices=["sample", "intro"], help="the voice sample's, or the intro's")
+    setup.add_argument("--narrator", choices=["api", "import"])
+    setup.add_argument("--narration-voice", choices=["intro", "sample"], help="the intro's voice, or --voice's")
     setup.add_argument("--narrator-model", help="the voice API's model: \"omnivoice\", or ElevenLabs' own")
     setup.add_argument("--narrator-option", type=option, action="append", metavar="KEY=VALUE")
     setup.add_argument("--pronounce", dest="respellings", type=respelling, action="append", metavar="WORD=SAID")

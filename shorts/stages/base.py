@@ -3,7 +3,7 @@
 A stage plans before it makes. `plan` names its product's files (by their names in the contract, `shorts.run`)
 and fingerprints what each would be made from now, without loading anything heavy, so every stage's status
 can be worked out on any machine. `make` writes the files it's given. Stage modules import their heavy
-packages (torch, Chatterbox, google-genai, Playwright) inside `make` only.
+packages (google-genai, httpx, Pillow) inside `make` only.
 """
 
 from pathlib import Path
@@ -41,10 +41,6 @@ class Stage:
     def requires(self, settings: Settings) -> tuple[str, ...]:
         """The products it reads, with these settings."""
         return self.needs
-
-    def extra_for(self, settings: Settings) -> str:
-        """Its packages, with these settings: `extra`, unless the settings pick another way of making it."""
-        return self.extra
 
     def packages(self, settings: Settings) -> list[str]:
         """The modules it imports, to check whether a Python can run it."""

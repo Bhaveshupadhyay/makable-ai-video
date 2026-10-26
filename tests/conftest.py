@@ -44,5 +44,5 @@ def script(*stretches: tuple[float, float], footage: str = "demo") -> Script:
 @pytest.fixture
 def run(tmp_path: Path) -> Run:
     run = Run(tmp_path / "runs" / "demo")
-    run.save_settings(Settings(size=(180, 320), captions=False))
+    run.save_settings(Settings(size=(180, 320), captions=False, outro="none"))
     return run

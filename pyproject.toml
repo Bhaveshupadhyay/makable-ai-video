@@ -4,16 +4,13 @@ version = "0.2.0"
 description = "1-minute videos about makable, made by stages that share a run folder"
 readme = "README.md"
 requires-python = ">=3.12"
-# The orchestrator, the run folder and the import stage. Each other stage's packages are an extra of its own,
-# so a machine (or a Colab notebook) installs only what the stages it runs need; ffmpeg comes from the system.
+# The orchestrator, the run folder, record, take-voice and the import stage. Each other stage's packages are an
+# extra of its own, so a machine installs only what the stages it runs need; ffmpeg comes from the system.
 dependencies = ["pydantic>=2"]
 
 [project.optional-dependencies]
-record = ["playwright"]                                    # record: pages of the app
-browse = ["browser-use==0.13.11"]                          # record_with_browser_use.ipynb: its own environment
-gemini = ["google-genai"]                                  # write-script, film-intro
-voice = ["chatterbox-tts", "demucs"]                       # revoice-intro, speak (Chatterbox): a GPU
-omnivoice = ["omnivoice==0.2.1", "transformers==5.14.1"]   # speak (OmniVoice): clashes with voice
+browse = ["browser-use==0.13.11"]                          # python -m shorts browse: in an environment of its own
+gemini = ["google-genai"]                                  # film-intro, film-outro (Gemini Omni)
 assemble = ["pillow"]                                      # assemble: the captions
 speech = ["httpx"]                                         # speak (the voice API on Modal, or ElevenLabs)
 dev = ["pytest", "ruff", "fastapi", "python-multipart", "httpx"]  # and services/voice's API, for its tests
@@ -31,7 +28,3 @@ include = ["shorts*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-
-[tool.uv]
-# Stages that can't share an environment: each runs in one of its own (see shorts.orchestrator).
-conflicts = [[{ extra = "voice" }, { extra = "omnivoice" }], [{ extra = "browse" }, { extra = "voice" }]]

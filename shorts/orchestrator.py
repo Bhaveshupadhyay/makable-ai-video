@@ -2,7 +2,7 @@
 
 It knows the stages only by what they make and read (`shorts.stages`), and never imports their packages. A
 stage it runs is `python -m shorts <stage> RUN`, in the Python set for its packages (SHORTS_<EXTRA>_PYTHON, such
-as SHORTS_VOICE_PYTHON=~/chatterbox-env/bin/python), or this one. What it can't run here (a stage whose
+as SHORTS_ASSEMBLE_PYTHON=~/assemble-env/bin/python), or this one. What it can't run here (a stage whose
 packages this machine doesn't have, a paid one, what you bring in) it names, with where it runs, and stops.
 """
 
@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .run import FINAL, PRODUCTS, Run, Settings
+from .run import FINAL, PRODUCTS, Run
 from .stages import STAGES, Import, NotReady, Stage, execute, producer, states
 from .stages.base import MISSING, TO_MAKE
 
@@ -90,10 +90,9 @@ def advice(run: Run, entry: Status) -> str:
     return f"{command} ({entry.stage.cost}; or run --paid)" if entry.stage.cost else command
 
 
-def python_for(stage: Stage, settings: Settings) -> str:
+def python_for(stage: Stage) -> str:
     """The Python that runs a stage: SHORTS_<EXTRA>_PYTHON if it's set, or this one."""
-    extra = stage.extra_for(settings)
-    return (extra and os.environ.get(f"SHORTS_{extra.upper()}_PYTHON", "")) or sys.executable
+    return (stage.extra and os.environ.get(f"SHORTS_{stage.extra.upper()}_PYTHON", "")) or sys.executable
 
 
 def missing_packages(python: str, packages: list[str]) -> list[str]:
@@ -124,7 +123,7 @@ def run_all(run: Run, *, paid: bool = False) -> bool:
         if stage.name in tried:
             print(f"{stage.name} ran, but the {entry.product} is still {entry.summary()}")
             return False
-        python = python_for(stage, run.settings())
+        python = python_for(stage)
         missing = missing_packages(python, stage.packages(run.settings()))
         if missing:
             print(f"The {entry.product}: {entry.summary()}. Next: {advice(run, entry)}")

@@ -17,8 +17,7 @@ The model that drives it is any browser-use takes, named "provider:model" (`chat
 API ("google:gemini-3.6-flash", the default) or Agent Platform ("vertex:..."), Claude ("anthropic:..."), or
 GPT and anything else with OpenAI's API ("openai:...", with OPENAI_BASE_URL for another provider's).
 
-browser-use pins its own google-genai and numpy, so it runs in its own notebook (or virtualenv),
-not the one with Chatterbox.
+browser-use pins its own packages, so it runs in a virtualenv of its own (SHORTS_BROWSE_PYTHON).
 """
 
 import asyncio
@@ -316,10 +315,6 @@ def save_steps(video: Path, steps: list[Step]) -> None:
     steps_file(video).write_text(json.dumps([asdict(step) for step in steps], indent=1, ensure_ascii=False) + "\n")
 
 
-def load_steps(video: Path) -> list[Step]:
-    return [Step(**step) for step in json.loads(steps_file(video).read_text())]
-
-
 async def record_task(
     task: str,
     out: Path,
@@ -359,7 +354,7 @@ async def record_task(
     profile = BrowserProfile(
         headless=True,
         viewport={"width": width, "height": height},
-        chromium_sandbox=os.geteuid() != 0,  # Chrome's sandbox doesn't run as root (Colab)
+        chromium_sandbox=os.geteuid() != 0,  # Chrome's sandbox doesn't run as root (in a container, say)
         keep_alive=True,  # closed below, once the recording has stopped
         storage_state=storage_state,
         highlight_elements=not cursor,  # the box around what it clicks
