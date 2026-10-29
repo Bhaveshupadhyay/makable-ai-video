@@ -3,7 +3,7 @@
 A stage plans before it makes. `plan` names its product's files (by their names in the contract, `shorts.run`)
 and fingerprints what each would be made from now, without loading anything heavy, so every stage's status
 can be worked out on any machine. `make` writes the files it's given. Stage modules import their heavy
-packages (torch, Chatterbox, google-genai, Playwright) inside `make` only.
+packages (google-genai, httpx, Pillow) inside `make` only.
 """
 
 from pathlib import Path

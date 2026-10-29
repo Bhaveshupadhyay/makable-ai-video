@@ -5,3 +5,7 @@ runs/
 .ruff_cache/
 .pytest_cache/
 *.egg-info/
+assets/
+recordings/
+.env
+.idea/

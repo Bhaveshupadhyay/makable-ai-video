@@ -2,7 +2,7 @@
 
 It knows the stages only by what they make and read (`shorts.stages`), and never imports their packages. A
 stage it runs is `python -m shorts <stage> RUN`, in the Python set for its packages (SHORTS_<EXTRA>_PYTHON, such
-as SHORTS_VOICE_PYTHON=~/chatterbox-env/bin/python), or this one. What it can't run here (a stage whose
+as SHORTS_ASSEMBLE_PYTHON=~/assemble-env/bin/python), or this one. What it can't run here (a stage whose
 packages this machine doesn't have, a paid one, what you bring in) it names, with where it runs, and stops.
 """
 
@@ -92,7 +92,7 @@ def advice(run: Run, entry: Status) -> str:
 
 def python_for(stage: Stage) -> str:
     """The Python that runs a stage: SHORTS_<EXTRA>_PYTHON if it's set, or this one."""
-    return os.environ.get(f"SHORTS_{stage.extra.upper()}_PYTHON", "") or sys.executable
+    return (stage.extra and os.environ.get(f"SHORTS_{stage.extra.upper()}_PYTHON", "")) or sys.executable
 
 
 def missing_packages(python: str, packages: list[str]) -> list[str]:

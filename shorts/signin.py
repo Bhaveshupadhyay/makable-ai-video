@@ -51,7 +51,7 @@ def signed_in(app_url: str, supabase_url: str, key: str, email: str, password: s
 
 def password_session(supabase_url: str, key: str, email: str, password: str) -> dict[str, Any]:
     """A new Supabase session for `email`: access_token, refresh_token, expires_in (seconds) and user."""
-    # Pasted secrets can end in a line break (Colab kept a "\r\n"), and Supabase matches the email exactly.
+    # Pasted secrets can end in a line break (one kept a "\r\n"), and Supabase matches the email exactly.
     supabase_url, key, email, password = supabase_url.strip(), key.strip(), email.strip(), password.strip("\r\n")
     request = urllib.request.Request(
         f"{supabase_url.rstrip('/')}/auth/v1/token?grant_type=password",

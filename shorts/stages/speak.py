@@ -1,62 +1,78 @@
-"""speak: each scene's narration in your voice, narration/01.wav and on, by Chatterbox or OmniVoice (`narrator`
-in run.json, with its settings in `narrator_options`).
+"""speak: each scene's narration, narration/01.wav and on, spoken by a text-to-speech API (`shorts.speech_api`): the
+voice API on Modal (services/voice), or ElevenLabs.
 
-Only the scenes whose spoken text, voice sample or settings changed are spoken again. Where OmniVoice runs
-comes from the environment, since it's the machine's business, not the video's: OMNIVOICE_ENV is the folder
-of its own environment (~/omnivoice-env by default, installed the first time), or "here" for this Python
-(OmniVoice installed in it, as in omnivoice_from_script.ipynb).
+It's in the voice of the person in Omni's intro (voice/avatar.wav, from take-voice), or with `narration_voice`
+"sample" in run.json, of its `voice` sample. Which API speaks is the machine's business, not the video's, so it
+comes from the environment (SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY); run.json's `narrator_model` is its model, and
+`narrator_options` its voice settings. Only the scenes whose spoken text, voice or settings changed are spoken again.
 """
 
-import os
 from pathlib import Path
 
-from ..run import Run, Settings, file_hash, fingerprint, narration_file, writing
-from ..voice import OMNIVOICE_ENV, OmniVoice, Voice
-from .base import Stage, read_script, voice_sample
-
-
-def omnivoice_env() -> Path | None:
-    value = os.environ.get("OMNIVOICE_ENV", "")
-    return None if value == "here" else Path(value).expanduser() if value else OMNIVOICE_ENV
+from ..run import AVATAR_VOICE, Run, Settings, file_hash, fingerprint, narration_file, writing
+from ..voice import ApiVoice
+from .base import NotReady, Stage, read_script, voice_sample
 
 
 class Speak(Stage):
     name = "speak"
     product = "narration"
     needs = ("script",)
-    extra = "voice"
-    where = "a GPU: makable_shorts.ipynb, voice_from_script.ipynb or omnivoice_from_script.ipynb in Colab"
+    extra = "speech"
+    where = "pip install 'makable-shorts[speech]', with SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY (see the README)"
 
     def by(self, settings: Settings) -> str:
-        return f"speak ({settings.narrator})"
+        return f"speak ({settings.narrator_model})"
+
+    def requires(self, settings: Settings) -> tuple[str, ...]:
+        return self.needs + (("avatar-voice",) if settings.narration_voice == "intro" else ())
 
     def packages(self, settings: Settings) -> list[str]:
-        if settings.narrator == "omnivoice":
-            return ["omnivoice"] if omnivoice_env() is None else []  # its own environment installs itself
-        return ["chatterbox", "torchaudio"]
+        return ["httpx"]
 
-    def voice(self, run: Run) -> Voice:
-        """The narrator, set up (its model loads when it first speaks)."""
+    def sample(self, run: Run, settings: Settings) -> Path:
+        """The voice the narration is spoken in."""
+        if settings.narration_voice == "sample":
+            return voice_sample(run, settings)
+        if not run.path(AVATAR_VOICE).exists():
+            raise NotReady(f"{AVATAR_VOICE} isn't made yet: python -m shorts take-voice {run.folder}")
+        return run.path(AVATAR_VOICE)
+
+    def voice(self, run: Run) -> ApiVoice:
+        """The narrator, set up: its voice is cloned when it first speaks."""
         settings = run.settings()
-        sample, language = voice_sample(run, settings), read_script(run).language
-        options = {"pronounce": settings.pronounce, **settings.narrator_options}
-        if settings.narrator == "omnivoice":
-            return OmniVoice(sample, language, settings.reference_text, env=omnivoice_env(), **options)
-        return Voice(sample, language, **options)
+        sample, language = self.sample(run, settings), read_script(run).language
+        return ApiVoice(
+            sample,
+            language,
+            settings.narrator_model,
+            settings.reference_text,
+            settings.pronounce,
+            **settings.narrator_options,
+        )
 
     def plan(self, run: Run) -> dict[str, str]:
-        settings = run.settings()
         voice = self.voice(run)
         yours = file_hash(voice.reference)
         return {
-            narration_file(index): fingerprint(settings.narrator, voice.settings, yours, voice.spoken(scene.text))
+            narration_file(index): fingerprint("api", voice.settings, yours, voice.spoken(scene.text))
             for index, scene in enumerate(read_script(run).scenes)
         }
 
     def make(self, run: Run, paths: list[str]) -> None:
+        from ..speech_api import SpeechAPIError
+
         voice = self.voice(run)
-        for index, scene in enumerate(run.script().scenes):
-            if narration_file(index) in paths:
-                print(f"Scene {index + 1}: {scene.text}")
-                with writing(run.path(narration_file(index))) as out:
-                    voice.say(scene.text, out)
+        try:
+            for index, scene in enumerate(run.script().scenes):
+                if narration_file(index) in paths:
+                    print(f"Scene {index + 1}: {scene.text}")
+                    with writing(run.path(narration_file(index))) as out:
+                        voice.say(scene.text, out)
+        except SpeechAPIError as error:
+            raise NotReady(f"the voice API: {error}") from error
+        finally:
+            try:
+                voice.close()
+            except SpeechAPIError as error:
+                print(f"Warning: the voice is still in the API, since it couldn't be deleted: {error}")

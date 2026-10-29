@@ -1,0 +1,124 @@
+# Makes a makable Short in GitHub Actions: Claude Code runs the make-video skill (.claude/skills/make-video) with
+# --yes, so it asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro
+# with Gemini Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
+#
+# Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
+#
+# Repository secrets it needs:
+#   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
+#   GEMINI_API_KEY             Omni (it needs a prepaid balance in AI Studio)
+#   HEYGEN_API_KEY             (optional) to film with HeyGen instead (run.json's intro and outro)
+#   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
+#   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAKABLE_DEMO_EMAIL, MAKABLE_DEMO_PASSWORD    makable's demo user
+#   FACE_JPG_BASE64            your photo for Omni: base64 -i assets/face.jpg | gh secret set FACE_JPG_BASE64
+#   MUSIC_MP3_BASE64           (optional) music under the video, the same way
+
+name: Make a video
+
+on:
+  workflow_dispatch:
+    inputs:
+      commits:
+        description: "Commits to make it about: SHAs (in Bhaveshupadhyay/makable), repo@sha, commit URLs or a..b"
+        required: false
+      prompt:
+        description: "Or, or as well: the functionality to show, in words"
+        required: false
+      tone:
+        type: choice
+        options: [friendly, hype]
+        default: friendly
+      language:
+        type: choice
+        options: [en, hi]
+        default: en
+
+permissions:
+  contents: read
+
+concurrency:
+  group: make-video  # one at a time: they'd share the demo user's sites
+  cancel-in-progress: false
+
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}  # gh api, for the commits
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+      SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}
+      SHORTS_SPEECH_KEY: ${{ secrets.SHORTS_SPEECH_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      MAKABLE_DEMO_EMAIL: ${{ secrets.MAKABLE_DEMO_EMAIL }}
+      MAKABLE_DEMO_PASSWORD: ${{ secrets.MAKABLE_DEMO_PASSWORD }}
+    steps:
+      - name: Check what to make it about
+        if: inputs.commits == '' && inputs.prompt == ''
+        run: |
+          echo "::error::Give commits, a prompt, or both"
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+
+      - name: The pipeline's environment, and browser-use's own
+        run: |
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv -e '.[gemini,assemble,speech]'
+          uv venv --python 3.12 ~/browse-env
+          uv pip install --python ~/browse-env -e '.[browse]'
+          uvx playwright install --with-deps chromium
+          echo "SHORTS_BROWSE_PYTHON=$HOME/browse-env/bin/python" >> "$GITHUB_ENV"
+
+      - name: The photo and the music
+        env:
+          FACE: ${{ secrets.FACE_JPG_BASE64 }}
+          MUSIC: ${{ secrets.MUSIC_MP3_BASE64 }}
+        run: |
+          mkdir -p assets
+          echo "$FACE" | base64 -d > assets/face.jpg
+          if [ -n "$MUSIC" ]; then echo "$MUSIC" | base64 -d > assets/music.mp3; fi
+
+      - name: Make the video (Claude Code, with the make-video skill)
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: >-
+            Make a makable Short with the make-video skill. The request:
+            ${{ inputs.commits }} ${{ inputs.prompt && format('"{0}"', inputs.prompt) || '' }}
+            --tone ${{ inputs.tone }} --language ${{ inputs.language }} --yes
+          # What the skill runs. Recording and making the video take minutes: Bash may wait up to 30 for one.
+          claude_args: >-
+            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(.venv/bin/python -m shorts:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(ffprobe:*),Bash(ls:*)"
+          settings: '{"env": {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "1800000"}}'
+
+      - name: Upload the video
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: video
+          if-no-files-found: warn
+          path: |
+            runs/*/final.mp4
+            runs/*/metadata.json
+            runs/*/script.json
+            runs/*/changes.md
+            runs/*/task.md
+            runs/*/footage/*.steps.json
+            runs/*/recordings/*.browse.json
+            runs/*/recordings/*.drive.log
+
+      - name: Check a video was made
+        if: always()  # the skill can stop without one (a recording that never showed the change), and still succeed
+        run: |
+          if ! find runs -path 'runs/*/final.mp4' -size +0 2>/dev/null | grep -q .; then
+            echo "::error::No video was made: see what Claude reported above, and the files uploaded with the run"
+            exit 1
+          fi

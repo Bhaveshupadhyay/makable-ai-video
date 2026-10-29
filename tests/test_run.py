@@ -76,3 +76,12 @@ def test_settings_keep_paths_relative_to_the_run(run: Run, tmp_path: Path) -> No
     run.save_settings(settings)
     assert Settings.model_validate_json(run.path("run.json").read_text()).face == "../../assets/face.jpg"
     assert run.resolve(run.settings().face) == face.resolve()
+
+
+def test_a_run_from_before_the_voice_api_loads_with_its_engine_as_the_apis_model() -> None:
+    # Those files wrote narrator_model out too, unused: the engine they named is what they spoke with.
+    old = Settings.model_validate({"narrator": "chatterbox", "narrator_model": "omnivoice"})
+    assert (old.narrator, old.narrator_model) == ("api", "chatterbox")
+    older = Settings.model_validate({"narrator": "omnivoice", "narrator_options": {"speed": 1.1}})
+    assert (older.narrator, older.narrator_model, older.narrator_options) == ("api", "omnivoice", {"speed": 1.1})
+    assert Settings.model_validate({"narrator": "import"}).narrator == "import"
