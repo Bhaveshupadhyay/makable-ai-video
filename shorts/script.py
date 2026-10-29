@@ -34,8 +34,8 @@ class Script(BaseModel):
     scenes: list[Scene]
     title: str
     description: str
-    # The outro: the avatar again, after the recording. Without a line, the video has no outro; without a setting,
-    # it's filmed in the intro's, so the two look like one shoot.
+    # The outro: the avatar again, after the recording. Its line is needed unless run.json's outro is "none";
+    # without a setting, it's filmed in the intro's, so the two look like one shoot.
     outro_line: str = ""
     outro_setting: str = ""
     language: str = "en"  # what it's written in (one of LANGUAGES), so it's spoken in it
@@ -67,7 +67,9 @@ def speed(scene: Scene) -> float | None:
     return (scene.end - scene.start) / (words(scene.text) / WORDS_PER_SECOND + GAP)
 
 
-def check(script: Script, lengths: dict[str, float | None], timed: Collection[str] = ()) -> tuple[list[str], list[str]]:
+def check(
+    script: Script, lengths: dict[str, float | None], timed: Collection[str] = (), *, outro: bool = False
+) -> tuple[list[str], list[str]]:
     """What's wrong with a script, checked against the recordings it's said over: errors (the video can't be
     made from it as it is) and warnings (it can, but it may not look or sound right).
 
@@ -76,6 +78,7 @@ def check(script: Script, lengths: dict[str, float | None], timed: Collection[st
         lengths: Each recording the run has, by name, and how long it is in seconds (None: not known yet).
             With none, the scenes' recordings aren't checked.
         timed: The recordings that have steps: a scene said over one of them says where (`start`, `end`).
+        outro: Whether the video has an outro (run.json's outro isn't "none"), which needs a line.
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -83,6 +86,8 @@ def check(script: Script, lengths: dict[str, float | None], timed: Collection[st
         errors.append("The intro line is empty")
     elif not INTRO_WORDS[0] <= words(script.intro_line) <= INTRO_WORDS[1]:
         warnings.append(f"The intro line has {words(script.intro_line)} words: 14 to 20 fit Omni's 10-second clip")
+    if outro and not script.outro_line.strip():
+        errors.append('The outro line is empty, and run.json wants an outro (or set its outro to "none")')
     if words(script.outro_line) > OUTRO_WORDS:
         warnings.append(f"The outro line has {words(script.outro_line)} words: keep it to {OUTRO_WORDS} or fewer")
     if not SCENES[0] <= len(script.scenes) <= SCENES[1]:

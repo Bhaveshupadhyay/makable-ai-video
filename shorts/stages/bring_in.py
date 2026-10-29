@@ -129,7 +129,7 @@ def footage_lengths(run: Run) -> tuple[dict[str, float | None], set[str]]:
 
 def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     """`script.check` against the run's footage: errors (the video can't be made from it) and warnings."""
-    return check(script, *footage_lengths(run))
+    return check(script, *footage_lengths(run), outro=run.settings().outro != "none")
 
 
 def fetched(run: Run, file: str | Path) -> Path:

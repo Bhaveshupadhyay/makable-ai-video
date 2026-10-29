@@ -31,7 +31,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from .script import Script
 
@@ -85,6 +85,15 @@ class Settings(BaseModel):
     music: str | None = None  # played quietly under the video
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
     captions: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _engine_narrators(cls, data: Any) -> Any:
+        """A run.json from before the voice API, whose narrator named its engine ("chatterbox", "omnivoice"): that
+        engine is now the API's model. It wins over narrator_model, which those files wrote out unused."""
+        if isinstance(data, dict) and data.get("narrator") in ("chatterbox", "omnivoice"):
+            data = {**data, "narrator": "api", "narrator_model": data["narrator"]}
+        return data
 
 
 class Made(BaseModel):

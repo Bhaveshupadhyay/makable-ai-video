@@ -29,6 +29,9 @@ The intro and outro are used as Omni filmed them.
 
 Run the pipeline with `.venv/bin/python -m shorts …`. If `.venv` is missing, set it up once:
 `uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech]'`.
+Chrome's process for the recording (`drive`) runs in browser-use's own environment, the Python that
+`SHORTS_BROWSE_PYTHON` names (`.env.example` says `~/browse-env/bin/python`). If it's missing, set it up once:
+`uv venv --python 3.12 ~/browse-env && uv pip install --python ~/browse-env -e '.[browse]'`.
 Keys come from `.env` (see `.env.example`) or the environment. Never print their values.
 
 **Interactive or not.** With `--yes` (GitHub Actions), never ask anything: decide, and say what you

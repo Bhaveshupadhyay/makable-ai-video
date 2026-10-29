@@ -89,3 +89,10 @@ def test_a_script_the_video_cant_be_made_from_isnt_brought_in(run: Run, tmp_path
 def test_a_stretch_before_the_start_of_a_recording_not_measured_yet() -> None:
     errors, _ = check(written(scene(-0.5, 6)), {"demo": None})  # a page not recorded yet, say
     assert errors == ["Scene 1's stretch (-0.5-6 s) isn't all in 'demo'"]
+
+
+def test_a_video_with_an_outro_needs_its_line() -> None:
+    script = written(scene(0, 6), outro="")
+    errors, _ = check(script, {"demo": 20.0}, timed={"demo"}, outro=True)
+    assert errors == ['The outro line is empty, and run.json wants an outro (or set its outro to "none")']
+    assert check(script, {"demo": 20.0}, timed={"demo"})[0] == []  # run.json's outro is "none"

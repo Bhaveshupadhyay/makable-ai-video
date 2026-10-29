@@ -326,7 +326,11 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "voices":
-        for voice in heygen_voices(args.language or None, args.gender):
+        try:
+            found = heygen_voices(args.language or None, args.gender)
+        except (ValueError, RuntimeError) as problem:  # no key, or HeyGen said no
+            sys.exit(f"voices: {problem}")
+        for voice in found:
             about = f"{voice['name']} ({voice['language']}, {voice['gender']})"
             print(f"{voice['voice_id']}  {about}  {voice.get('preview_audio_url') or ''}")
         return

@@ -129,3 +129,12 @@ def test_a_clip_comes_in_from_its_link(run: Run, served: str) -> None:
     assert run.settings().intro == "import"
     with pytest.raises(ValueError, match="is a web page"):
         bring_in(run, "outro", [f"{served}/page.html"])
+
+
+def test_voices_without_a_key_says_so(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    from shorts.__main__ import main
+
+    monkeypatch.setenv("HEYGEN_API_KEY", "")  # set, so .env's (if any) isn't used
+    monkeypatch.setattr("sys.argv", ["shorts", "voices"])
+    with pytest.raises(SystemExit, match="voices: Set HEYGEN_API_KEY"):
+        main()
