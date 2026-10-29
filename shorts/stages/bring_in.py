@@ -2,13 +2,16 @@
 
     python -m shorts import RUN footage --name makable recordings/makable-tight.mp4   (and its .steps.json)
     python -m shorts import RUN script drafts/script.json                 the script Claude wrote
-    python -m shorts import RUN intro gemini_generated_video.mp4          Omni's clip, filmed elsewhere
-    python -m shorts import RUN outro gemini_generated_outro.mp4          and the outro's
+    python -m shorts import RUN intro gemini_generated_video.mp4          a clip filmed elsewhere (the Gemini app,
+    python -m shorts import RUN outro https://.../outro.mp4               HeyGen, Higgsfield): a file, or a link to one
     python -m shorts import RUN narration download*.wav                   one audio file per scene
 
 The script is always brought in. Bringing in another product sets run.json so that it's yours from then on
 (`narrator: "import"`, say), and the pipeline asks for it again instead of making it. Imported narration is out of date when its scene's text
 changes, as speech for it would be.
+
+A link (http:// or https://) is downloaded to RUN/downloads/ first. It must be the file's own link, not a page
+that shows it.
 
 Narration files are put in order by the numbers in their names (download.wav, download (1).wav, ...,
 download (10).wav, as browsers name repeated downloads), or kept as given with `as_given`. A file that's the
@@ -22,7 +25,9 @@ import hashlib
 import json
 import re
 import shutil
+import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ..media import duration, ffmpeg
 from ..run import (
@@ -127,11 +132,30 @@ def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     return check(script, *footage_lengths(run))
 
 
-def bring_in(run: Run, product: str, files: list[Path], *, name: str | None = None, as_given: bool = False) -> None:
-    """Brings `files` in as `product` (see the module's docstring), and makes run.json say they're yours."""
+def fetched(run: Run, file: str | Path) -> Path:
+    """A file to bring in: `file` itself, or, for a link, where it's downloaded to (RUN/downloads/)."""
+    link = str(file)
+    if not re.match(r"https?://", link):
+        return Path(link).expanduser()
+    out = run.path(f"downloads/{Path(urlsplit(link).path).name or 'download'}")
+    print(f"Downloading {link}")
+    request = urllib.request.Request(link, headers={"User-Agent": "makable-shorts"})
+    with urllib.request.urlopen(request, timeout=300) as reply:
+        if reply.headers.get_content_type() == "text/html":
+            raise ValueError(f"{link} is a web page, not a file: copy the link of the video (or audio) itself")
+        with writing(out) as saved, saved.open("wb") as copy:
+            shutil.copyfileobj(reply, copy)
+    return out
+
+
+def bring_in(
+    run: Run, product: str, files: list[str | Path], *, name: str | None = None, as_given: bool = False
+) -> None:
+    """Brings `files` (paths, or links to download) in as `product` (see the module's docstring), and makes
+    run.json say they're yours."""
     if product not in PRODUCTS:
         raise ValueError(f"No product {product!r}: one of {', '.join(PRODUCTS)}")
-    files = [Path(file).expanduser() for file in files]
+    files = [fetched(run, file) for file in files]
     for file in files:
         if not file.is_file():
             raise FileNotFoundError(file)

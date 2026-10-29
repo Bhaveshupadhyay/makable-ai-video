@@ -15,7 +15,9 @@ element before the agent clicks or types into it, in place of browser-use's high
 
 The model that drives it is any browser-use takes, named "provider:model" (`chat_model`): Gemini through its
 API ("google:gemini-3.6-flash", the default) or Agent Platform ("vertex:..."), Claude ("anthropic:..."), or
-GPT and anything else with OpenAI's API ("openai:...", with OPENAI_BASE_URL for another provider's).
+GPT and anything else with OpenAI's API ("openai:...", with OPENAI_BASE_URL for another provider's). Or Claude Code
+drives it itself, a command at a time, with no model here (`shorts.drive`): the same Chrome, recorder and pointer
+(`open_browser`), and the same steps.
 
 browser-use pins its own packages, so it runs in a virtualenv of its own (SHORTS_BROWSE_PYTHON).
 """
@@ -180,6 +182,10 @@ class Screencast:
             with contextlib.suppress(Exception):  # the old tab may be closed
                 await self.session.cdp_client.send.Page.stopScreencast(session_id=self.target)
         self.target = cdp.session_id
+        # A tab the page opened (a link to a new tab) stays in the background, where Chrome doesn't paint it, so its
+        # screencast sends a frame now and then instead of every change.
+        with contextlib.suppress(Exception):
+            await cdp.cdp_client.send.Page.bringToFront(session_id=cdp.session_id)
         width, height = self.size
         await cdp.cdp_client.send.Page.startScreencast(
             params={"format": "jpeg", "quality": 90, "maxWidth": width, "maxHeight": height},
@@ -265,8 +271,14 @@ class Cursor:
             await self._run(f"window.__cursor?.click({x}, {y})")
 
 
+# How far in from an element's left edge the pointer lands, in CSS pixels: on the start of a button's
+# label or a field's text, so the zoom shows that rather than the middle of a wide one. It's only where
+# the pointer is drawn: browser-use still clicks the element's middle.
+POINTER_INSET = 24
+
+
 async def _target(params: dict[str, Any], session: Any) -> tuple[float, float] | None:
-    """Where an action will click or type, in the page's coordinates, if anywhere."""
+    """Where the pointer goes for an action, in the page's coordinates, if anywhere: the left of its element."""
     if params.get("coordinate_x") is not None and params.get("coordinate_y") is not None:
         return params["coordinate_x"], params["coordinate_y"]
     if params.get("index") is None:
@@ -282,10 +294,10 @@ async def _target(params: dict[str, Any], session: Any) -> tuple[float, float] |
             params={"backendNodeId": node.backend_node_id}, session_id=cdp.session_id
         )
     rect = await session.get_element_coordinates(node.backend_node_id, cdp)
-    return (rect.x + rect.width / 2, rect.y + rect.height / 2) if rect else None
+    return (rect.x + min(rect.width / 2, POINTER_INSET), rect.y + rect.height / 2) if rect else None
 
 
-def _tools_with(cursor: Cursor) -> Any:
+def tools_with(cursor: Cursor) -> Any:
     """browser-use's actions, with the pointer gliding to each one's element first."""
     from browser_use import Tools
 
@@ -313,6 +325,76 @@ def steps_file(video: Path) -> Path:
 
 def save_steps(video: Path, steps: list[Step]) -> None:
     steps_file(video).write_text(json.dumps([asdict(step) for step in steps], indent=1, ensure_ascii=False) + "\n")
+
+
+@dataclass
+class Browser:
+    """Chrome, being recorded: browser-use's session, the screencast of the tab in use, and the pointer."""
+
+    session: Any
+    screencast: Screencast
+    pointer: Cursor | None
+
+    def clicks(self, start: float, end: float) -> list[list[float]]:
+        """The clicks between `start` and `end` (Unix seconds), as a Step keeps them: [seconds into the video, x, y]."""
+        origin = self.screencast.origin
+        clicks = self.pointer.clicks if self.pointer else []
+        return [[round(when - origin, 2), round(x), round(y)] for when, x, y in clicks if start <= when <= end]
+
+    def since(self, at: float) -> float:
+        """Seconds into the video at `at` (Unix seconds)."""
+        return round(max(at - self.screencast.origin, 0.0), 2)
+
+
+async def open_browser(
+    out: Path,
+    *,
+    url: str | None = None,
+    size: tuple[int, int] = (720, 1280),
+    storage_state: Path | None = None,
+    cookies: list[dict[str, Any]] | None = None,
+    cursor: bool = True,
+) -> Browser:
+    """Starts Chrome on `url`, then records it, for a video at `out` (see `record_task` for the arguments)."""
+    from browser_use import BrowserProfile, BrowserSession
+
+    width, height = size
+    profile = BrowserProfile(
+        headless=True,
+        viewport={"width": width, "height": height},
+        chromium_sandbox=os.geteuid() != 0,  # Chrome's sandbox doesn't run as root (in a container, say)
+        keep_alive=True,  # closed by `close_browser`, once the recording has stopped
+        storage_state=storage_state,
+        highlight_elements=not cursor,  # the box around what it clicks
+    )
+    session = BrowserSession(browser_profile=profile)
+    await session.start()
+    try:
+        if cookies:
+            cdp = await session.get_or_create_cdp_session()
+            await cdp.cdp_client.send.Storage.setCookies(params={"cookies": cookies}, session_id=cdp.session_id)
+        if url:
+            await session.navigate_to(url)
+            await asyncio.sleep(1.0)  # let it finish drawing
+        screencast = Screencast(session, out.parent / f"{out.stem}-frames", size)
+        await screencast.start()
+        pointer = Cursor(session, size) if cursor else None
+        if pointer:
+            await pointer.show()
+    except BaseException:
+        await session.kill()
+        raise
+    return Browser(session, screencast, pointer)
+
+
+async def close_browser(browser: Browser, out: Path) -> Path:
+    """Holds the end a moment, stops the recording and Chrome, and saves the video to `out`."""
+    try:
+        await asyncio.sleep(1.0)
+        await browser.screencast.stop()
+    finally:
+        await browser.session.kill()
+    return browser.screencast.save(out)
 
 
 async def record_task(
@@ -348,55 +430,33 @@ async def record_task(
         cursor: Draw a mouse pointer that glides to what the agent clicks, instead of browser-use's
             highlight box.
     """
-    from browser_use import Agent, BrowserProfile, BrowserSession
+    from browser_use import Agent
 
-    width, height = size
-    profile = BrowserProfile(
-        headless=True,
-        viewport={"width": width, "height": height},
-        chromium_sandbox=os.geteuid() != 0,  # Chrome's sandbox doesn't run as root (in a container, say)
-        keep_alive=True,  # closed below, once the recording has stopped
-        storage_state=storage_state,
-        highlight_elements=not cursor,  # the box around what it clicks
-    )
-    session = BrowserSession(browser_profile=profile)
     marks: dict[int, tuple[float, str, list[dict[str, Any]], str]] = {}
 
     def on_step(state: Any, output: Any, number: int) -> None:  # the model has answered; the actions come next
         actions = [action.model_dump(exclude_none=True) for action in output.action]
         marks[number] = (time.time(), output.next_goal or "", actions, state.url)
 
-    await session.start()
+    browser = await open_browser(out, url=url, size=size, storage_state=storage_state, cookies=cookies, cursor=cursor)
     try:
-        if cookies:
-            cdp = await session.get_or_create_cdp_session()
-            await cdp.cdp_client.send.Storage.setCookies(params={"cookies": cookies}, session_id=cdp.session_id)
-        if url:
-            await session.navigate_to(url)
-            await asyncio.sleep(1.0)  # let it finish drawing
-        screencast = Screencast(session, out.parent / f"{out.stem}-frames", size)
-        await screencast.start()
-        pointer = Cursor(session, size) if cursor else None
-        if pointer:
-            await pointer.show()
         agent = Agent(
             task=task,
             llm=llm,
             fallback_llm=fallback,
-            browser_session=session,
-            tools=_tools_with(pointer) if pointer else None,
+            browser_session=browser.session,
+            tools=tools_with(browser.pointer) if browser.pointer else None,
             register_new_step_callback=on_step,
             directly_open_url=False,  # it's open already
             use_judge=False,  # a second model call that grades the run
             enable_signal_handler=False,  # Jupyter owns Ctrl+C
         )
         history = await agent.run(max_steps=max_steps)
-        await asyncio.sleep(1.0)  # hold the end a moment
-        await screencast.stop()
-    finally:
-        await session.kill()
+    except BaseException:
+        await browser.session.kill()
+        raise
+    await close_browser(browser, out)
 
-    screencast.save(out)
     steps = []
     for item in history.history:
         if item.metadata is None or item.metadata.step_number not in marks:
@@ -411,21 +471,9 @@ async def record_task(
             or ""
             for result in item.result
         ]
-        clicks = [
-            [round(when - screencast.origin, 2), round(x), round(y)]
-            for when, x, y in (pointer.clicks if pointer else [])
-            if at <= when <= item.metadata.step_end_time
-        ]
+        end = item.metadata.step_end_time
         steps.append(
-            Step(
-                goal=goal,
-                actions=actions,
-                did=did,
-                url=page,
-                start=round(max(at - screencast.origin, 0.0), 2),
-                end=round(item.metadata.step_end_time - screencast.origin, 2),
-                clicks=clicks,
-            )
+            Step(goal, actions, did, page, browser.since(at), browser.since(end), clicks=browser.clicks(at, end))
         )
     save_steps(out, steps)
     return out, steps

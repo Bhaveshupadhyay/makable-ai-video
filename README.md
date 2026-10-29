@@ -2,7 +2,7 @@
 
 Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) about something makable can do. The video has three parts, with captions and music:
 
-1. A 10-second intro of you, filmed by Gemini Omni Flash.
+1. A 10-second intro of you, filmed from your photo by Gemini Omni Flash or HeyGen ([Who films you](#who-films-you)).
 2. A screen recording, narrated in the voice of the avatar in that intro.
 3. An outro, filmed the same way.
 
@@ -19,7 +19,7 @@ The usual way to make one. In Claude Code, in this repo:
 The skill (`.claude/skills/make-video/`) does what needs judgment, and the pipeline below does the rest:
 
 1. **What to show.** Claude reads the commits, or looks up the functionality you describe in makable's code. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
-2. **The recording.** Claude writes a task for browser-use, and `python -m shorts browse` records it, signed in as the demo user. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again with a better task.
+2. **The recording.** Claude drives Chrome itself with `python -m shorts drive`, a command at a time, signed in as the demo user, while the pipeline records the screen. It needs no model or key of its own: Claude is the model. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again. (Or browser-use's agent records it from a task in plain words, `python -m shorts browse`, if you ask for that.)
 3. **The script.** Claude writes it from what's on screen when (`references/script.md`). `python -m shorts check-script` checks each scene's stretch and pace before the script comes in.
 4. **The video.** You approve the script (filming costs about $2). Then `python -m shorts run --paid`:
    - films the intro and the outro with Omni, and uses them as filmed;
@@ -42,8 +42,8 @@ The stages share nothing but the video's **run folder**. Each reads the files th
 
 | Stage | Makes (in the run folder) | From | With |
 |---|---|---|---|
-| `record` | `footage/<name>.mp4` (+ `.steps.json`) | `run.json`'s `footage`: the recordings `browse` made | a copy |
-| `film-intro` | `intro/filmed.mp4` | the intro line, your photo | Gemini Omni Flash (`shorts/intro.py`), **about $1** |
+| `record` | `footage/<name>.mp4` (+ `.steps.json`) | `run.json`'s `footage`: the recordings `drive` or `browse` made | a copy |
+| `film-intro` | `intro/filmed.mp4` | the intro line, your photo | run.json's `intro`: Gemini Omni Flash or HeyGen (`shorts/filmers.py`), **about $1** |
 | `film-outro` | `outro/filmed.mp4` | the outro line, your photo | the same, in the intro's setting, **about $1** |
 | `take-voice` | `voice/avatar.wav` | the filmed intro | ffmpeg: the avatar's voice, for the narration |
 | `speak` | `narration/01.wav`, `02.wav`, … | each scene's text, the avatar's voice | the voice API (`shorts/speech_api.py`) |
@@ -68,8 +68,8 @@ The stages share nothing but the video's **run folder**. Each reads the files th
 
 ```sh
 python -m shorts import RUN footage --name makable recordings/makable-tight.mp4   # with its .steps.json
-python -m shorts import RUN intro gemini_generated_video.mp4         # Omni's clip, filmed in the Gemini app
-python -m shorts import RUN outro gemini_generated_outro.mp4
+python -m shorts import RUN intro gemini_generated_video.mp4         # a clip filmed in the Gemini app, HeyGen's, Higgsfield's…
+python -m shorts import RUN outro https://example.com/outro.mp4      # or a link to it: the file's own link, not a page
 python -m shorts import RUN narration ~/Downloads/download*.wav      # one audio file per scene
 ```
 
@@ -78,6 +78,39 @@ Narration files go in order by the numbers in their names (`download.wav`, `down
 Bringing a product in makes `run.json` say it's yours (`"narrator": "import"`, say). From then on the pipeline asks you for it again instead of making it: when a scene's text changes, its narration is out of date.
 
 The scripts are in English or Hindi (`--language hi`), and friendly or excited like a Short (`--tone hype`). Each scene is said over its stretch of a recording, played at the speed that fits its narration, so what's said is on screen while it's said.
+
+## Who films you
+
+run.json's `intro` and `outro` say who films each clip from your photo (`python -m shorts new RUN --intro heygen --outro heygen`):
+
+| | `omni` (the default) | `heygen` |
+|---|---|---|
+| What it is | Gemini Omni Flash films a new shot of you, in the script's `intro_setting` | HeyGen's photo to video animates your photo as it is |
+| The voice | Omni's own, a new one each clip | one of HeyGen's, the same every clip: run.json's `filmer_voice` (`python -m shorts new RUN --filmer-voice ID`) |
+| Keys | `GEMINI_API_KEY` (AI Studio's prepaid balance), or Agent Platform on Google Cloud credits (below) | `HEYGEN_API_KEY`, from HeyGen's API balance |
+| Packages | the `gemini` extra | the `heygen` extra |
+
+`python -m shorts voices --gender male` lists HeyGen's voices, each with a link to hear it. The narration is spoken in the intro's voice either way, so the video sounds like one person.
+
+Anything else (Higgsfield, HeyGen's own site, the Gemini app) works too: film the clips there and bring them in, a file or a link to one (`python -m shorts import RUN intro CLIP`). A service with an API is one more `Filmer` in `shorts/filmers.py`: what it's made from, for knowing when to film again, and how it films a line.
+
+## Recording by driving Chrome (`python -m shorts drive`)
+
+This is how Claude Code records, in `/make-video`. Chrome runs in a process of its own that stays open, recording, and each command does one thing in it and prints the page as it is after it:
+
+```sh
+python -m shorts drive RUN start --signed-in        # opens makable, signed in as the demo user, and prints the page
+python -m shorts drive RUN click 12 --goal "Open the site menu"
+python -m shorts drive RUN type 9 "A one-page website for …" --goal "Describe the site"
+python -m shorts drive RUN wait-for "Live preview" --timeout 240
+python -m shorts drive RUN stop --report "what it showed"
+```
+
+- **The page.** `start`, `look` and every step print the tabs, the page's elements with a number each (what `click`, `type` and `scroll --number` take), and the path of a screenshot. They're browser-use's own, the ones its agent's model is shown.
+- **The steps.** Each command is a step, kept with its `--goal`, what it did and when, in the same steps file `browse` writes. The other commands are `keys`, `scroll`, `wait`, `tab`, `open` and `act` (any other of browser-use's actions); `python -m shorts drive RUN --help` lists them.
+- **Afterwards.** `stop` cuts out the time between commands and the still parts of the waits, as `browse` does, and brings the tight recording in as the footage.
+
+It needs no model and no key: whoever sends the commands is the model, Claude Code here. The commands talk to the Chrome process on a local port with a token (`RUN/recordings/<name>.driving.json`, there while it records), so only that process needs browser-use (`SHORTS_BROWSE_PYTHON`, below). Its log is `RUN/recordings/<name>.drive.log`. A driver that's sent nothing for 30 minutes stops by itself, keeping what it recorded.
 
 ## Recording from a task (`python -m shorts browse`)
 
@@ -104,7 +137,7 @@ The agent's model is `provider:model`, from `--model`, from `SHORTS_BROWSE_MODEL
 
 A model that fails (429, 5xx) hands the rest of the run to `--fallback`.
 
-browser-use pins its own packages, so it lives in an environment of its own. `browse` runs itself there when this environment doesn't have it:
+browser-use pins its own packages, so it lives in an environment of its own. `browse` runs itself there when this environment doesn't have it, and `drive start` runs Chrome's process there:
 
 ```sh
 uv venv ~/browse-env --python 3.12 && uv pip install --python ~/browse-env -e '.[browse]'
@@ -154,7 +187,7 @@ Set up once, in Supabase:
    - `MAKABLE_DEMO_EMAIL`: the demo user's email, shown in *Authentication → Users*
    - `MAKABLE_DEMO_PASSWORD`
 
-Then `browse --signed-in` records makable signed in. `signed_in` asks makable who the session belongs to before recording. A user makable doesn't know fails there with a clear error, instead of recording the signed-out page.
+Then `drive start --signed-in` and `browse --signed-in` record makable signed in. `signed_in` asks makable who the session belongs to before recording. A user makable doesn't know fails there with a clear error, instead of recording the signed-out page.
 
 ## The voice API (`services/voice`, on Modal)
 

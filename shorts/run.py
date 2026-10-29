@@ -10,7 +10,7 @@ scenes spoken by another tool).
     footage/<name>.mp4               each recording the scenes are said over, and
     footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known
     script.json                      what's said (`script.Script`): the intro and outro lines, and each scene
-    intro/filmed.mp4                 Omni's clip of you saying the intro line, used as filmed
+    intro/filmed.mp4                 a clip of you saying the intro line (Omni's, HeyGen's), used as filmed
     outro/filmed.mp4                 and the outro line
     voice/avatar.wav                 the intro's voice, to speak the narration in (with narration_voice "intro")
     narration/01.wav, 02.wav, ...    each scene's narration
@@ -67,8 +67,10 @@ class Settings(BaseModel):
     language: str = "en"  # what the script is written and spoken in: one of script.LANGUAGES
     tone: str = "friendly"  # how the script sounds: one of script.TONES
     footage: dict[str, str] = {}  # each recording, by name: a file to copy in (browse brings its recordings in)
-    intro: Literal["omni", "import"] = "omni"  # intro/filmed.mp4: Gemini Omni films it (about $1), or import
-    outro: Literal["omni", "import", "none"] = "omni"  # outro/filmed.mp4: the same, or the video has no outro
+    # intro/filmed.mp4: who films it (shorts.filmers: Gemini Omni, HeyGen; about $1 a clip), or you bring it in
+    intro: Literal["omni", "heygen", "import"] = "omni"
+    outro: Literal["omni", "heygen", "import", "none"] = "omni"  # outro/filmed.mp4: the same, or no outro
+    filmer_voice: str | None = None  # the voice the filmer gives you, for one that takes one: HeyGen's voice_id
     # Who speaks narration/*.wav: a text-to-speech API (shorts.speech_api: the voice API on Modal, or ElevenLabs),
     # or you bring it in. It's in the voice of the person in Omni's intro (voice/avatar.wav), or of the `voice`
     # sample, with narration_voice "sample".

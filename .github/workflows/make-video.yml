@@ -1,12 +1,13 @@
 # Makes a makable Short in GitHub Actions: Claude Code runs the make-video skill (.claude/skills/make-video) with
-# --yes, so it asks nothing. It records the change with browser-use, writes the script, films the intro and the outro
+# --yes, so it asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro
 # with Gemini Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
 #
 # Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
 #
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
-#   GEMINI_API_KEY             browser-use's model and Omni (Omni needs a prepaid balance in AI Studio)
+#   GEMINI_API_KEY             Omni (it needs a prepaid balance in AI Studio)
+#   HEYGEN_API_KEY             (optional) to film with HeyGen instead (run.json's intro and outro)
 #   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
 #   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAKABLE_DEMO_EMAIL, MAKABLE_DEMO_PASSWORD    makable's demo user
 #   FACE_JPG_BASE64            your photo for Omni: base64 -i assets/face.jpg | gh secret set FACE_JPG_BASE64
@@ -46,6 +47,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}  # gh api, for the commits
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
       SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}
       SHORTS_SPEECH_KEY: ${{ secrets.SHORTS_SPEECH_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -111,6 +113,7 @@ jobs:
             runs/*/task.md
             runs/*/footage/*.steps.json
             runs/*/recordings/*.browse.json
+            runs/*/recordings/*.drive.log
 
       - name: Check a video was made
         if: always()  # the skill can stop without one (a recording that never showed the change), and still succeed
