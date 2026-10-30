@@ -37,6 +37,12 @@ where to get each. Never print their values, and never ask the user to paste one
 **Interactive or not.** With `--yes` (GitHub Actions), never ask anything: decide, and say what you
 decided in the final report. Otherwise, ask only where this says to.
 
+**Redoing a video's script.** If the request is to write or redo the script of a video already started (it names
+its run, `runs/<…>`, or it's the one just made), don't record again: go to step 6 in that run, whose footage,
+steps and `changes.md` are there, with the notes of the product it's about. Then steps 7 and 8, where only what
+the new script changes is made again: the narration of each scene whose text changed, and the intro or the outro
+(about a dollar each) only if its line or its setting did.
+
 ## 1. The product, and the user's files
 
 Run `makable-shorts me`. It prints where the user's own things are kept (SHORTS_HOME), and:
@@ -44,10 +50,11 @@ Run `makable-shorts me`. It prints where the user's own things are kept (SHORTS_
 - `face`, `music`, `voice`: their photo, the music under their videos, a sample of their voice;
 - `products`: the products there are notes on (`products/<name>.md` there);
 - `signed in`: the sites they've signed in to, for recordings that need it;
-- `keys`: which keys are set. Filming needs `GEMINI_API_KEY` (or `GOOGLE_CLOUD_PROJECT`, for Google Cloud), and
-  the narration needs `SHORTS_SPEECH_URL` and `SHORTS_SPEECH_KEY`, at step 8. If any is missing, tell the user now
-  which, and to add them to the `.env` that `me` names (copying `${CLAUDE_PLUGIN_ROOT}/.env.example`), then go on.
-  With `--yes`, stop.
+- `keys`: which keys are set, for step 8. Filming needs the key of whoever films the user (step 3): for Omni, the
+  default, `GEMINI_API_KEY` (or `GOOGLE_CLOUD_PROJECT`, for Google Cloud); for HeyGen, `HEYGEN_API_KEY`; none for
+  clips the user brings in. The narration needs `SHORTS_SPEECH_URL` and `SHORTS_SPEECH_KEY`. If one this video needs
+  is missing, tell the user now which, and to add it to the `.env` that `me` names (copying
+  `${CLAUDE_PLUGIN_ROOT}/.env.example`), then go on. With `--yes`, stop.
 
 **The product.** Every video is about one product, and its notes say how to record it and how to talk about it
 ([references/product.md](references/product.md)). Read them before anything else.

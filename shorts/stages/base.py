@@ -65,7 +65,7 @@ def read_script(run: Run) -> Script:
 def voice_sample(run: Run, settings: Settings) -> Path:
     if settings.voice is None:
         raise NotReady(
-            f"run.json has no voice sample: {COMMAND} new RUN --voice SAMPLE (or {COMMAND} me --voice SAMPLE)"
+            f"run.json has no voice sample: {COMMAND} new RUN --voice SAMPLE ({COMMAND} me --voice keeps one for new runs)"
         )
     sample = run.resolve(settings.voice)
     if not sample.exists():

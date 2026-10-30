@@ -15,6 +15,8 @@
 #   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
 #   FACE_URL                   a link to your photo, for Omni (a secret holds at most 48 KB, too little for the photo)
 #   MUSIC_URL                  (optional) a link to music to play under the video
+#   PRODUCT_REPO_TOKEN         (optional) a token that can read the product's code, if it's in another private repo
+#                              (a fine-grained one with Contents: read), for videos from its commits
 
 name: Make a video
 
@@ -51,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      GH_TOKEN: ${{ github.token }}  # gh api, for the commits
+      GH_TOKEN: ${{ secrets.PRODUCT_REPO_TOKEN || github.token }}  # gh api, for the commits
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
       SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}

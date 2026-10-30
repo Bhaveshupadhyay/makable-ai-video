@@ -41,7 +41,7 @@ class FilmIntro(Stage):
         settings = run.settings()
         if settings.face is None:
             raise NotReady(
-                f"run.json has no photo of you: {COMMAND} new RUN --face PHOTO (or {COMMAND} me --face PHOTO)"
+                f"run.json has no photo of you: {COMMAND} new RUN --face PHOTO ({COMMAND} me --face keeps one for new runs)"
             )
         face = run.resolve(settings.face)
         if not face.exists():

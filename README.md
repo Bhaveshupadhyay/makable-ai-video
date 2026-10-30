@@ -14,7 +14,7 @@ Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) showing someth
 
 Or, on Claude Code before 2.1.275: `/plugin marketplace add Bhaveshupadhyay/makable-ai-video`, then `/plugin install makable-shorts@makable-shorts`.
 
-It needs [uv](https://docs.astral.sh/uv) and ffmpeg on your machine (`brew install uv ffmpeg` on a Mac), and Chrome, or browser-use downloads Chromium. The plugin's command is `makable-shorts` (`bin/makable-shorts`, on Claude's PATH while the plugin is enabled). The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
+It needs [uv](https://docs.astral.sh/uv) and ffmpeg on your machine (`brew install uv ffmpeg` on a Mac), and Chrome, or browser-use downloads Chromium. The plugin's command is `makable-shorts` (`bin/makable-shorts`). The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
 
 Your keys go in `~/.config/makable-shorts/.env` (copy `.env.example`): Gemini's for Omni, and the voice API's for the narration. The skill tells you which are missing.
 
@@ -223,9 +223,10 @@ gcloud auth application-default login       # once; GitHub Actions uses google-g
 export GOOGLE_GENAI_USE_ENTERPRISE=true GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
 ```
 
-The Omni model id is picked for the backend (`shorts/intro.py`). Without Claude Code, a video is made like this:
+The Omni model id is picked for the backend (`shorts/intro.py`). Without Claude Code, a video is made like this, in a checkout of the repo:
 
 ```sh
+export PATH="$PWD/bin:$PATH"     # makable-shorts, in this shell: the plugin puts it only on Claude's PATH
 makable-shorts me --face ~/Pictures/me.png --music ~/Music/calm.mp3   # once: kept for every video
 makable-shorts signin --url https://app.example.com                    # once, if it needs signing in
 makable-shorts new runs/first      # [--language hi] [--tone hype] [--pronounce Acme=akmee]
