@@ -83,27 +83,29 @@ def sign_in(url: str, wait: float = WAIT) -> Path:
     seconds, keeping what's been saved).
 
     Raises:
-        RuntimeError: Chrome didn't open, or closed at once: the profile's in use (a recording), say.
+        RuntimeError: Chrome didn't open, or closed at once: the profile's in use (a recording), say. A profile made
+            for it is deleted, so the site doesn't look signed in.
     """
-    profile = site_profile(url)
+    executable, profile = _chrome(), site_profile(url)
+    made = not profile.exists()
     profile.mkdir(parents=True, exist_ok=True)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     chrome = subprocess.Popen(
-        [_chrome(), f"--user-data-dir={profile}", f"--remote-debugging-port={port}", "--no-first-run",
+        [executable, f"--user-data-dir={profile}", f"--remote-debugging-port={port}", "--no-first-run",
          "--no-default-browser-check", url],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )  # fmt: skip
+    up = False
     try:
         opened = time.time()
         while True:  # until its page is up
-            try:
-                if _pages(port):
-                    break
-            except OSError:
-                pass
+            with contextlib.suppress(OSError):
+                up = bool(_pages(port))
+            if up:
+                break
             if chrome.poll() is not None or time.time() - opened > OPENING:
                 raise RuntimeError(f"Chrome didn't open: is another Chrome using {profile} (a recording)?")
             time.sleep(0.5)
@@ -121,4 +123,6 @@ def sign_in(url: str, wait: float = WAIT) -> Path:
             chrome.wait(30)
         except subprocess.TimeoutExpired:
             chrome.kill()
+        if made and not up:
+            shutil.rmtree(profile, ignore_errors=True)
     return profile

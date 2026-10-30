@@ -6,7 +6,7 @@
 #
 # Your product's notes come from this repo: commit them as .makable-shorts/products/<name>.md (the skill writes them
 # in ~/.config/makable-shorts/products/ when you first make a video locally). Nobody can sign in by hand here, so
-# the recordings are of what the product shows signed out.
+# it only records products whose notes don't say signed_in: for one that does, the skill stops before recording.
 #
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
@@ -81,9 +81,19 @@ jobs:
           FACE_URL: ${{ secrets.FACE_URL }}
           MUSIC_URL: ${{ secrets.MUSIC_URL }}
         run: |
-          mkdir -p "$SHORTS_HOME/me"
-          curl -fsSL "$FACE_URL" -o "$SHORTS_HOME/me/face.${FACE_URL##*.}"
-          if [ -n "$MUSIC_URL" ]; then curl -fsSL "$MUSIC_URL" -o "$SHORTS_HOME/me/music.${MUSIC_URL##*.}"; fi
+          # Each is named for what it turns out to be: a link needn't end in its type (a share link, a query).
+          fetch() {
+            curl -fsSL "$2" -o "$RUNNER_TEMP/$1"
+            case "$(file --mime-type -b "$RUNNER_TEMP/$1")" in
+              image/png) type=png ;; image/jpeg) type=jpg ;; image/webp) type=webp ;;
+              audio/mpeg) type=mp3 ;; audio/x-wav | audio/wav) type=wav ;; audio/x-m4a | audio/mp4 | video/mp4) type=m4a ;;
+              *) echo "::error::$1's link isn't a photo or sound file ($(file -b "$RUNNER_TEMP/$1"))"; exit 1 ;;
+            esac
+            mv "$RUNNER_TEMP/$1" "$RUNNER_TEMP/$1.$type"
+            makable-shorts me "--$1" "$RUNNER_TEMP/$1.$type"
+          }
+          fetch face "$FACE_URL"
+          if [ -n "$MUSIC_URL" ]; then fetch music "$MUSIC_URL"; fi
 
       - name: Make the video (Claude Code, with the make-video skill)
         uses: anthropics/claude-code-action@v1

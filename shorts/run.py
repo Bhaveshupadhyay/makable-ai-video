@@ -7,6 +7,7 @@ imports another, so anything that writes a file under its name can stand in for 
 scenes spoken by another tool).
 
     run.json                         the settings: what the video is made from (yours to edit)
+    me/face.png, music.mp3, ...      your photo, music and voice, copied in from `me`'s as the run was made
     footage/<name>.mp4               each recording the scenes are said over, and
     footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known
     script.json                      what's said (`script.Script`): the intro and outro lines, and each scene
@@ -27,12 +28,14 @@ import contextlib
 import hashlib
 import json
 import os
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, model_validator
 
+from .home import MINE, home, mine
 from .script import Script
 
 SETTINGS = "run.json"
@@ -165,13 +168,26 @@ class Run:
         return os.path.relpath(Path(path).expanduser().resolve(), self.folder.resolve())
 
     def settings(self) -> Settings:
+        """run.json's settings. A run without one yet has your own photo, music and voice (`me`'s, shorts.home),
+        whichever command makes it: `new`, or a recording brought in first."""
         file = self.path(SETTINGS)
-        return Settings.model_validate_json(file.read_text()) if file.exists() else Settings()
+        if file.exists():
+            return Settings.model_validate_json(file.read_text())
+        return Settings(**{kind: str(path) for kind, path in mine().items()})
 
     def save_settings(self, settings: Settings) -> None:
+        """Writes run.json, with a copy of any of your own files (`me`'s) it names: so the run keeps them as they
+        were, whatever you keep later, and works in a copy of the folder elsewhere."""
         self.folder.mkdir(parents=True, exist_ok=True)
+        yours, copied = (home() / "me").resolve(), {}
+        for kind in MINE:
+            value = getattr(settings, kind)
+            if value and self.resolve(value).parent == yours:
+                copied[kind] = f"me/{self.resolve(value).name}"
+                self.path(copied[kind]).parent.mkdir(exist_ok=True)
+                shutil.copyfile(self.resolve(value), self.path(copied[kind]))
         with writing(self.path(SETTINGS)) as out:
-            out.write_text(settings.model_dump_json(indent=2) + "\n")
+            out.write_text(settings.model_copy(update=copied).model_dump_json(indent=2) + "\n")
 
     def script(self) -> Script:
         return Script.model_validate_json(self.path(SCRIPT).read_text())

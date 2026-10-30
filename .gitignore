@@ -9,3 +9,7 @@ assets/
 recordings/
 .env
 .idea/
+# SHORTS_HOME, if it's here (GitHub Actions'): only its products/ notes are meant to be committed. sites/ holds
+# signed-in Chrome profiles, with live sessions.
+.makable-shorts/*
+!.makable-shorts/products/

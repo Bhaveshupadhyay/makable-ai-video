@@ -99,9 +99,6 @@ def new(run: Run, args: argparse.Namespace) -> None:
         updates["narrator_options"] = {**settings.narrator_options, **dict(args.narrator_option)}
     if args.respellings:
         updates["pronounce"] = {**(settings.pronounce or {}), **dict(args.respellings)}
-    if not run.path(SETTINGS).exists():  # a new run: your own files (`me`), unless it's given others
-        for key, file in mine().items():
-            updates.setdefault(key, str(file))
     run.save_settings(settings.model_copy(update=updates))
     print(run.path(SETTINGS).read_text())
 
@@ -117,8 +114,11 @@ def show_me(args: argparse.Namespace) -> None:
         file = getattr(args, kind)
         if file and not Path(file).expanduser().is_file():
             sys.exit(f"me: there's no file {file}")
-        if file is not None:
-            keep(kind, Path(file) if file else None)
+        try:
+            if file is not None:
+                keep(kind, Path(file) if file else None)
+        except ValueError as problem:
+            sys.exit(f"me: {problem}")
     kept = mine()
     print(home())
     for kind in MINE:
@@ -436,7 +436,12 @@ def main() -> None:
             from .stages.browse import browse
 
             options = {"url": args.url, "signed_in": args.signed_in, "window": args.window, "max_steps": args.max_steps}
-            browse(run, args.name, args.task.read_text(), model=args.model, fallback=args.fallback or None, **options)
+            try:
+                browse(
+                    run, args.name, args.task.read_text(), model=args.model, fallback=args.fallback or None, **options
+                )
+            except RuntimeError as problem:  # Chrome couldn't open the signed-in profile: another Chrome has it
+                sys.exit(f"browse: {problem}")
         elif args.command == "drive":
             drive(run, args)
         else:

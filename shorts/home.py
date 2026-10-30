@@ -6,7 +6,7 @@
     products/<name>.md   what the make-video skill knows about each product: its address, how to say its name, ...
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
 
-A new run takes your photo, music and voice from here unless it's given others (`python -m shorts new`).
+A new run takes a copy of your photo, music and voice from here, unless it's given others (`shorts.run`).
 """
 
 import os
@@ -30,24 +30,35 @@ def mine() -> dict[str, Path]:
 
 
 def keep(kind: str, file: Path | None) -> Path | None:
-    """Keeps a copy of `file` as your `kind` (one of MINE), in place of the one kept before, or forgets it (None)."""
+    """Keeps a copy of `file` as your `kind` (one of MINE), in place of the one kept before, or forgets it (None).
+
+    Raises:
+        ValueError: `file` has no extension, which says what type it is.
+    """
     folder = home() / "me"
+    kept = None
+    if file is not None:
+        file = Path(file).expanduser()
+        if not file.suffix:
+            raise ValueError(f"{file} has no extension to say what it is: name it for its type, such as photo.png")
+        folder.mkdir(parents=True, exist_ok=True)
+        kept = folder / f"{kind}{file.suffix.lower()}"
+        copy = folder / f".{kind}.part{file.suffix.lower()}"  # first, so a failed copy loses nothing
+        shutil.copyfile(file, copy)
+        copy.replace(kept)
     for old in folder.glob(f"{kind}.*"):
-        old.unlink()
-    if file is None:
-        return None
-    folder.mkdir(parents=True, exist_ok=True)
-    kept = folder / f"{kind}{Path(file).suffix.lower()}"
-    shutil.copyfile(Path(file).expanduser(), kept)
+        if old != kept:
+            old.unlink()
     return kept
 
 
 def site(url: str) -> str:
-    """The site an address is on, as its profile's folder is named: "app.example.com", "localhost_3000"."""
+    """The site an address is on, as its profile's folder is named: "app.example.com", "localhost_3000". A www.
+    in front doesn't make another site: a sign-in to example.com is one to www.example.com."""
     parts = urlsplit(url if "//" in url else f"https://{url}")
     if not parts.hostname:
         raise ValueError(f"{url!r} isn't a web address")
-    return re.sub(r"[^\w.-]", "_", parts.netloc.lower())
+    return re.sub(r"[^\w.-]", "_", parts.netloc.lower().removeprefix("www."))
 
 
 def site_profile(url: str) -> Path:

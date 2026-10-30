@@ -18,10 +18,9 @@ from shorts.run import Run
 from shorts.signin import forget, recording_profile
 
 
-@pytest.fixture(autouse=True)
-def kept(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setenv("SHORTS_HOME", str(tmp_path / "home"))
-    return tmp_path / "home"
+@pytest.fixture
+def kept(shorts_home: Path) -> Path:
+    return shorts_home
 
 
 def a_file(path: Path, data: bytes = b"data") -> Path:
@@ -39,12 +38,18 @@ def test_your_files_are_kept_one_of_each(tmp_path: Path, kept: Path) -> None:
     assert (kept / "me" / "face.png").read_bytes() == b"png"
     keep("music", None)
     assert mine() == {"face": kept / "me" / "face.png"}
+    keep("face", kept / "me" / "face.png")  # the one that's kept: it stays
+    assert (kept / "me" / "face.png").read_bytes() == b"png"
+    with pytest.raises(ValueError, match="has no extension"):
+        keep("face", a_file(tmp_path / "photo"))
+    assert mine() == {"face": kept / "me" / "face.png"}
 
 
 def test_a_site_is_named_by_its_host() -> None:
     assert site("https://Makable.tech/new?x=1") == "makable.tech"
     assert site("app.example.com/dashboard") == "app.example.com"
     assert site("http://localhost:3000/") == "localhost_3000"
+    assert site("https://www.example.com/dashboard") == site("example.com") == "example.com"
     with pytest.raises(ValueError, match="isn't a web address"):
         site("https://")
 
@@ -63,18 +68,28 @@ def options(**given) -> argparse.Namespace:
     return argparse.Namespace(footage_items=None, narrator_option=None, respellings=None, **given)
 
 
-def test_a_new_run_takes_your_files_unless_its_given_others(tmp_path: Path, kept: Path) -> None:
-    face = keep("face", a_file(tmp_path / "me.png"))
-    music = keep("music", a_file(tmp_path / "song.mp3"))
+def test_a_new_run_keeps_a_copy_of_your_files_unless_its_given_others(tmp_path: Path, kept: Path) -> None:
+    keep("face", a_file(tmp_path / "me.png", b"me"))
+    keep("music", a_file(tmp_path / "song.mp3"))
     run = Run(tmp_path / "runs" / "first")
     new(run, options(music=str(a_file(tmp_path / "other.mp3"))))
     settings = run.settings()
-    assert (run.resolve(settings.face), run.resolve(settings.music)) == (face, (tmp_path / "other.mp3").resolve())
+    assert (settings.face, run.resolve(settings.music)) == ("me/face.png", (tmp_path / "other.mp3").resolve())
+    assert run.path("me/face.png").read_bytes() == b"me"
 
-    keep("face", a_file(tmp_path / "newer.png"))
+    keep("face", a_file(tmp_path / "newer.jpg", b"newer"))  # later: the run keeps its own, as it was
     new(run, options(music=""))  # a run that's there keeps what it has, but for what's given
-    assert (run.resolve(run.settings().face), run.settings().music) == (face, None)
-    assert music.exists()
+    assert (run.settings().face, run.settings().music) == ("me/face.png", None)
+    assert run.path("me/face.png").read_bytes() == b"me"
+
+
+def test_a_run_made_by_a_recording_first_takes_your_files_too(tmp_path: Path, kept: Path) -> None:
+    keep("face", a_file(tmp_path / "me.png", b"me"))
+    run = Run(tmp_path / "runs" / "first")
+    settings = run.settings()  # as bringing a recording in does, before `new`
+    settings.footage["demo"] = "recordings/demo-tight.mp4"
+    run.save_settings(settings)
+    assert run.settings().face == "me/face.png" and run.path("me/face.png").read_bytes() == b"me"
 
 
 def test_me_keeps_and_shows_your_files(tmp_path: Path, kept: Path) -> None:
@@ -88,6 +103,9 @@ def test_me_keeps_and_shows_your_files(tmp_path: Path, kept: Path) -> None:
     a_file(kept / "products" / "makable.md")
     assert "products   makable" in me()
     assert "face       (none)" in me("--face", "")
+    with pytest.raises(subprocess.CalledProcessError) as refused:
+        me("--face", str(a_file(tmp_path / "photo")))
+    assert "has no extension" in refused.value.stderr
 
 
 def test_chrome_quits_by_itself_and_lets_go_of_the_profile(tmp_path: Path) -> None:
@@ -110,3 +128,17 @@ def test_chrome_quits_by_itself_and_lets_go_of_the_profile(tmp_path: Path) -> No
 
     assert 0.25 <= asyncio.run(quit()) <= 1.0
     assert not os.path.lexists(profile / "SingletonLock")
+
+
+def test_a_sign_in_whose_chrome_never_opens_leaves_no_profile(kept: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from shorts import signin
+
+    monkeypatch.setattr(signin, "_chrome", lambda: "/usr/bin/false")  # a Chrome that quits at once
+    with pytest.raises(RuntimeError, match="Chrome didn't open"):
+        signin.sign_in("https://app.example.com")
+    assert not site_profile("https://app.example.com").exists() and signed_in_sites() == []
+
+    site_profile("https://app.example.com").mkdir(parents=True)  # signed in before: that's kept
+    with pytest.raises(RuntimeError, match="Chrome didn't open"):
+        signin.sign_in("https://app.example.com")
+    assert signed_in_sites() == ["app.example.com"]

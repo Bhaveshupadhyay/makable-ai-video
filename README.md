@@ -48,7 +48,7 @@ To run it locally, it needs:
 - **Your photo**, and music if you want it: `makable-shorts me --face PHOTO [--music FILE]`, or the skill asks for them. A photo with its background removed works best with Omni, which films the setting the script describes.
 - **The keys:** copy `.env.example` to `~/.config/makable-shorts/.env` (or `.env` here), and fill it in. The environment wins over the files.
 
-**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), each product's notes (`products/<name>.md`), the sites you've signed in to (`sites/`), and a `.env`. A new run takes your photo, music and voice from there, unless it's given others.
+**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), each product's notes (`products/<name>.md`), the sites you've signed in to (`sites/`), and a `.env`. A new run takes a copy of your photo, music and voice from there (in its own `me/`), unless it's given others, so changing yours later leaves the videos made before as they were.
 
 ## How it's built: stages that share a folder
 
@@ -165,7 +165,7 @@ Most of what's worth showing is behind a sign-in, and every product signs people
 makable-shorts signin --url https://app.example.com    # Chrome opens: sign in, then close the window
 ```
 
-Chrome opens on the page in a profile of the site's own (`SHORTS_HOME/sites/<host>`). Once you close the window, the profile keeps what the site saved: its cookies, local storage and IndexedDB. `drive start --signed-in` and `browse --signed-in` then record headless in that profile, so they start signed in. A site that refreshes its session as it's used saves the new one there too, so it stays signed in from one recording to the next. When a session runs out, sign in again; `--forget` deletes the profile.
+Chrome opens on the page in a profile of the site's own (`SHORTS_HOME/sites/<host>`). Once you close the window, the profile keeps what the site saved: its cookies, local storage and IndexedDB. `drive start --signed-in` and `browse --signed-in` then record headless in that profile, so they start signed in. A site that refreshes its session as it's used saves the new one there too, so it stays signed in from one recording to the next. When a session runs out, sign in again; `--forget` deletes the profile. A site is its host, with or without `www.`.
 
 - **Use a demo account** if you can: the recordings show it, and what they make stays in it.
 - **One Chrome at a time** per site: a recording can't use the profile while the sign-in window is open, and says so.
