@@ -56,9 +56,16 @@ def site(url: str) -> str:
     """The site an address is on, as its profile's folder is named: "app.example.com", "localhost_3000". A www.
     in front doesn't make another site: a sign-in to example.com is one to www.example.com."""
     parts = urlsplit(url if "//" in url else f"https://{url}")
-    if not parts.hostname:
+    host = (parts.hostname or "").removeprefix("www.")
+    # Only a host's own names (or an IPv6 address): never "", "." or "..", so a site's folder is always in sites/,
+    # and `forget` deletes nothing else.
+    try:
+        port = parts.port
+    except ValueError:  # not a number
+        host = ""
+    if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)*|[0-9a-f:]+", host):
         raise ValueError(f"{url!r} isn't a web address")
-    return re.sub(r"[^\w.-]", "_", parts.netloc.lower().removeprefix("www."))
+    return host.replace(":", "_") + (f"_{port}" if port else "")
 
 
 def site_profile(url: str) -> Path:

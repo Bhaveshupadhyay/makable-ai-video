@@ -184,8 +184,8 @@ class Run:
             value = getattr(settings, kind)
             if value and self.resolve(value).parent == yours:
                 copied[kind] = f"me/{self.resolve(value).name}"
-                self.path(copied[kind]).parent.mkdir(exist_ok=True)
-                shutil.copyfile(self.resolve(value), self.path(copied[kind]))
+                with writing(self.path(copied[kind])) as out:  # a failed copy leaves the run's own as it was
+                    shutil.copyfile(self.resolve(value), out)
         with writing(self.path(SETTINGS)) as out:
             out.write_text(settings.model_copy(update=copied).model_dump_json(indent=2) + "\n")
 

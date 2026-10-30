@@ -50,6 +50,10 @@ def test_a_site_is_named_by_its_host() -> None:
     assert site("app.example.com/dashboard") == "app.example.com"
     assert site("http://localhost:3000/") == "localhost_3000"
     assert site("https://www.example.com/dashboard") == site("example.com") == "example.com"
+    assert site("http://[::1]:8080/") == "__1_8080" and site("https://user:pw@app.example.com") == "app.example.com"
+    for wrong in ("https://..", "https://www..", "https://www...", "https://a..b", "https://ex_ample.com", "x:abc"):
+        with pytest.raises(ValueError, match="isn't a web address"):
+            site(wrong)
     with pytest.raises(ValueError, match="isn't a web address"):
         site("https://")
 
@@ -62,6 +66,10 @@ def test_recording_signed_in_needs_someone_to_have_signed_in(kept: Path) -> None
     assert signed_in_sites() == ["app.example.com"]
     assert forget("https://app.example.com") and not forget("https://app.example.com")
     assert signed_in_sites() == []
+    keep("face", a_file(kept.parent / "me.png"))
+    with pytest.raises(ValueError):  # not a site: never a folder outside sites/ (`..` was SHORTS_HOME itself)
+        forget("https://www...")
+    assert mine() == {"face": kept / "me" / "face.png"}
 
 
 def options(**given) -> argparse.Namespace:
@@ -81,6 +89,24 @@ def test_a_new_run_keeps_a_copy_of_your_files_unless_its_given_others(tmp_path: 
     new(run, options(music=""))  # a run that's there keeps what it has, but for what's given
     assert (run.settings().face, run.settings().music) == ("me/face.png", None)
     assert run.path("me/face.png").read_bytes() == b"me"
+
+
+def test_a_copy_that_fails_leaves_the_runs_own(tmp_path: Path, kept: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import shutil
+
+    keep("face", a_file(tmp_path / "me.png", b"first"))
+    run = Run(tmp_path / "runs" / "first")
+    run.save_settings(run.settings())
+    keep("face", a_file(tmp_path / "newer.png", b"newer"))
+
+    def half(source, out) -> None:  # the disk fills up halfway
+        Path(out).write_bytes(b"ne")
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(shutil, "copyfile", half)
+    with pytest.raises(OSError):
+        run.save_settings(run.settings().model_copy(update={"face": str(kept / "me" / "face.png")}))
+    assert run.path("me/face.png").read_bytes() == b"first" and run.settings().face == "me/face.png"
 
 
 def test_a_run_made_by_a_recording_first_takes_your_files_too(tmp_path: Path, kept: Path) -> None:
