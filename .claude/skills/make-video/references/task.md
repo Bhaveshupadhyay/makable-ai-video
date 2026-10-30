@@ -20,9 +20,10 @@ and the waits are cut down to the moments the page changed. So:
 - The window is 720×1280, so makable shows its phone layout.
 - The recording starts on `--url` (https://makable.tech by default). With `--signed-in`, the agent is
   already signed in as the demo user. Use `--signed-in` for anything past the home page.
-- Signed in, makable opens the last site the demo user worked on: a chat with that site's preview under it.
-  For a new site, the site's menu at the top of the chat (it has the site's name) has "New site".
-  The home page's box says "Describe the site you want to build…".
+- Signed in, https://makable.tech opens the last site the demo user worked on: a chat with that site's
+  preview under it.
+- For a new site, use `--url https://makable.tech/new`. It opens on "What do you want to build?", with a box
+  that says "Describe the site you want to build…", and sending the prompt starts the new site.
 
 ## The task's shape
 
@@ -64,13 +65,15 @@ finished), and roughly how long each build or change took (from the chat's timer
 
 ## A task that worked (Crumb & Co)
 
+Run with `--signed-in --url https://makable.tech/new`.
+
 ```
 You're testing makable, an AI website builder, in a phone-sized window. You're already signed in as a demo user.
 Build a new website from start to finish and check that each part works.
 
-1. Start a new site. If the page has a box that says "Describe the site you want to build…", use it.
-   If one of your sites opens instead (a chat with a preview of a site under it), first open the menu
-   with the site's name at the top of the chat and choose "New site".
+1. Start a new site. The page says "What do you want to build?" and has a box that says "Describe the site
+   you want to build…": use it. If one of your sites opens instead (a chat with a preview of a site under
+   it), first open the menu with the site's name at the top of the chat and choose "New site".
    Type this into the box as one line (a line break presses Enter, which sends it), then send it:
    "A one-page website for Crumb & Co, a small neighbourhood bakery: a hero with the bakery's name and a short tagline, a menu of 6 breads and pastries with prices, opening hours, and a contact section with an address and a phone number."
 

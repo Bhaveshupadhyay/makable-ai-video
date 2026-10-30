@@ -28,6 +28,7 @@ account: add something unique, such as the date ("Crumb & Co 1026").
 
 ```sh
 .venv/bin/python -m shorts drive RUN start --signed-in        # opens https://makable.tech (--url for another page)
+.venv/bin/python -m shorts drive RUN start --signed-in --url https://makable.tech/new   # straight to a new site's prompt
 .venv/bin/python -m shorts drive RUN look                     # the page again, without doing anything
 .venv/bin/python -m shorts drive RUN click 12 --goal "Open the site menu"
 .venv/bin/python -m shorts drive RUN type 9 "A one-page website for …" --goal "Describe the site"
@@ -60,9 +61,11 @@ account: add something unique, such as the date ("Crumb & Co 1026").
 ## Rules that keep recordings clean
 
 - **The window is 720×1280,** so makable shows its phone layout. With `--signed-in` you're makable's demo
-  user. Signed in, makable opens the last site the demo user worked on: a chat with that site's preview
-  under it. For a new site, the site's menu at the top of the chat (it has the site's name) has "New site".
-  The home page's box says "Describe the site you want to build…".
+  user. Signed in, https://makable.tech opens the last site the demo user worked on: a chat with that
+  site's preview under it.
+- **A new site starts on https://makable.tech/new** (`start --url`): it opens on "What do you want to
+  build?", with a box that says "Describe the site you want to build…". Sending the prompt starts the new
+  site in the builder, so the footage goes straight from the prompt to the build, with no menu to open.
 - **Type a prompt as one line,** in one `type`. A line break presses Enter, which sends it half-written.
 - **Keep it short.** Every minute recorded makes `stop` take longer, so don't leave the driver idle.
 - **Waiting:** while makable builds (a few minutes) or deploys, use `wait-for` with the text that shows

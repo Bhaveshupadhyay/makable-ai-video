@@ -99,7 +99,7 @@ Write everything that's said, the title and the description in the run's languag
   "intro_line": "A whole bakery website from one sentence, and it lands on your own GitHub. Watch this.",
   "intro_setting": "A bright home office with a laptop on the desk, soft window light, framed from the chest up.",
   "scenes": [
-    {"text": "To start a new site, open the menu and pick New site.", "footage": "makable", "start": 0.6, "end": 5.4},
+    {"text": "To start a new site, just describe it in one sentence.", "footage": "makable", "start": 0.6, "end": 5.4},
     {"text": "…", "footage": "makable", "start": 5.8, "end": 11.6}
   ],
   "outro_line": "makable is free and open source. Describe your site and see it built.",

@@ -88,6 +88,7 @@ You drive the recording yourself, in a Chrome that the pipeline records, followi
 
 ```sh
 .venv/bin/python -m shorts drive RUN start --signed-in       # opens makable signed in, and prints the page
+                                                             # (--url https://makable.tech/new for a new site)
 .venv/bin/python -m shorts drive RUN click 12 --goal "Open the site menu"   # each prints the page after it
 .venv/bin/python -m shorts drive RUN wait-for "Live preview" --timeout 240
 .venv/bin/python -m shorts drive RUN stop --report "…"       # brings it in as the footage demo, with its steps
