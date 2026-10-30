@@ -11,11 +11,6 @@ from pathlib import Path
 
 from .media import ffmpeg
 
-# Words the models say wrong, by language, spelled the way they're said. Only what they read changes, not the
-# captions. English "makeable" was picked by ear. Hindi scripts keep makable in Latin letters, so it's read the way
-# a Hindi speaker would write it.
-PRONOUNCE = {"en": {"makable": "makeable"}, "hi": {"makable": "मेकेबल"}}
-
 
 def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: float = 20.0) -> Path:
     """Makes a voice sample from a recording of someone talking (a video works).
@@ -59,7 +54,8 @@ class ApiVoice:
                 `language_code`, which most of its models refuse) and our API speaks in.
             model: The API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs.
             transcript: What's said in the sample, for OmniVoice (None: Whisper hears it, on the API's side).
-            pronounce: Words to respell, e.g. {"makable": "make-a-bull"}; the language's `PRONOUNCE` by default.
+            pronounce: Words the model says wrong, spelled the way they're said, such as a product's name:
+                {"nginx": "engine x"}. Only what it reads changes, not the captions.
             api: A `speech_api.SpeechAPI`; `SpeechAPI.from_environment()` when the first scene is spoken, by default.
             settings: The API's `voice_settings`, as it takes them: OmniVoice's `speed`, ElevenLabs' `stability`.
         """
@@ -67,7 +63,7 @@ class ApiVoice:
         self.language = language
         self.model = model
         self.transcript = transcript
-        self.pronounce = PRONOUNCE.get(language, {}) if pronounce is None else pronounce
+        self.pronounce = pronounce or {}
         self.tts_options = settings
         self.api = api
         self.voice_id: str | None = None
@@ -95,7 +91,7 @@ class ApiVoice:
 
             self.api = SpeechAPI.from_environment()
         if self.voice_id is None:
-            name = f"makable {self.reference.stem}"
+            name = f"makable-shorts {self.reference.stem}"
             self.voice_id = self.api.add_voice(name, self.reference, self.transcript, self.language)
         mp3 = self.api.speak(self.voice_id, self.spoken(text), self.model, settings=self.tts_options)
         with tempfile.TemporaryDirectory() as work:

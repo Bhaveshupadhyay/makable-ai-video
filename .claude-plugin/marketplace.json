@@ -1,0 +1,15 @@
+{
+  "name": "makable-shorts",
+  "description": "makable Shorts: 1-minute product demo videos, made with Claude Code",
+  "owner": {
+    "name": "Bhaveshupadhyay",
+    "url": "https://github.com/Bhaveshupadhyay"
+  },
+  "plugins": [
+    {
+      "name": "makable-shorts",
+      "source": "./",
+      "description": "Makes 1-minute demo videos of your own web product, with you as an AI avatar"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 """Footage recorded by driving Chrome a command at a time, as Claude Code does, instead of with browser-use's agent.
 
-    python -m shorts drive RUN start [--name demo] [--url https://makable.tech] [--signed-in]
+    python -m shorts drive RUN start --url https://app.example.com [--name demo] [--signed-in] [--window 720x1280]
     python -m shorts drive RUN look                  the page: its tabs, its elements by number, a screenshot
     python -m shorts drive RUN click NUMBER          each of these with --goal "what it's for", for the steps
-    python -m shorts drive RUN type NUMBER TEXT
+    python -m shorts drive RUN type NUMBER TEXT      click and type take --spotlight, to make the element stand out
     python -m shorts drive RUN keys Enter
     python -m shorts drive RUN scroll down|up [--pages 1] [--number N]
     python -m shorts drive RUN wait SECONDS
@@ -14,13 +14,16 @@
     python -m shorts drive RUN act ACTION [JSON]     any other of browser-use's actions, such as go_back
     python -m shorts drive RUN stop --report "what it showed" [--failed]
 
-`start` opens Chrome as `browse` does (`shorts.browse.open_browser`: recorded, with the pointer, and signed in with
---signed-in), in a process of its own that keeps running, and prints the page. Each command after it is a step, as
+`start` opens Chrome on the page as `browse` does (`shorts.browse.open_browser`: recorded, with the pointer, and with
+--signed-in, in the profile `python -m shorts signin` signed in to the site), in a process of its own that keeps
+running, and prints the page. Each command after it is a step, as
 one of the agent's is: it runs one of browser-use's actions in that Chrome, with the pointer gliding to what it
 clicks or types into, notes the step's goal, what it did and when, and prints the page as it is now, numbered the
-way the next command takes them. Afterwards, the time between commands (whoever drives it thinking) is cut out, as
-the agent's is, and so are the parts of the waits where nothing changes. `stop` ends the recording and brings it in
-as the footage, with its steps, as `browse` does.
+way the next command takes them. With --spotlight (it's off without), a click or a type blurs and dims the rest of
+the page first, so its element stands out, unless the element's a button (`shorts.browse.tools_with`). Afterwards,
+the time between commands (whoever drives it thinking) is cut out, as the agent's is, and so are the parts of the
+waits where nothing changes. `stop` ends the recording and brings it in as the footage, with its steps, as `browse`
+does.
 
 It needs no model and no key: whoever sends the commands is the model. Only the process that holds Chrome needs
 browser-use (SHORTS_BROWSE_PYTHON); the commands talk to it on a local port, with a token from
@@ -75,8 +78,17 @@ def _log(run: Run, name: str, lines: int = 15) -> str:
     return f"Its log, {log}:\n{end}"
 
 
-def start(run: Run, name: str, url: str, signed_in: bool, python: str, environment: dict[str, str]) -> str:
-    """Starts a driver recording `name` from `url`, in `python` (one with browser-use), and returns the page."""
+def start(
+    run: Run,
+    name: str,
+    url: str,
+    signed_in: bool,
+    window: tuple[int, int],
+    python: str,
+    environment: dict[str, str],
+) -> str:
+    """Starts a driver recording `name` from `url` in a `window` (width, height), in `python` (one with browser-use),
+    and returns the page."""
     where = driving_file(run, name)
     if where.exists():
         if _alive(json.loads(where.read_text())["pid"]):
@@ -85,6 +97,7 @@ def start(run: Run, name: str, url: str, signed_in: bool, python: str, environme
     log = log_file(run, name)
     log.parent.mkdir(parents=True, exist_ok=True)
     command = [python, "-m", "shorts", "drive", str(run.folder), "serve", "--name", name, "--url", url]
+    command += ["--window", "x".join(map(str, window))]
     with log.open("w") as output:
         driver = subprocess.Popen(
             [*command, *(["--signed-in"] if signed_in else [])],
@@ -148,17 +161,17 @@ class Note:
 class Driver:
     """Chrome, recording, and the commands it takes (see the module's docstring)."""
 
-    def __init__(self, run: Run, name: str, url: str, signed_in: bool = False):
-        self.run, self.name, self.url, self.signed_in = run, name, url, signed_in
+    def __init__(self, run: Run, name: str, url: str, signed_in: bool = False, window: tuple[int, int] = (720, 1280)):
+        self.run, self.name, self.url, self.signed_in, self.window = run, name, url, signed_in, window
         self.video = run.path(f"recordings/{name}.mp4")
         self.notes: list[Note] = []
 
     async def open(self) -> None:
         from .browse import open_browser, tools_with
-        from .stages.browse import demo_cookies
+        from .signin import recording_profile
 
-        cookies = demo_cookies(self.url) if self.signed_in else None
-        self.browser = await open_browser(self.video, url=self.url, cookies=cookies)
+        profile = recording_profile(self.url) if self.signed_in else None
+        self.browser = await open_browser(self.video, url=self.url, size=self.window, profile=profile)
         self.tools = tools_with(self.browser.pointer)
         self.action = self.tools.registry.create_action_model()
 
@@ -168,7 +181,7 @@ class Driver:
         if command == "look":
             return True, await self.look()
         if command == "act":
-            return await self.act(goal, args["action"], args.get("params") or {})
+            return await self.act(goal, args["action"], args.get("params") or {}, spotlight=bool(args.get("spotlight")))
         if command == "wait":
             return await self.wait(goal, args["seconds"])
         if command == "wait-for":
@@ -198,14 +211,15 @@ class Driver:
             lines += ["", f"Screenshot: {look}"]
         return "\n".join(lines)
 
-    async def act(self, goal: str, name: str, params: dict[str, Any]) -> tuple[bool, str]:
-        """One of browser-use's actions, as a step, with the pointer gliding to its element first."""
+    async def act(self, goal: str, name: str, params: dict[str, Any], spotlight: bool = False) -> tuple[bool, str]:
+        """One of browser-use's actions, as a step, with the pointer gliding to its element first, and the
+        spotlight on it if `spotlight`."""
         try:
             action = self.action(**{name: params})
         except Exception as error:  # an action browser-use hasn't, or the wrong parameters for it
             return False, f"No action {name} with {json.dumps(params)}: {error}"
         page, start = await self.browser.session.get_current_page_url(), time.time()
-        result = await self.tools.act(action, browser_session=self.browser.session)
+        result = await self.tools.act(action, browser_session=self.browser.session, spotlight=spotlight)
         await asyncio.sleep(SETTLE)
         did = result.error or result.extracted_content or result.long_term_memory or ""
         self.notes.append(Note(goal or did, [{name: params}], [did], page, start, time.time()))
@@ -265,12 +279,14 @@ class Driver:
                 self.browser.since(note.start),
                 self.browser.since(note.end),
                 clicks=self.browser.clicks(note.start, note.end),
+                typing=self.browser.typing(note.start, note.end),
             )
             for note in self.notes
         ]
         save_steps(self.video, steps)
         tight, tight_steps = cut_pauses(self.video, steps, self.video.with_name(f"{self.name}-tight.mp4"))
         record = {"driver": "python -m shorts drive", "url": self.url, "signed_in": self.signed_in}
+        record["window"] = "x".join(map(str, self.window))
         self.video.with_name(f"{self.name}.browse.json").write_text(json.dumps(record, indent=2) + "\n")
         bring_in(self.run, "footage", [tight], name=self.name)
         return f"{len(tight_steps)} steps, {tight_steps[-1].end:.1f} s, in as the footage {self.name!r}: {tight}"

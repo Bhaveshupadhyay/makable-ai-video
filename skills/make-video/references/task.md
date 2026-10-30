@@ -2,7 +2,7 @@
 
 browser-use's agent does the task in a real Chrome while the screen is recorded. At each step it gets the
 page's elements and a screenshot, and picks the next clicks and typing. Write the task the way you'd brief
-a careful tester who has never seen makable. Save it as `RUN/task.md`.
+a careful tester who has never seen the product. Save it as `RUN/task.md`.
 
 ## What the recording is for
 
@@ -12,60 +12,58 @@ and the waits are cut down to the moments the page changed. So:
 - **Show one thing well.** Take the shortest path to the functionality, show it working, then show the
   result. Don't tour the app.
 - **End on the payoff,** the result the video is about, visible and still for a moment.
-- **Avoid long, aimless waits.** Building a site takes about a minute and a change takes about 30 seconds.
-  Those are fine: the progress steps make good footage.
+- **Avoid long, aimless waits.** Waiting while the product works on something is fine (its notes say how
+  long things take): progress steps make good footage.
 
 ## The window and the starting point
 
-- The window is 720×1280, so makable shows its phone layout.
-- The recording starts on `--url` (https://makable.tech by default). With `--signed-in`, the agent is
-  already signed in as the demo user. Use `--signed-in` for anything past the home page.
-- Signed in, https://makable.tech opens the last site the demo user worked on: a chat with that site's
-  preview under it.
-- For a new site, use `--url https://makable.tech/new`. It opens on "What do you want to build?", with a box
-  that says "Describe the site you want to build…", and sending the prompt starts the new site.
+- The window is `--window`, the notes': 720×1280 gets a site's phone layout.
+- The recording starts on `--url`: the notes' `url`, or a page deeper in where the flow starts (the notes'
+  recording tips may say which). With `--signed-in`, the agent is already signed in, as the user was when
+  they signed in by hand. Use it for anything behind the sign-in.
 
 ## The task's shape
 
 ```
-You're testing makable, an AI website builder, in a phone-sized window. You're already signed in as a demo user.
-<One sentence: what to do and why, such as "Build a new website and ask for one change to it.">
+You're testing <the product>, <what it is, from its notes>, in a phone-sized window. You're already signed in.
+<One sentence: what to do and why, such as "Share a note with a teammate and check they can see it.">
 
 1. <A step: where, what to click or type, using the labels exactly as the page shows them.>
-   <What to do if the page is different: "If one of your sites opens instead, first open the menu with the
-   site's name at the top of the chat and choose "New site".">
+   <What to do if the page is different: "If a list opens instead, first choose …".>
 2. ...
 
-Don't publish the site, don't change any settings, don't click Undo and don't sign out.
+Don't pay for anything, don't delete or publish anything, don't change any settings and don't sign out.
 
 At the end, call done with success true only if every step worked. In its text, report whether each step
-worked, anything that looked broken (an error message, a blank or empty preview, a step that never
-finished), and roughly how long each build or change took (from the chat's timer).
+worked, anything that looked broken (an error message, a blank page, a step that never finished), and
+roughly how long anything slow took (from the product's own timer, if it shows one).
 ```
 
 ## Rules that keep recordings clean
 
 - **Labels exactly as shown.** Quote them: "Ask for a change to your site…", "New site",
-  "Live preview". When a change touches the UI, find the labels in the commits' diff, or in the makable
-  repo's code, before you write the task.
+  "Live preview". When a change touches the UI, find the labels in the commits' diff, or in the product's
+  code, before you write the task.
 - **Type a prompt as one line.** A line break presses Enter, which sends it half-written.
-- **Names must be new.** A site's name is also a GitHub repository on the demo account, and makable asks
-  again if it's taken. Add something unique, such as the date: "Crumb & Co 1026".
+- **Names must be new,** where the product needs that (the notes say): add something unique, such as the
+  date: "Crumb & Co 1026".
 - **Waiting:** "Use the wait action for 30 seconds at a time, then look at the page again." Say when it's
   done (what the page shows), and when to give up: "Give up if the progress steps haven't moved for
   5 minutes, or after 10 minutes in all."
-- **Never interrupt a build:** "Don't reload the page, and don't click Stop, Cancel or anything else
-  while it's building."
-- **Errors:** "If makable shows an error such as 'Couldn't reach the server', wait 30 seconds and send
-  the same message once more. If it fails again, stop and report it." The script leaves the error out.
+- **Never interrupt it:** "Don't reload the page, and don't click Stop, Cancel or anything else while
+  it's working."
+- **Errors:** "If the page shows an error such as 'Couldn't reach the server', wait 30 seconds and try
+  the same thing once more. If it fails again, stop and report it." The script leaves the error out.
 - **Check what matters:** have it confirm what the viewer should see ("Check that the preview shows an
   'Order for pickup' button in the hero"), and scroll inside the preview if that's below the fold.
 - **Plan the steps:** keep the task under the step limit (`--max-steps`, 60 by default). Every 30-second
-  wait is a step. A build plus one change fits in 60.
+  wait is a step.
 
-## A task that worked (Crumb & Co)
+## A task that worked: makable, an AI website builder
 
-Run with `--signed-in --url https://makable.tech/new`.
+makable builds a website from a prompt, in a chat with the site's preview under it. Its notes say a new site
+starts on https://makable.tech/new, and that a site's name is also a GitHub repository, so it must be new.
+This ran with `--signed-in --url https://makable.tech/new`. A build plus one change fit in 60 steps.
 
 ```
 You're testing makable, an AI website builder, in a phone-sized window. You're already signed in as a demo user.

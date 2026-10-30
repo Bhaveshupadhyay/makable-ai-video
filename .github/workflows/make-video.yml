@@ -1,25 +1,31 @@
-# Makes a makable Short in GitHub Actions: Claude Code runs the make-video skill (.claude/skills/make-video) with
-# --yes, so it asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro
-# with Gemini Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
+# Makes a Short about your product in GitHub Actions: Claude Code runs this repo as its plugin, and the plugin's
+# make-video skill (skills/make-video) with --yes, so it asks nothing. It records the change by driving Chrome, writes the script, films the intro and the
+# outro with Gemini Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
 #
 # Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
+#
+# Your product's notes come from this repo: commit them as .makable-shorts/products/<name>.md (the skill writes them
+# in ~/.config/makable-shorts/products/ when you first make a video locally). Nobody can sign in by hand here, so
+# the recordings are of what the product shows signed out.
 #
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
 #   GEMINI_API_KEY             Omni (it needs a prepaid balance in AI Studio)
 #   HEYGEN_API_KEY             (optional) to film with HeyGen instead (run.json's intro and outro)
 #   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
-#   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAKABLE_DEMO_EMAIL, MAKABLE_DEMO_PASSWORD    makable's demo user
-#   FACE_JPG_BASE64            your photo for Omni: base64 -i assets/face.jpg | gh secret set FACE_JPG_BASE64
-#   MUSIC_MP3_BASE64           (optional) music under the video, the same way
+#   FACE_URL                   a link to your photo, for Omni (a secret holds at most 48 KB, too little for the photo)
+#   MUSIC_URL                  (optional) a link to music to play under the video
 
 name: Make a video
 
 on:
   workflow_dispatch:
     inputs:
+      product:
+        description: "The product's notes to use (.makable-shorts/products/<name>.md), if there are several"
+        required: false
       commits:
-        description: "Commits to make it about: SHAs (in Bhaveshupadhyay/makable), repo@sha, commit URLs or a..b"
+        description: "Commits to make it about: SHAs (in the product's code), repo@sha, commit URLs or a..b"
         required: false
       prompt:
         description: "Or, or as well: the functionality to show, in words"
@@ -37,7 +43,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: make-video  # one at a time: they'd share the demo user's sites
+  group: make-video  # one at a time: they'd share the product's account
   cancel-in-progress: false
 
 jobs:
@@ -50,10 +56,7 @@ jobs:
       HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
       SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}
       SHORTS_SPEECH_KEY: ${{ secrets.SHORTS_SPEECH_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-      MAKABLE_DEMO_EMAIL: ${{ secrets.MAKABLE_DEMO_EMAIL }}
-      MAKABLE_DEMO_PASSWORD: ${{ secrets.MAKABLE_DEMO_PASSWORD }}
+      SHORTS_HOME: ${{ github.workspace }}/.makable-shorts  # the product's notes; the photo and the music go here
     steps:
       - name: Check what to make it about
         if: inputs.commits == '' && inputs.prompt == ''
@@ -68,35 +71,32 @@ jobs:
       - name: ffmpeg
         run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
 
-      - name: The pipeline's environment, and browser-use's own
+      - name: The plugin's command, and Chromium for browser-use
         run: |
-          uv venv --python 3.12 .venv
-          uv pip install --python .venv -e '.[gemini,assemble,speech]'
-          uv venv --python 3.12 ~/browse-env
-          uv pip install --python ~/browse-env -e '.[browse]'
+          echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"   # makable-shorts makes its Python environments on first use
           uvx playwright install --with-deps chromium
-          echo "SHORTS_BROWSE_PYTHON=$HOME/browse-env/bin/python" >> "$GITHUB_ENV"
 
       - name: The photo and the music
         env:
-          FACE: ${{ secrets.FACE_JPG_BASE64 }}
-          MUSIC: ${{ secrets.MUSIC_MP3_BASE64 }}
+          FACE_URL: ${{ secrets.FACE_URL }}
+          MUSIC_URL: ${{ secrets.MUSIC_URL }}
         run: |
-          mkdir -p assets
-          echo "$FACE" | base64 -d > assets/face.jpg
-          if [ -n "$MUSIC" ]; then echo "$MUSIC" | base64 -d > assets/music.mp3; fi
+          mkdir -p "$SHORTS_HOME/me"
+          curl -fsSL "$FACE_URL" -o "$SHORTS_HOME/me/face.${FACE_URL##*.}"
+          if [ -n "$MUSIC_URL" ]; then curl -fsSL "$MUSIC_URL" -o "$SHORTS_HOME/me/music.${MUSIC_URL##*.}"; fi
 
       - name: Make the video (Claude Code, with the make-video skill)
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: >-
-            Make a makable Short with the make-video skill. The request:
-            ${{ inputs.commits }} ${{ inputs.prompt && format('"{0}"', inputs.prompt) || '' }}
+            Make a Short with the make-video skill. The request:
+            ${{ inputs.product }} ${{ inputs.commits }} ${{ inputs.prompt && format('"{0}"', inputs.prompt) || '' }}
             --tone ${{ inputs.tone }} --language ${{ inputs.language }} --yes
           # What the skill runs. Recording and making the video take minutes: Bash may wait up to 30 for one.
           claude_args: >-
-            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(.venv/bin/python -m shorts:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(ffprobe:*),Bash(ls:*)"
+            --plugin-dir ${{ github.workspace }}
+            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(makable-shorts:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(git -C:*),Bash(ffprobe:*),Bash(ls:*)"
           settings: '{"env": {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "1800000"}}'
 
       - name: Upload the video

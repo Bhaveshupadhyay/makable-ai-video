@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from . import COMMAND
 from .intro import avatar_prompt
 from .run import Settings
 
@@ -88,8 +89,7 @@ def _heygen_film(
 
     if not settings.filmer_voice:
         raise ValueError(
-            "HeyGen needs a voice: pick one with `python -m shorts voices`, then "
-            "`python -m shorts new RUN --filmer-voice VOICE_ID`"
+            f"HeyGen needs a voice: pick one with `{COMMAND} voices`, then `{COMMAND} new RUN --filmer-voice VOICE_ID`"
         )
     with api or _heygen_api() as client:
         kind = mimetypes.guess_type(face.name)[0] or "image/jpeg"

@@ -9,6 +9,7 @@ comes from the environment (SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY); run.json's
 
 from pathlib import Path
 
+from .. import COMMAND
 from ..run import AVATAR_VOICE, Run, Settings, file_hash, fingerprint, narration_file, writing
 from ..voice import ApiVoice
 from .base import NotReady, Stage, read_script, voice_sample
@@ -35,7 +36,7 @@ class Speak(Stage):
         if settings.narration_voice == "sample":
             return voice_sample(run, settings)
         if not run.path(AVATAR_VOICE).exists():
-            raise NotReady(f"{AVATAR_VOICE} isn't made yet: python -m shorts take-voice {run.folder}")
+            raise NotReady(f"{AVATAR_VOICE} isn't made yet: {COMMAND} take-voice {run.folder}")
         return run.path(AVATAR_VOICE)
 
     def voice(self, run: Run) -> ApiVoice:

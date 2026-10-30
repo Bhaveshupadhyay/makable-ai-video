@@ -13,6 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import COMMAND
 from .run import FINAL, PRODUCTS, Run
 from .stages import STAGES, Import, NotReady, Stage, execute, producer, states
 from .stages.base import MISSING, TO_MAKE
@@ -85,8 +86,8 @@ def status(run: Run) -> list[Status]:
 def advice(run: Run, entry: Status) -> str:
     """The command that makes a product."""
     if isinstance(entry.stage, Import):
-        return f"bring it in: python -m shorts import {run.folder} {entry.product} FILE ..."
-    command = f"python -m shorts {entry.stage.name} {run.folder}"
+        return f"bring it in: {COMMAND} import {run.folder} {entry.product} FILE ..."
+    command = f"{COMMAND} {entry.stage.name} {run.folder}"
     return f"{command} ({entry.stage.cost}; or run --paid)" if entry.stage.cost else command
 
 

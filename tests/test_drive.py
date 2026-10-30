@@ -14,6 +14,7 @@ import pytest
 from shorts import browse as recorder
 from shorts import drive
 from shorts.__main__ import ACTIONS
+from shorts.__main__ import drive as command
 from shorts.browse import save_steps
 from shorts.orchestrator import PACKAGE_ROOT
 from shorts.run import Run, footage_file, steps_file
@@ -39,6 +40,32 @@ def test_each_command_asks_for_one_of_browser_uses_actions() -> None:
     )
     assert asked("tab", tab="4666") == ("switch", {"tab_id": "4666"})
     assert asked("act", action_name="go_back", params="{}") == ("go_back", {})
+
+
+def test_a_click_or_a_type_can_ask_for_the_spotlight(run: Run, monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[str, dict]] = []
+    monkeypatch.setattr(drive, "send", lambda run, name, step, **args: sent.append((step, args)) or "Did it")
+    command(run, argparse.Namespace(step="click", name="demo", number=4, goal="Open the menu", spotlight=True))
+    command(run, argparse.Namespace(step="keys", name="demo", keys="Enter", goal=None))
+    assert sent == [
+        ("act", {"action": "click", "params": {"index": 4}, "goal": "Open the menu", "spotlight": True}),
+        ("act", {"action": "send_keys", "params": {"keys": "Enter"}}),
+    ]
+
+    asked = {}
+
+    async def act(action: dict, browser_session, spotlight: bool = False) -> SimpleNamespace:
+        asked.update(action=action, spotlight=spotlight)
+        return SimpleNamespace(error=None, extracted_content="Clicked", long_term_memory=None)
+
+    monkeypatch.setattr(drive, "SETTLE", 0)
+    driver = drive.Driver(run, "demo", "https://makable.tech")
+    driver.browser = SimpleNamespace(
+        session=SimpleNamespace(get_current_page_url=lambda: asyncio.sleep(0, "https://makable.tech/"))
+    )
+    driver.tools, driver.action, driver.look = SimpleNamespace(act=act), dict, lambda: asyncio.sleep(0, "The page")
+    assert asyncio.run(driver.handle("act", sent[0][1])) == (True, "Clicked\n\nThe page")
+    assert asked == {"action": {"click": {"index": 4}}, "spotlight": True}
 
 
 class Answering:
@@ -107,11 +134,11 @@ def test_a_driver_sent_nothing_stops_by_itself(run: Run) -> None:
     assert not where.exists()
 
 
-def test_start_says_why_the_driver_didnt_start(run: Run) -> None:
-    environment = {**os.environ, "PYTHONPATH": str(PACKAGE_ROOT), "SUPABASE_URL": ""}
-    # Signed in without SUPABASE_URL, the driver stops before it opens Chrome.
-    with pytest.raises(NotReady, match="the driver stopped before Chrome opened(.|\n)*SUPABASE_URL"):
-        drive.start(run, "demo", "https://makable.tech", True, sys.executable, environment)
+def test_start_says_why_the_driver_didnt_start(run: Run, tmp_path: Path) -> None:
+    environment = {**os.environ, "PYTHONPATH": str(PACKAGE_ROOT), "SHORTS_HOME": str(tmp_path / "home")}
+    # Signed in to a site nobody's signed in to, the driver stops before it opens Chrome.
+    with pytest.raises(NotReady, match="the driver stopped before Chrome opened(.|\n)*shorts signin --url"):
+        drive.start(run, "demo", "https://app.example.com", True, (720, 1280), sys.executable, environment)
     assert not drive.driving_file(run, "demo").exists()
 
 
@@ -122,6 +149,7 @@ def test_stop_brings_the_recording_in_with_its_steps(run: Run, monkeypatch: pyte
         session=SimpleNamespace(get_current_page_url=lambda: asyncio.sleep(0, "https://makable.tech/")),
         since=lambda at: round(at - origin, 2),
         clicks=lambda start, end: [[round(at - origin, 2), 10, 20] for at in (1002.5,) if start <= at <= end],
+        typing=lambda start, end: [],
     )
 
     async def close_browser(browser, out: Path) -> Path:

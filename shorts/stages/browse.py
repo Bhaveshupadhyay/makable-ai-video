@@ -2,8 +2,11 @@
 is recorded (`shorts.browse`). The model's pauses are cut out, and the tight recording comes into the run as footage,
 with its steps, for the script to be written from.
 
-    python -m shorts browse RUN --name demo --task task.md [--url https://makable.tech] [--signed-in]
-        [--max-steps 60] [--model google:gemini-3.6-flash] [--fallback google:gemini-3-flash-preview]
+    python -m shorts browse RUN --url https://app.example.com --name demo --task task.md [--signed-in]
+        [--window 720x1280] [--max-steps 60] [--model google:gemini-3.6-flash]
+        [--fallback google:gemini-3-flash-preview]
+
+With --signed-in, it records in the profile `python -m shorts signin` signed in to the site (`shorts.signin`).
 
 It writes RUN/recordings/<name>.mp4 (the run in real time), <name>-tight.mp4 (without the pauses, the footage),
 each with its .steps.json, and <name>.browse.json (the task, the page and the models, to record it again).
@@ -16,24 +19,10 @@ when this one hasn't browser-use.
 
 import asyncio
 import json
-import os
 from pathlib import Path
 
 from ..run import Run
 from .bring_in import bring_in
-
-APP_URL = "https://makable.tech"
-SIGN_IN = ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "MAKABLE_DEMO_EMAIL", "MAKABLE_DEMO_PASSWORD")
-
-
-def demo_cookies(url: str) -> list[dict]:
-    """A new session for makable's demo user (`shorts.signin`), from the environment's SIGN_IN settings."""
-    from ..signin import signed_in
-
-    missing = [name for name in SIGN_IN if not os.environ.get(name)]
-    if missing:
-        raise ValueError(f"Set {', '.join(missing)} to record signed in (see the README's Recording makable signed in)")
-    return signed_in(url, *(os.environ[name] for name in SIGN_IN))
 
 
 def outcome(steps: list) -> tuple[bool | None, str]:
@@ -50,14 +39,18 @@ def browse(
     name: str,
     task: str,
     *,
-    url: str = APP_URL,
+    url: str,
     signed_in: bool = False,
+    window: tuple[int, int] = (720, 1280),
     max_steps: int = 60,
     model: str,
     fallback: str | None = None,
 ) -> Path:
     """Records `task` as the footage `name` (see the module's docstring), and returns the tight recording."""
     from ..browse import chat_model, cut_pauses, record_task
+    from ..signin import recording_profile
+
+    profile = recording_profile(url) if signed_in else None
 
     llm, backup = chat_model(model), None
     if fallback:
@@ -66,15 +59,24 @@ def browse(
         except ValueError as error:
             print(f"Warning: no fallback model ({error}): recording with {model} alone")
             fallback = None
-    cookies = demo_cookies(url) if signed_in else None
     folder = run.path("recordings")
     folder.mkdir(parents=True, exist_ok=True)
     print(f"Recording {name!r} from {url}{' signed in' if signed_in else ''}, with {model} (fallback: {fallback})")
     video, steps = asyncio.run(
-        record_task(task, folder / f"{name}.mp4", llm, fallback=backup, url=url, cookies=cookies, max_steps=max_steps)
+        record_task(
+            task,
+            folder / f"{name}.mp4",
+            llm,
+            fallback=backup,
+            url=url,
+            size=window,
+            profile=profile,
+            max_steps=max_steps,
+        )
     )
     tight, tight_steps = cut_pauses(video, steps, folder / f"{name}-tight.mp4")
-    asked = {"task": task, "url": url, "signed_in": signed_in, "max_steps": max_steps, "model": model}
+    asked = {"task": task, "url": url, "signed_in": signed_in, "window": "x".join(map(str, window))}
+    asked |= {"max_steps": max_steps, "model": model}
     (folder / f"{name}.browse.json").write_text(json.dumps({**asked, "fallback": fallback}, indent=2) + "\n")
     bring_in(run, "footage", [tight], name=name)
 

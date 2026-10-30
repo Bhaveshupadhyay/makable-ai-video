@@ -78,9 +78,10 @@ class Settings(BaseModel):
     narration_voice: Literal["intro", "sample"] = "intro"
     narrator_model: str = "omnivoice"  # the API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs
     narrator_options: dict[str, float | bool | str] = {}  # the API's voice_settings: OmniVoice's speed, say
-    pronounce: dict[str, str] | None = None  # words to respell for the narrator; voice.PRONOUNCE by default
+    pronounce: dict[str, str] | None = None  # words the narrator says wrong, respelled: the product's name, say
     reference_text: str | None = None  # what's said in the voice sample, for OmniVoice (None: Whisper hears it)
-    face: str | None = None  # a photo of you, for Omni
+    # Your own files, `python -m shorts me`'s for a new run unless it's given others (shorts.home):
+    face: str | None = None  # a photo of you, for whoever films you
     voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
