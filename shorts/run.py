@@ -7,6 +7,7 @@ imports another, so anything that writes a file under its name can stand in for 
 scenes spoken by another tool).
 
     run.json                         the settings: what the video is made from (yours to edit)
+    me/face.png, music.mp3, ...      your photo, music and voice, copied in from `me`'s as the run was made
     footage/<name>.mp4               each recording the scenes are said over, and
     footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known
     script.json                      what's said (`script.Script`): the intro and outro lines, and each scene
@@ -16,6 +17,7 @@ scenes spoken by another tool).
     narration/01.wav, 02.wav, ...    each scene's narration
     final.mp4, metadata.json         the video, and what to upload it with
     .records/<product>.json          what made each of a product's files, and from what
+    .gitignore                       all of it: a run folder stays out of git (`Run.make`)
 
 A product is the files one stage makes. Its record notes, for each file, a fingerprint of what it was made
 from and of the file as written. So a file is out of date when what it would be made from now differs (the
@@ -27,12 +29,14 @@ import contextlib
 import hashlib
 import json
 import os
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, model_validator
 
+from .home import MINE, home, mine
 from .script import Script
 
 SETTINGS = "run.json"
@@ -78,9 +82,10 @@ class Settings(BaseModel):
     narration_voice: Literal["intro", "sample"] = "intro"
     narrator_model: str = "omnivoice"  # the API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs
     narrator_options: dict[str, float | bool | str] = {}  # the API's voice_settings: OmniVoice's speed, say
-    pronounce: dict[str, str] | None = None  # words to respell for the narrator; voice.PRONOUNCE by default
+    pronounce: dict[str, str] | None = None  # words the narrator says wrong, respelled: the product's name, say
     reference_text: str | None = None  # what's said in the voice sample, for OmniVoice (None: Whisper hears it)
-    face: str | None = None  # a photo of you, for Omni
+    # Your own files, `python -m shorts me`'s for a new run unless it's given others (shorts.home):
+    face: str | None = None  # a photo of you, for whoever films you
     voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
@@ -151,6 +156,14 @@ class Run:
     def __init__(self, folder: Path | str) -> None:
         self.folder = Path(folder)
 
+    def make(self) -> None:
+        """Makes the run folder, if it isn't there, with a .gitignore that keeps all of it out of git: in a product's
+        repo (.makable-shorts/runs/), its recordings and clips would be far too big to commit."""
+        self.folder.mkdir(parents=True, exist_ok=True)
+        ignore = self.folder / ".gitignore"
+        if not ignore.exists():
+            ignore.write_text("# a video's run folder (makable-shorts): too big to commit\n*\n")
+
     def path(self, name: str) -> Path:
         """A file in the run folder, by its name in the contract."""
         return self.folder / name
@@ -164,13 +177,26 @@ class Run:
         return os.path.relpath(Path(path).expanduser().resolve(), self.folder.resolve())
 
     def settings(self) -> Settings:
+        """run.json's settings. A run without one yet has your own photo, music and voice (`me`'s, shorts.home),
+        whichever command makes it: `new`, or a recording brought in first."""
         file = self.path(SETTINGS)
-        return Settings.model_validate_json(file.read_text()) if file.exists() else Settings()
+        if file.exists():
+            return Settings.model_validate_json(file.read_text())
+        return Settings(**{kind: str(path) for kind, path in mine().items()})
 
     def save_settings(self, settings: Settings) -> None:
+        """Writes run.json, with a copy of any of your own files (`me`'s) it names: so the run keeps them as they
+        were, whatever you keep later, and works in a copy of the folder elsewhere."""
         self.folder.mkdir(parents=True, exist_ok=True)
+        yours, copied = (home() / "me").resolve(), {}
+        for kind in MINE:
+            value = getattr(settings, kind)
+            if value and self.resolve(value).parent == yours:
+                copied[kind] = f"me/{self.resolve(value).name}"
+                with writing(self.path(copied[kind])) as out:  # a failed copy leaves the run's own as it was
+                    shutil.copyfile(self.resolve(value), out)
         with writing(self.path(SETTINGS)) as out:
-            out.write_text(settings.model_dump_json(indent=2) + "\n")
+            out.write_text(settings.model_copy(update=copied).model_dump_json(indent=2) + "\n")
 
     def script(self) -> Script:
         return Script.model_validate_json(self.path(SCRIPT).read_text())

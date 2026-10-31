@@ -2,7 +2,7 @@
 voice of a sample, by OmniVoice or Chatterbox.
 
 The two can't share an environment (Chatterbox pins an older transformers), so each imports its packages only
-when it's made. Neither respells words: the client does (`shorts.voice.PRONOUNCE`).
+when it's made. Neither respells words: the client does (run.json's `pronounce`, `shorts.voice.ApiVoice.spoken`).
 """
 
 import hashlib

@@ -1,6 +1,6 @@
 """import: files made elsewhere, brought in under their names in the contract, in place of a stage's.
 
-    python -m shorts import RUN footage --name makable recordings/makable-tight.mp4   (and its .steps.json)
+    python -m shorts import RUN footage --name demo recordings/demo-tight.mp4   (and its .steps.json)
     python -m shorts import RUN script drafts/script.json                 the script Claude wrote
     python -m shorts import RUN intro gemini_generated_video.mp4          a clip filmed elsewhere (the Gemini app,
     python -m shorts import RUN outro https://.../outro.mp4               HeyGen, Higgsfield): a file, or a link to one
@@ -29,6 +29,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .. import COMMAND
 from ..media import duration, ffmpeg
 from ..run import (
     FILMED_INTRO,
@@ -95,7 +96,7 @@ class Import(Stage):
 
     def make(self, run: Run, paths: list[str]) -> None:
         if self.files is None:
-            raise NotReady(f"bring it in: python -m shorts import {run.folder} {self.product} FILE ...")
+            raise NotReady(f"bring it in: {COMMAND} import {run.folder} {self.product} FILE ...")
         sources = dict(zip(self.plan(run), self.files, strict=True))
         for path in paths:
             print(f"{sources[path]} -> {path}")

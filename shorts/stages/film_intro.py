@@ -8,6 +8,7 @@ comes in with `python -m shorts import RUN intro CLIP` (or `outro`), a file or a
 the intro's setting unless the script gives it one, and used as filmed.
 """
 
+from .. import COMMAND
 from ..filmers import FILMERS, Filmer
 from ..run import FILMED_INTRO, FILMED_OUTRO, Run, Settings, file_hash, fingerprint, writing
 from ..script import Script
@@ -39,7 +40,9 @@ class FilmIntro(Stage):
     def plan(self, run: Run) -> dict[str, str]:
         settings = run.settings()
         if settings.face is None:
-            raise NotReady("run.json has no photo of you: python -m shorts new RUN --face PHOTO")
+            raise NotReady(
+                f"run.json has no photo of you: {COMMAND} new RUN --face PHOTO ({COMMAND} me --face keeps one for new runs)"
+            )
         face = run.resolve(settings.face)
         if not face.exists():
             raise NotReady(f"the photo {face} isn't there")

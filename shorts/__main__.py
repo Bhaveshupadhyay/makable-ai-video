@@ -1,7 +1,11 @@
 """The command line: set a video up, see where it is, and make it, a stage at a time or all that's left.
 
-    python -m shorts new RUN --face assets/face.jpg [--music assets/music.mp3] [--language hi] [--tone hype]
-    python -m shorts browse RUN --name NAME --task FILE [--signed-in] [--model PROVIDER:MODEL]   footage
+    python -m shorts me [--face PHOTO] [--music FILE] [--voice FILE]   your own files, kept for every video
+                                               (in SHORTS_HOME, ~/.config/makable-shorts: see shorts/home.py),
+                                               the products' notes, and where run folders go
+    python -m shorts signin --url URL          sign in to a site by hand, once, for recordings --signed-in
+    python -m shorts new RUN [--face PHOTO] [--music FILE] [--language hi] [--tone hype]   a run, with your files
+    python -m shorts browse RUN --url URL --name NAME --task FILE [--signed-in] [--model PROVIDER:MODEL]   footage
                                                recorded from a task in plain words (browser-use)
     python -m shorts drive RUN start|look|click|type|...|stop   footage recorded by driving Chrome a command
                                                at a time, as Claude Code does (see shorts/drive.py)
@@ -16,8 +20,9 @@
     python -m shorts frames RUN NAME [--every SECONDS | --at SECONDS ...]   a recording's frames, labelled
                                                with their times, in contact sheets (RUN/frames/NAME-1.png, ...)
 
-Keys and settings come from the environment, or from a .env file next to shorts/ (KEY=value lines), for what
-the environment doesn't set: GEMINI_API_KEY, SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY, ... (see .env.example).
+Keys and settings come from the environment, or from a .env file (KEY=value lines) for what the environment doesn't
+set: the one in SHORTS_HOME, or one next to shorts/. GEMINI_API_KEY, SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY, ... (see
+.env.example).
 
 Omni's Gemini client (film-intro, film-outro) is set up from the environment. For Agent Platform (Vertex AI), with
 `gcloud auth application-default login` (or, in GitHub Actions, google-github-actions/auth):
@@ -36,14 +41,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import COMMAND
 from .browse import FALLBACK, MODEL
 from .filmers import FILMERS, heygen_voices
+from .home import MINE, home, keep, mine, products, runs, signed_in_sites, site
 from .orchestrator import PACKAGE_ROOT, advice, run_all, run_stage, status
 from .run import SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import LANGUAGES, TONES, Script, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
+
+WINDOW = "the browser's window, WIDTHxHEIGHT: 720x1280 gets a site's phone layout, 1280x800 its desktop one"
 
 
 def size(text: str) -> tuple[int, int]:
@@ -69,10 +78,10 @@ def option(text: str) -> tuple[str, float | bool | str]:
 
 
 def respelling(text: str) -> tuple[str, str]:
-    """A word and how the narrator should read it, such as makable=makeable."""
+    """A word and how the narrator should read it, such as nginx=engine-x."""
     word, _, said = text.partition("=")
     if not word or not said:
-        raise argparse.ArgumentTypeError(f"{text!r} isn't a respelling like makable=makeable")
+        raise argparse.ArgumentTypeError(f"{text!r} isn't a respelling like nginx=engine-x")
     return word, said
 
 
@@ -93,6 +102,53 @@ def new(run: Run, args: argparse.Namespace) -> None:
         updates["pronounce"] = {**(settings.pronounce or {}), **dict(args.respellings)}
     run.save_settings(settings.model_copy(update=updates))
     print(run.path(SETTINGS).read_text())
+
+
+# The keys a video needs (.env.example says what each is for): `me` says which are set, never what they are.
+# Omni films with GEMINI_API_KEY, or on Google Cloud with GOOGLE_CLOUD_PROJECT; HeyGen only if it films you.
+KEYS = ("GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "HEYGEN_API_KEY", "SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY")
+
+
+def show_me(args: argparse.Namespace) -> None:
+    """Keeps the files given (or forgets those given as ""), then says what's kept for every video."""
+    for kind in MINE:
+        file = getattr(args, kind)
+        if file and not Path(file).expanduser().is_file():
+            sys.exit(f"me: there's no file {file}")
+        try:
+            if file is not None:
+                keep(kind, Path(file) if file else None)
+        except ValueError as problem:
+            sys.exit(f"me: {problem}")
+    kept = mine()
+    print(home())
+    for kind in MINE:
+        print(f"  {kind:10} {kept.get(kind, '(none)')}")
+    notes = products() or {"(none)": ""}  # each product's notes, with where they are: in SHORTS_HOME or the project
+    width = max(map(len, notes))
+    for line, (name, path) in enumerate(notes.items()):
+        print(f"  {'' if line else 'products':10} {name:{width}}  {path}".rstrip())
+    print(f"  {'runs':10} {runs()}")
+    print(f"  {'signed in':10} {', '.join(signed_in_sites()) or '(nowhere)'}")
+    unset = [key for key in KEYS if not os.environ.get(key)]
+    print(f"  {'keys':10} set: {', '.join(key for key in KEYS if key not in unset) or 'none'}")
+    print(f"  {'':10} not set: {', '.join(unset) or 'none'} (in {home() / '.env'}, or the environment)")
+
+
+def sign_in(args: argparse.Namespace) -> None:
+    """Signs in to a site by hand (`shorts.signin`), or forgets its sign-in."""
+    from .signin import forget
+
+    if args.forget:
+        print(f"Forgot the sign-in to {site(args.url)}" if forget(args.url) else f"No sign-in to {site(args.url)}")
+        return
+    if importlib.util.find_spec("browser_use") is None:  # for the Chrome browser-use records with
+        browse_elsewhere()
+    from .signin import sign_in
+
+    print(f"Chrome is open on {args.url}: sign in there, then close the window.", flush=True)
+    profile = sign_in(args.url)
+    print(f"Kept what {site(args.url)} saved, in {profile}: recordings with --signed-in start from it")
 
 
 def show_status(run: Run) -> None:
@@ -195,13 +251,14 @@ def drive(run: Run, args: argparse.Namespace) -> None:
 
     goal = {"goal": args.goal} if getattr(args, "goal", None) else {}
     if args.step == "serve":
-        chrome = driver.Driver(run, args.name, args.url, args.signed_in)
+        chrome = driver.Driver(run, args.name, args.url, args.signed_in, args.window)
         asyncio.run(driver.serve(chrome, driver.driving_file(run, args.name)))
     elif args.step == "start":
-        print(driver.start(run, args.name, args.url, args.signed_in, *browse_python()))
+        print(driver.start(run, args.name, args.url, args.signed_in, args.window, *browse_python()))
     elif args.step in ACTIONS:
         action, params = ACTIONS[args.step](args)
-        print(driver.send(run, args.name, "act", action=action, params=params, **goal))
+        spotlight = {"spotlight": True} if getattr(args, "spotlight", False) else {}
+        print(driver.send(run, args.name, "act", action=action, params=params, **goal, **spotlight))
     elif args.step in ("wait", "hold"):
         print(driver.send(run, args.name, args.step, seconds=args.seconds, **goal))
     elif args.step == "wait-for":
@@ -213,8 +270,9 @@ def drive(run: Run, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    load_env(PACKAGE_ROOT / ".env")  # first: the options' defaults come from the environment too
-    parser = argparse.ArgumentParser(prog="python -m shorts", description="Make a 1-minute video, stage by stage.")
+    for env in (home() / ".env", PACKAGE_ROOT / ".env"):  # first: the options' defaults come from the environment too
+        load_env(env)
+    parser = argparse.ArgumentParser(prog=COMMAND, description="Make a 1-minute video, stage by stage.")
     commands = parser.add_subparsers(dest="command", required=True)
 
     setup = commands.add_parser("new", help="write run.json, or change settings in it")
@@ -227,7 +285,7 @@ def main() -> None:
     setup.add_argument("--tone", choices=TONES)
     setup.add_argument("--intro", choices=[*FILMERS, "import"], help="who films the intro (shorts/filmers.py)")
     setup.add_argument("--outro", choices=[*FILMERS, "import", "none"], help="who films the outro, or none")
-    setup.add_argument("--filmer-voice", help="the filmer's voice, for HeyGen: a voice_id (python -m shorts voices)")
+    setup.add_argument("--filmer-voice", help=f"the filmer's voice, for HeyGen: a voice_id ({COMMAND} voices)")
     setup.add_argument("--narrator", choices=["api", "import"])
     setup.add_argument("--narration-voice", choices=["intro", "sample"], help="the intro's voice, or --voice's")
     setup.add_argument("--narrator-model", help="the voice API's model: \"omnivoice\", or ElevenLabs' own")
@@ -236,6 +294,18 @@ def main() -> None:
     setup.add_argument("--reference-text", help="what's said in the voice sample, for OmniVoice")
     setup.add_argument("--size", type=size, help="the video's width x height (default 1080x1920)")
     setup.add_argument("--captions", action=argparse.BooleanOptionalAction)
+
+    me = commands.add_parser("me", help="your own files, kept for every video: a photo, music, a voice sample")
+    for kind, what in (
+        ("face", "a photo of you, for whoever films you"),
+        ("music", "music to play quietly under your videos"),
+        ("voice", "a sample of you talking, 3 to 10 seconds, to narrate in your voice"),
+    ):
+        me.add_argument(f"--{kind}", metavar="FILE", help=f'{what} ("" to forget it)')
+
+    signing = commands.add_parser("signin", help="sign in to a site by hand, once, for recordings --signed-in")
+    signing.add_argument("--url", required=True, help="the site's page to sign in on")
+    signing.add_argument("--forget", action="store_true", help="delete the site's sign-in instead")
 
     commands.add_parser("status", help="what's made, and what's next").add_argument("run", type=Path)
 
@@ -269,8 +339,9 @@ def main() -> None:
     record.add_argument("run", type=Path)
     record.add_argument("--name", default="demo", help="the footage's name, as the script calls it")
     record.add_argument("--task", type=Path, required=True, help="a text file: what to do and show, in plain words")
-    record.add_argument("--url", default="https://makable.tech", help="the page it starts on")
-    record.add_argument("--signed-in", action="store_true", help="as makable's demo user (SUPABASE_*, MAKABLE_DEMO_*)")
+    record.add_argument("--url", required=True, help="the page it starts on: the product's")
+    record.add_argument("--signed-in", action="store_true", help="signed in, as `signin` left the site")
+    record.add_argument("--window", type=size, default=(720, 1280), help=WINDOW)
     record.add_argument("--max-steps", type=int, default=60)
     model = os.environ.get("SHORTS_BROWSE_MODEL") or MODEL
     record.add_argument("--model", default=model, help=f"provider:model, such as anthropic:... (default {model})")
@@ -290,14 +361,20 @@ def main() -> None:
 
     for name, help in (("start", "open Chrome on --url and start recording"), ("serve", "(what start runs)")):
         opening = step(name, help, goal=False)
-        opening.add_argument("--url", default="https://makable.tech", help="the page it starts on")
-        opening.add_argument("--signed-in", action="store_true", help="as makable's demo user")
+        opening.add_argument("--url", required=True, help="the page it starts on: the product's")
+        opening.add_argument("--signed-in", action="store_true", help="signed in, as `signin` left the site")
+        opening.add_argument("--window", type=size, default=(720, 1280), help=WINDOW)
     step("look", "the page: its tabs, its elements by number, and a screenshot", goal=False)
-    step("click", "click an element").add_argument("number", type=int)
+    clicking = step("click", "click an element")
+    clicking.add_argument("number", type=int)
     typing = step("type", "type into an element (it's emptied first, unless --add)")
     typing.add_argument("number", type=int)
     typing.add_argument("text")
     typing.add_argument("--add", action="store_true", help="add to what's in it")
+    for command in (clicking, typing):
+        command.add_argument(
+            "--spotlight", action="store_true", help="blur and dim the rest of the page meanwhile (not for a button)"
+        )
     step("keys", "press keys, such as Enter or Control+a").add_argument("keys")
     scrolling = step("scroll", "scroll the page, or the element --number")
     scrolling.add_argument("direction", choices=["down", "up"])
@@ -325,6 +402,15 @@ def main() -> None:
         one.add_argument("--force", action="store_true", help="make every file again, edited ones too")
 
     args = parser.parse_args()
+    if args.command == "me":
+        show_me(args)
+        return
+    if args.command == "signin":
+        try:
+            sign_in(args)
+        except (NotReady, ValueError, RuntimeError) as problem:
+            sys.exit(f"signin: {problem}")
+        return
     if args.command == "voices":
         try:
             found = heygen_voices(args.language or None, args.gender)
@@ -335,6 +421,8 @@ def main() -> None:
             print(f"{voice['voice_id']}  {about}  {voice.get('preview_audio_url') or ''}")
         return
     run = Run(args.run)
+    if args.command not in ("status", "check-script"):  # the rest write to it
+        run.make()
     try:
         if args.command == "new":
             new(run, args)
@@ -353,8 +441,13 @@ def main() -> None:
                 browse_elsewhere()
             from .stages.browse import browse
 
-            options = {"url": args.url, "signed_in": args.signed_in, "max_steps": args.max_steps}
-            browse(run, args.name, args.task.read_text(), model=args.model, fallback=args.fallback or None, **options)
+            options = {"url": args.url, "signed_in": args.signed_in, "window": args.window, "max_steps": args.max_steps}
+            try:
+                browse(
+                    run, args.name, args.task.read_text(), model=args.model, fallback=args.fallback or None, **options
+                )
+            except RuntimeError as problem:  # Chrome couldn't open the signed-in profile: another Chrome has it
+                sys.exit(f"browse: {problem}")
         elif args.command == "drive":
             drive(run, args)
         else:

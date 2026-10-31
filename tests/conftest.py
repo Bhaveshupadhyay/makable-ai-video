@@ -41,6 +41,13 @@ def script(*stretches: tuple[float, float], footage: str = "demo") -> Script:
     return Script(intro_line="Hi there.", intro_setting="A room.", scenes=scenes, title="A title", description="Words.")
 
 
+@pytest.fixture(autouse=True)
+def shorts_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """SHORTS_HOME, empty: a new run takes your photo, music and voice from it, and not from this machine's."""
+    monkeypatch.setenv("SHORTS_HOME", str(tmp_path / "home"))
+    return tmp_path / "home"
+
+
 @pytest.fixture
 def run(tmp_path: Path) -> Run:
     run = Run(tmp_path / "runs" / "demo")

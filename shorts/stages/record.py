@@ -4,6 +4,7 @@
 
 import shutil
 
+from .. import COMMAND
 from ..run import Run, file_hash, fingerprint, footage_file, steps_file, writing
 from .base import NotReady, Stage
 
@@ -16,7 +17,9 @@ class RecordFootage(Stage):
     def plan(self, run: Run) -> dict[str, str]:
         settings = run.settings()
         if not settings.footage:
-            raise NotReady("run.json names no footage: python -m shorts browse RUN, or new RUN --footage NAME=FILE")
+            raise NotReady(
+                f"run.json names no footage: {COMMAND} drive RUN start --url URL, or new RUN --footage NAME=FILE"
+            )
         plan = {}
         for name, source in settings.footage.items():
             video = run.resolve(source)

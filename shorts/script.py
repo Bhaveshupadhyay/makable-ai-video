@@ -1,7 +1,7 @@
 """The script: what's said and shown (script.json), as Claude writes it (the make-video skill), and the check it
 passes before the video is made from it.
 
-How to write one is in .claude/skills/make-video/references/script.md: these are the format and the numbers the
+How to write one is in skills/make-video/references/script.md: these are the format and the numbers the
 check holds it to.
 """
 

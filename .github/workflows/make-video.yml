@@ -1,25 +1,36 @@
-# Makes a makable Short in GitHub Actions: Claude Code runs the make-video skill (.claude/skills/make-video) with
-# --yes, so it asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro
-# with Gemini Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
+# Makes a Short about your product in GitHub Actions. Copy it into your product's own repo (.github/workflows/):
+# Claude Code runs the makable-shorts plugin's make-video skill there, with the repo's code at hand, and --yes, so it
+# asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro with Gemini
+# Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
 #
 # Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
+#
+# The product's notes come from the repo, .makable-shorts/products/<name>.md: the skill writes them there when you
+# first make a video in the repo locally, for you to commit. Nobody can sign in by hand here, so it only records
+# products whose notes don't say signed_in: for one that does, the skill stops before recording. Their url has to be
+# on the internet: a localhost one is the runner's own, where nothing is running. What a recording teaches the skill
+# goes in the notes' recording tips: the notes are uploaded with the video, for you to commit if they changed.
 #
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
 #   GEMINI_API_KEY             Omni (it needs a prepaid balance in AI Studio)
 #   HEYGEN_API_KEY             (optional) to film with HeyGen instead (run.json's intro and outro)
 #   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
-#   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAKABLE_DEMO_EMAIL, MAKABLE_DEMO_PASSWORD    makable's demo user
-#   FACE_JPG_BASE64            your photo for Omni: base64 -i assets/face.jpg | gh secret set FACE_JPG_BASE64
-#   MUSIC_MP3_BASE64           (optional) music under the video, the same way
+#   FACE_URL                   a link to your photo, for Omni (a secret holds at most 48 KB, too little for the photo)
+#   MUSIC_URL                  (optional) a link to music to play under the video
+#   PRODUCT_REPO_TOKEN         (optional) a token that can read the rest of the product's code, if some is in another
+#                              private repo (a fine-grained one with Contents: read), for videos from its commits
 
 name: Make a video
 
 on:
   workflow_dispatch:
     inputs:
+      product:
+        description: "The product's notes to use (.makable-shorts/products/<name>.md), if there are several"
+        required: false
       commits:
-        description: "Commits to make it about: SHAs (in Bhaveshupadhyay/makable), repo@sha, commit URLs or a..b"
+        description: "Commits to make it about: SHAs (in the product's code), repo@sha, commit URLs or a..b"
         required: false
       prompt:
         description: "Or, or as well: the functionality to show, in words"
@@ -37,7 +48,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: make-video  # one at a time: they'd share the demo user's sites
+  group: make-video  # one at a time: they'd share the product's account
   cancel-in-progress: false
 
 jobs:
@@ -45,15 +56,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      GH_TOKEN: ${{ github.token }}  # gh api, for the commits
+      GH_TOKEN: ${{ secrets.PRODUCT_REPO_TOKEN || github.token }}  # gh api, for the commits
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
       SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}
       SHORTS_SPEECH_KEY: ${{ secrets.SHORTS_SPEECH_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-      MAKABLE_DEMO_EMAIL: ${{ secrets.MAKABLE_DEMO_EMAIL }}
-      MAKABLE_DEMO_PASSWORD: ${{ secrets.MAKABLE_DEMO_PASSWORD }}
+      MAKABLE_SHORTS_REF: main  # the plugin's version: a branch or a tag of its repo
     steps:
       - name: Check what to make it about
         if: inputs.commits == '' && inputs.prompt == ''
@@ -62,42 +70,61 @@ jobs:
           exit 1
 
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # every commit, for videos about older ones
 
       - uses: astral-sh/setup-uv@v10
 
       - name: ffmpeg
         run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
 
-      - name: The pipeline's environment, and browser-use's own
+      - name: The plugin, its command, and Chromium for browser-use
         run: |
-          uv venv --python 3.12 .venv
-          uv pip install --python .venv -e '.[gemini,assemble,speech]'
-          uv venv --python 3.12 ~/browse-env
-          uv pip install --python ~/browse-env -e '.[browse]'
+          # Outside the repo, so Claude's searches of the product's code never land in the plugin's
+          git clone -q --depth 1 --branch "$MAKABLE_SHORTS_REF" https://github.com/Bhaveshupadhyay/makable-ai-video "$RUNNER_TEMP/makable-shorts"
+          echo "$RUNNER_TEMP/makable-shorts/bin" >> "$GITHUB_PATH"   # makable-shorts makes its Python environments on first use
+          echo "SHORTS_HOME=$RUNNER_TEMP/makable-shorts-home" >> "$GITHUB_ENV"   # the photo and the music go here
           uvx playwright install --with-deps chromium
-          echo "SHORTS_BROWSE_PYTHON=$HOME/browse-env/bin/python" >> "$GITHUB_ENV"
 
       - name: The photo and the music
         env:
-          FACE: ${{ secrets.FACE_JPG_BASE64 }}
-          MUSIC: ${{ secrets.MUSIC_MP3_BASE64 }}
+          FACE_URL: ${{ secrets.FACE_URL }}
+          MUSIC_URL: ${{ secrets.MUSIC_URL }}
         run: |
-          mkdir -p assets
-          echo "$FACE" | base64 -d > assets/face.jpg
-          if [ -n "$MUSIC" ]; then echo "$MUSIC" | base64 -d > assets/music.mp3; fi
+          # Each is named for what it turns out to be: a link needn't end in its type (a share link, a query).
+          fetch() {
+            curl -fsSL "$2" -o "$RUNNER_TEMP/$1"
+            case "$(file --mime-type -b "$RUNNER_TEMP/$1")" in
+              image/png) type=png ;; image/jpeg) type=jpg ;; image/webp) type=webp ;;
+              audio/mpeg) type=mp3 ;; audio/x-wav | audio/wav) type=wav ;; audio/x-m4a | audio/mp4 | video/mp4) type=m4a ;;
+              *) echo "::error::$1's link isn't a photo or sound file ($(file -b "$RUNNER_TEMP/$1"))"; exit 1 ;;
+            esac
+            mv "$RUNNER_TEMP/$1" "$RUNNER_TEMP/$1.$type"
+            makable-shorts me "--$1" "$RUNNER_TEMP/$1.$type"
+          }
+          fetch face "$FACE_URL"
+          if [ -n "$MUSIC_URL" ]; then fetch music "$MUSIC_URL"; fi
 
       - name: Make the video (Claude Code, with the make-video skill)
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: >-
-            Make a makable Short with the make-video skill. The request:
-            ${{ inputs.commits }} ${{ inputs.prompt && format('"{0}"', inputs.prompt) || '' }}
+            Make a Short with the make-video skill. The request:
+            ${{ inputs.product }} ${{ inputs.commits }} ${{ inputs.prompt && format('"{0}"', inputs.prompt) || '' }}
             --tone ${{ inputs.tone }} --language ${{ inputs.language }} --yes
           # What the skill runs. Recording and making the video take minutes: Bash may wait up to 30 for one.
           claude_args: >-
-            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(.venv/bin/python -m shorts:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(ffprobe:*),Bash(ls:*)"
+            --plugin-dir ${{ runner.temp }}/makable-shorts
+            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(makable-shorts:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(git -C:*),Bash(ffprobe:*),Bash(ls:*)"
           settings: '{"env": {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "1800000"}}'
+
+      - name: Say if the notes changed
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain -- .makable-shorts/products)" ]; then
+            echo "::notice::The product's notes changed (new recording tips): they're uploaded with the video, in products/, for you to commit"
+          fi
 
       - name: Upload the video
         if: always()
@@ -105,20 +132,22 @@ jobs:
         with:
           name: video
           if-no-files-found: warn
+          include-hidden-files: true  # .makable-shorts is a hidden folder
           path: |
-            runs/*/final.mp4
-            runs/*/metadata.json
-            runs/*/script.json
-            runs/*/changes.md
-            runs/*/task.md
-            runs/*/footage/*.steps.json
-            runs/*/recordings/*.browse.json
-            runs/*/recordings/*.drive.log
+            .makable-shorts/products/*.md
+            .makable-shorts/runs/*/final.mp4
+            .makable-shorts/runs/*/metadata.json
+            .makable-shorts/runs/*/script.json
+            .makable-shorts/runs/*/changes.md
+            .makable-shorts/runs/*/task.md
+            .makable-shorts/runs/*/footage/*.steps.json
+            .makable-shorts/runs/*/recordings/*.browse.json
+            .makable-shorts/runs/*/recordings/*.drive.log
 
       - name: Check a video was made
         if: always()  # the skill can stop without one (a recording that never showed the change), and still succeed
         run: |
-          if ! find runs -path 'runs/*/final.mp4' -size +0 2>/dev/null | grep -q .; then
+          if ! find .makable-shorts/runs -path '.makable-shorts/runs/*/final.mp4' -size +0 2>/dev/null | grep -q .; then
             echo "::error::No video was made: see what Claude reported above, and the files uploaded with the run"
             exit 1
           fi

@@ -1,117 +1,128 @@
-"""Signs the recorder in to makable as a demo user, with a password instead of GitHub.
+"""Signing in to a product by hand, once, so its recordings start signed in.
 
-makable signs people in with GitHub through Supabase, then keeps Supabase's session in two HttpOnly
-cookies (makable-backend's `app/api/cookies.py`). The demo user signed in with GitHub once, so makable
-knows it, and also has a password in Supabase. `signed_in` asks Supabase for a session with that
-password and gives the browser the same two cookies, so the site opens signed in:
+    python -m shorts signin --url https://app.example.com
 
-    cookies = signed_in("https://makable.tech", SUPABASE_URL, SUPABASE_KEY, DEMO_EMAIL, DEMO_PASSWORD)
-    await record_task(task, out, llm, url="https://makable.tech", cookies=cookies)
+opens Chrome on the page, in a profile of the site's own (`home.site_profile`). You sign in there the way the site
+signs people in (a password, Google, GitHub, a code by email), then close the window. The profile keeps what the site
+saved (its cookies, local storage, IndexedDB), and `drive start --signed-in` and `browse --signed-in` record in it,
+headless. A site that refreshes its session as it's used saves the new one there too, so it stays signed in from one
+recording to the next. Sign in again when a site's session runs out; `--forget` deletes the profile.
 
-Each call starts a new session, so nothing is saved between runs. Sign in again for each recording:
-the site rotates the refresh token as it goes, and Supabase ends a session whose old refresh token
-comes back.
-
-Password sign-in needs Supabase's Email provider turned on (it answers 422 email_provider_disabled
-otherwise).
+It's the Chrome that browser-use records with, so the profile suits it, and it's not run through browser-use, which
+opens a new tab when the last one closes: closing the window is how you say you're done.
 """
 
+import contextlib
 import json
+import shutil
+import socket
+import subprocess
 import time
-import urllib.error
 import urllib.request
-from typing import Any
-from urllib.parse import urlsplit
+from pathlib import Path
 
-# Each cookie's name and path, as makable-backend sets them (`app/constants/auth.py`).
-ACCESS_COOKIE = ("makable_access", "/api/v1")
-REFRESH_COOKIE = ("makable_refresh", "/api/v1/auth")
-REFRESH_COOKIE_DAYS = 30  # the backend's REFRESH_TOKEN_TTL_DAYS
-SESSION_PATH = "/api/v1/auth/session"
+from . import COMMAND
+from .home import site, site_profile
+
+WAIT = 20 * 60  # seconds to wait for the window to close
+OPENING = 180  # seconds for Chrome to open: the first run after an update can take a while (under Rosetta, say)
 
 
-def signed_in(app_url: str, supabase_url: str, key: str, email: str, password: str) -> list[dict[str, Any]]:
-    """Signs in as `email` and returns the cookies that make `app_url` open signed in, for `record_task`'s
-    `cookies`.
-
-    Args:
-        app_url: makable's address, e.g. "https://makable.tech".
-        supabase_url: https://<ref>.supabase.co
-        key: The project's publishable key (or the legacy anon key): the one makable's backend uses.
+def recording_profile(url: str) -> Path:
+    """The signed-in profile to record `url` in.
 
     Raises:
-        RuntimeError: Supabase refused the sign-in, or makable doesn't know the user.
+        ValueError: There's none: nobody has signed in to the site with `signin`.
     """
-    parts = urlsplit(app_url)
-    origin = f"{parts.scheme}://{parts.netloc}"
-    session = password_session(supabase_url, key, email, password)
-    _check(origin, session["access_token"], email)
-    return session_cookies(origin, session)
+    profile = site_profile(url)
+    if not profile.exists():
+        raise ValueError(f"nobody has signed in to {site(url)}: sign in once with `{COMMAND} signin --url {url}`")
+    return profile
 
 
-def password_session(supabase_url: str, key: str, email: str, password: str) -> dict[str, Any]:
-    """A new Supabase session for `email`: access_token, refresh_token, expires_in (seconds) and user."""
-    # Pasted secrets can end in a line break (one kept a "\r\n"), and Supabase matches the email exactly.
-    supabase_url, key, email, password = supabase_url.strip(), key.strip(), email.strip(), password.strip("\r\n")
-    request = urllib.request.Request(
-        f"{supabase_url.rstrip('/')}/auth/v1/token?grant_type=password",
-        data=json.dumps({"email": email, "password": password}).encode(),
-        headers={"apikey": key, "Content-Type": "application/json"},
-        method="POST",
-    )
+def forget(url: str) -> bool:
+    """Deletes the site's signed-in profile: whether there was one."""
+    profile = site_profile(url)
+    if not profile.exists():
+        return False
+    shutil.rmtree(profile)
+    return True
+
+
+def _chrome() -> str:
+    from browser_use.browser.watchdogs.local_browser_watchdog import LocalBrowserWatchdog
+
+    chrome = LocalBrowserWatchdog._find_installed_browser_path()
+    if not chrome:
+        raise RuntimeError(
+            "No Chrome or Chromium to sign in with: install Chrome, or `uvx playwright install chromium`"
+        )
+    return chrome
+
+
+def _pages(port: int) -> list[dict]:
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as answer:
+        return [target for target in json.load(answer) if target["type"] == "page"]
+
+
+def _quit(port: int) -> None:
+    """Has Chrome quit by itself (CDP's Browser.close), which saves what the site saved to the profile: on a SIGTERM
+    it didn't save a cookie set seconds before."""
+    from websockets.sync.client import connect  # browser-use's
+
+    with contextlib.suppress(Exception):  # it's quit already (closing the last window does, but on a Mac)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=2) as answer:
+            address = json.load(answer)["webSocketDebuggerUrl"]
+        with connect(address, open_timeout=5) as browser:
+            browser.send(json.dumps({"id": 1, "method": "Browser.close"}))
+            browser.recv(timeout=5)
+
+
+def sign_in(url: str, wait: float = WAIT) -> Path:
+    """Opens Chrome on `url` in the site's profile, and returns the profile once the window's closed (or after `wait`
+    seconds, keeping what's been saved).
+
+    Raises:
+        RuntimeError: Chrome didn't open, or closed at once: the profile's in use (a recording), say. A profile made
+            for it is deleted, so the site doesn't look signed in.
+    """
+    executable, profile = _chrome(), site_profile(url)
+    made = not profile.exists()
+    profile.mkdir(parents=True, exist_ok=True)
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    chrome = subprocess.Popen(
+        [executable, f"--user-data-dir={profile}", f"--remote-debugging-port={port}", "--no-first-run",
+         "--no-default-browser-check", url],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )  # fmt: skip
+    up = False
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as err:  # e.g. 400 invalid_credentials, 422 email_provider_disabled
-        body = err.read().decode()
-        hint = ""
-        if "invalid_credentials" in body:
-            hint = (
-                f"\nSupabase says this when no user in {supabase_url} has the email {email!r}, when that user has "
-                "no password yet, or when the password is wrong."
-            )
-            if password != password.strip():
-                hint += " The password starts or ends with a space: check the secret."
-        raise RuntimeError(f"Supabase refused the password sign-in ({err.code}): {body}{hint}") from None
-
-
-def session_cookies(origin: str, session: dict[str, Any]) -> list[dict[str, Any]]:
-    """The backend's two auth cookies for `session`, on `origin` (the Worker there forwards /api to the backend),
-    as CDP's `Network.CookieParam`s."""
-    now = time.time()
-
-    def cookie(name_path: tuple[str, str], value: str, seconds: float) -> dict[str, Any]:
-        name, path = name_path
-        return {
-            "name": name,
-            "value": value,
-            "url": origin,  # a `url` and no `domain`: only this host gets it, like the backend's own cookie
-            "path": path,
-            "expires": now + seconds,
-            "httpOnly": True,
-            "secure": origin.startswith("https://"),
-            "sameSite": "Lax",
-        }
-
-    return [
-        cookie(ACCESS_COOKIE, session["access_token"], session["expires_in"]),
-        cookie(REFRESH_COOKIE, session["refresh_token"], REFRESH_COOKIE_DAYS * 86400),
-    ]
-
-
-def _check(origin: str, access_token: str, email: str) -> None:
-    """Asks makable who the session belongs to, so a recording never starts on the signed-out page."""
-    name, _ = ACCESS_COOKIE
-    request = urllib.request.Request(
-        origin + SESSION_PATH, headers={"Cookie": f"{name}={access_token}", "User-Agent": "makable-videos"}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=30):
-            return
-    except urllib.error.HTTPError as err:
-        if err.code == 401:
-            raise RuntimeError(
-                f"Supabase signed {email} in, but makable doesn't know that user: sign in to makable with the "
-                "demo's GitHub account once, and set the password on that same Supabase user"
-            ) from None
-        raise RuntimeError(f"{origin}{SESSION_PATH} answered {err.code}: {err.read().decode()}") from None
+        opened = time.time()
+        while True:  # until its page is up
+            with contextlib.suppress(OSError):
+                up = bool(_pages(port))
+            if up:
+                break
+            if chrome.poll() is not None or time.time() - opened > OPENING:
+                raise RuntimeError(f"Chrome didn't open: is another Chrome using {profile} (a recording)?")
+            time.sleep(0.5)
+        deadline = time.time() + wait
+        while time.time() < deadline:  # until the window's closed (on a Mac, Chrome stays open without windows)
+            try:
+                if not _pages(port):
+                    break
+            except OSError:  # Chrome quit
+                break
+            time.sleep(1)
+    finally:
+        _quit(port)
+        try:
+            chrome.wait(30)
+        except subprocess.TimeoutExpired:
+            chrome.kill()
+        if made and not up:
+            shutil.rmtree(profile, ignore_errors=True)
+    return profile

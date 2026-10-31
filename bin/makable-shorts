@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# makable-shorts: the video pipeline's command line (python -m shorts), as the Claude Code plugin runs it. The plugin
+# puts this folder on the Bash tool's PATH, so `makable-shorts drive RUN start ...` is a command like any other.
+#
+# The pipeline runs from the plugin's own folder, in Python environments of its own. This makes them with uv the first
+# time, and again when pyproject.toml changes (after an update): `pipeline`, for every stage, and `browser`, for
+# browser-use, which pins its own packages, made when a command first needs a browser. They're in
+# ~/.cache/makable-shorts/envs (SHORTS_ENVS), outside the plugin, which is replaced on each update; deleting them is safe.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+envs="${SHORTS_ENVS:-${XDG_CACHE_HOME:-$HOME/.cache}/makable-shorts/envs}"
+
+needs() { # a program the pipeline needs, and how to get it
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "makable-shorts needs $1: $2" >&2
+    exit 1
+  }
+}
+needs uv "curl -LsSf https://astral.sh/uv/install.sh | sh (see https://docs.astral.sh/uv)"
+needs ffmpeg "brew install ffmpeg on a Mac, sudo apt-get install ffmpeg on Linux"
+
+# Makes the environment $1, with pyproject.toml's dependencies and its extras $2 (a comma-separated list), unless it's
+# made for this pyproject.toml already. uv's own Python, so it's native (not an Intel one under Rosetta, say). One
+# command at a time makes it (the others wait), and a lock whose command has gone is taken over.
+environment() {
+  local folder="$envs/$1" lock="$envs/.$1.lock" made extra holder
+  local extras=()
+  made="$(cksum <"$root/pyproject.toml") $2"
+  [ "$(cat "$folder/.made-for" 2>/dev/null)" = "$made" ] && return
+  mkdir -p "$envs"
+  until mkdir "$lock" 2>/dev/null; do
+    holder="$(cat "$lock/pid" 2>/dev/null || true)"
+    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then rm -rf "$lock"; else sleep 1; fi
+  done
+  echo $$ >"$lock/pid"
+  held="$lock" # a global, for the trap: a failed install exits from in here
+  trap 'rm -rf "$held"' EXIT
+  if [ "$(cat "$folder/.made-for" 2>/dev/null)" != "$made" ]; then # another command may have made it meanwhile
+    echo "makable-shorts: setting up its Python for the $1 (the first time, and after an update: a few minutes)" >&2
+    for extra in ${2//,/ }; do extras+=(--extra "$extra"); done
+    uv venv --quiet --allow-existing --managed-python --python 3.12 "$folder" >&2
+    uv pip install --quiet --python "$folder/bin/python" -r "$root/pyproject.toml" "${extras[@]}" >&2
+    echo "$made" >"$folder/.made-for"
+  fi
+  rm -rf "$lock"
+  trap - EXIT
+}
+
+environment pipeline gemini,assemble,speech,heygen
+if [ -z "${SHORTS_BROWSE_PYTHON:-}" ]; then # unless you've your own environment with browser-use
+  case "${1:-}" in
+  drive | browse | signin) environment browser browse ;;
+  esac
+  export SHORTS_BROWSE_PYTHON="$envs/browser/bin/python"
+fi
+
+export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"
+export SHORTS_COMMAND=makable-shorts
+exec "$envs/pipeline/bin/python" -m shorts "$@"

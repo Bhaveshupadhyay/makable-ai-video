@@ -8,6 +8,7 @@ packages (google-genai, httpx, Pillow) inside `make` only.
 
 from pathlib import Path
 
+from .. import COMMAND
 from ..run import SCRIPT, Made, Record, Run, Settings, file_hash
 from ..script import Script
 
@@ -63,7 +64,9 @@ def read_script(run: Run) -> Script:
 
 def voice_sample(run: Run, settings: Settings) -> Path:
     if settings.voice is None:
-        raise NotReady("run.json has no voice sample: python -m shorts new RUN --voice SAMPLE")
+        raise NotReady(
+            f"run.json has no voice sample: {COMMAND} new RUN --voice SAMPLE ({COMMAND} me --voice keeps one for new runs)"
+        )
     sample = run.resolve(settings.voice)
     if not sample.exists():
         raise NotReady(f"the voice sample {sample} isn't there")

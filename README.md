@@ -1,44 +1,62 @@
 # makable Shorts
 
-Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) about something makable can do. The video has three parts, with captions and music:
+Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) showing something your web product can do: a demo of a feature, narrated, with you on camera. The video has three parts, with captions and music:
 
 1. A 10-second intro of you, filmed from your photo by Gemini Omni Flash or HeyGen ([Who films you](#who-films-you)).
 2. A screen recording, narrated in the voice of the avatar in that intro.
 3. An outro, filmed the same way.
 
+## Installing it, as a Claude Code plugin
+
+```
+/plugin install makable-shorts --marketplace Bhaveshupadhyay/makable-ai-video
+```
+
+Or, on Claude Code before 2.1.275: `/plugin marketplace add Bhaveshupadhyay/makable-ai-video`, then `/plugin install makable-shorts@makable-shorts`.
+
+It needs [uv](https://docs.astral.sh/uv) and ffmpeg on your machine (`brew install uv ffmpeg` on a Mac), and Chrome, or browser-use downloads Chromium. The plugin's command is `makable-shorts` (`bin/makable-shorts`). The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
+
+Your keys go in `~/.config/makable-shorts/.env` (copy `.env.example`): Gemini's for Omni, and the voice API's for the narration. The skill tells you which are missing.
+
 ## With Claude Code: `/make-video`
 
-The usual way to make one. In Claude Code, in this repo:
+The usual way to make one. Run Claude Code in your product's own repo, so Claude has its code at hand, and with the plugin installed, ask for a video, or:
 
 ```
-/make-video 3f2a9c1 7be04d2                 # what these commits (in Bhaveshupadhyay/makable) changed
-/make-video "show how to ask for a change to a site and see it in the preview"
-/make-video makable-backend@91c0e4a --tone hype --language hi
+/make-video 3f2a9c1 7be04d2                 # what these commits (in your product's code) changed
+/make-video "show how to share a note with a teammate"
+/make-video acme-api@91c0e4a --tone hype --language hi
 ```
 
-The skill (`.claude/skills/make-video/`) does what needs judgment, and the pipeline below does the rest:
+**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, which are kept outside the repo, for every video after. Every video needs the product's address and your photo: the skill doesn't go on without them. `makable-shorts me` shows what's kept, and where.
 
-1. **What to show.** Claude reads the commits, or looks up the functionality you describe in makable's code. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
-2. **The recording.** Claude drives Chrome itself with `python -m shorts drive`, a command at a time, signed in as the demo user, while the pipeline records the screen. It needs no model or key of its own: Claude is the model. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again. (Or browser-use's agent records it from a task in plain words, `python -m shorts browse`, if you ask for that.)
-3. **The script.** Claude writes it from what's on screen when (`references/script.md`). `python -m shorts check-script` checks each scene's stretch and pace before the script comes in.
-4. **The video.** You approve the script (filming costs about $2). Then `python -m shorts run --paid`:
+Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and keeps itself out of git (a `.gitignore` of its own), since its recordings and clips are big.
+
+The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what needs judgment, and the pipeline below does the rest:
+
+1. **What to show.** Claude reads the commits, or looks up the functionality you describe in your product's code, or on the product itself. From the code, it learns the flow before recording: the page's route, the labels as the code writes them, what shows while something slow runs. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
+2. **The recording.** Claude drives Chrome itself with `makable-shorts drive`, a command at a time, signed in if your product needs it, while the pipeline records the screen. It needs no model or key of its own: Claude is the model. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again. (Or browser-use's agent records it from a task in plain words, `makable-shorts browse`, if you ask for that.)
+3. **The script.** Claude writes it from what's on screen when (`references/script.md`). `makable-shorts check-script` checks each scene's stretch and pace before the script comes in.
+4. **The video.** You approve the script (filming costs about $2). Then `makable-shorts run --paid`:
    - films the intro and the outro with Omni, and uses them as filmed;
    - takes the avatar's voice from the intro;
    - has the voice API speak the narration in that voice;
    - assembles `final.mp4`.
 
-With `--yes`, the skill asks nothing, for GitHub Actions. `.github/workflows/make-video.yml` runs it from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription, and uploads the video. Its header lists the secrets it needs.
+With `--yes`, the skill asks nothing, for GitHub Actions. Copy `.github/workflows/make-video.yml` into your product's repo: it runs the skill there from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription and the notes committed in the repo, and uploads the video. Its header lists the secrets it needs.
 
 To run it locally, it needs:
 
-- **`assets/face.jpg`:** a photo of you. `assets/` and `recordings/` stay out of git.
-- **The keys in `.env`:** copy `.env.example`. The environment wins over the file.
+- **Your photo**, and music if you want it: `makable-shorts me --face PHOTO [--music FILE]`, or the skill asks for them. A photo with its background removed works best with Omni, which films the setting the script describes.
+- **The keys:** copy `.env.example` to `~/.config/makable-shorts/.env` (or `.env` here), and fill it in. The environment wins over the files.
+
+**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), the sites you've signed in to (`sites/`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
 
 ## How it's built: stages that share a folder
 
-The video is made by six stages. Each is a program of its own (`python -m shorts <stage> RUN`) with its own packages.
+The video is made by six stages. Each is a program of its own (`makable-shorts <stage> RUN`) with its own packages.
 
-The stages share nothing but the video's **run folder**. Each reads the files the stages before it wrote there, and writes its own, under fixed names. No stage calls or imports another. So each can run on a different machine, be swapped for another tool, or be skipped by bringing its files in (`python -m shorts import`).
+The stages share nothing but the video's **run folder**. Each reads the files the stages before it wrote there, and writes its own, under fixed names. No stage calls or imports another. So each can run on a different machine, be swapped for another tool, or be skipped by bringing its files in (`makable-shorts import`).
 
 | Stage | Makes (in the run folder) | From | With |
 |---|---|---|---|
@@ -49,28 +67,28 @@ The stages share nothing but the video's **run folder**. Each reads the files th
 | `speak` | `narration/01.wav`, `02.wav`, … | each scene's text, the avatar's voice | the voice API (`shorts/speech_api.py`) |
 | `assemble` | `final.mp4`, `metadata.json` | all of the above, music | ffmpeg + Pillow (`shorts/compose.py`, `shorts/captions.py`) |
 
-**The script** (`script.json`) is made by no stage. Claude writes it, and it comes in with `python -m shorts import RUN script FILE`, which checks it first (`shorts/script.py`).
+**The script** (`script.json`) is made by no stage. Claude writes it, and it comes in with `makable-shorts import RUN script FILE`, which checks it first (`shorts/script.py`).
 
 **The settings.** What the video is made from is the run's `run.json`:
 - the footage, your photo and the music;
 - the language and the tone;
 - the narrator's model and its settings.
 
-`python -m shorts new` writes it, and it's yours to edit. The defaults are the flow above. The contract, the names and formats every stage reads and writes, is in `shorts/run.py`.
+`makable-shorts new` writes it, and it's yours to edit. The defaults are the flow above. The contract, the names and formats every stage reads and writes, is in `shorts/run.py`.
 
 **Only what changed is made again.** Each stage notes, in `.records/<product>.json`, two things for each of its files: a fingerprint of what the file was made from (the scene's text, the voice, the settings), and a fingerprint of the file as written.
 - **Out of date:** a file is out of date when what it would be made from now is different, and only that file is made again. Edit one scene's text and only its narration is spoken again.
 - **Edited by hand:** a file that changed since its stage wrote it is kept as it is. Delete it, or pass `--force`, to make it again.
 
-**The orchestrator** (`python -m shorts run RUN`, `shorts/orchestrator.py`) runs the stages that are due, in order, each in a process of its own. Each runs in the Python set for its packages (`SHORTS_<EXTRA>_PYTHON`, for each extra in `pyproject.toml`), or in the orchestrator's own Python. The orchestrator knows the stages only by what they make and read. Where it can't go on, it says what's next and where that runs, and stops: a stage whose packages this machine doesn't have, a paid clip, files you bring in. `python -m shorts status RUN` shows each product's state.
+**The orchestrator** (`makable-shorts run RUN`, `shorts/orchestrator.py`) runs the stages that are due, in order, each in a process of its own. Each runs in the Python set for its packages (`SHORTS_<EXTRA>_PYTHON`, for each extra in `pyproject.toml`), or in the orchestrator's own Python. The orchestrator knows the stages only by what they make and read. Where it can't go on, it says what's next and where that runs, and stops: a stage whose packages this machine doesn't have, a paid clip, files you bring in. `makable-shorts status RUN` shows each product's state.
 
 **Bringing files in.** Anything a stage makes can come from elsewhere instead:
 
 ```sh
-python -m shorts import RUN footage --name makable recordings/makable-tight.mp4   # with its .steps.json
-python -m shorts import RUN intro gemini_generated_video.mp4         # a clip filmed in the Gemini app, HeyGen's, Higgsfield's…
-python -m shorts import RUN outro https://example.com/outro.mp4      # or a link to it: the file's own link, not a page
-python -m shorts import RUN narration ~/Downloads/download*.wav      # one audio file per scene
+makable-shorts import RUN footage --name demo recordings/demo-tight.mp4   # with its .steps.json
+makable-shorts import RUN intro gemini_generated_video.mp4         # a clip filmed in the Gemini app, HeyGen's, Higgsfield's…
+makable-shorts import RUN outro https://example.com/outro.mp4      # or a link to it: the file's own link, not a page
+makable-shorts import RUN narration ~/Downloads/download*.wav      # one audio file per scene
 ```
 
 Narration files go in order by the numbers in their names (`download.wav`, `download (1).wav`, … `download (10).wav`, as browsers name repeated downloads); `--as-given` keeps your order. A file that's the same as one before it (downloaded twice) is left out.
@@ -81,50 +99,52 @@ The scripts are in English or Hindi (`--language hi`), and friendly or excited l
 
 ## Who films you
 
-run.json's `intro` and `outro` say who films each clip from your photo (`python -m shorts new RUN --intro heygen --outro heygen`):
+run.json's `intro` and `outro` say who films each clip from your photo (`makable-shorts new RUN --intro heygen --outro heygen`):
 
 | | `omni` (the default) | `heygen` |
 |---|---|---|
 | What it is | Gemini Omni Flash films a new shot of you, in the script's `intro_setting` | HeyGen's photo to video animates your photo as it is |
-| The voice | Omni's own, a new one each clip | one of HeyGen's, the same every clip: run.json's `filmer_voice` (`python -m shorts new RUN --filmer-voice ID`) |
+| The voice | Omni's own, a new one each clip | one of HeyGen's, the same every clip: run.json's `filmer_voice` (`makable-shorts new RUN --filmer-voice ID`) |
 | Keys | `GEMINI_API_KEY` (AI Studio's prepaid balance), or Agent Platform on Google Cloud credits (below) | `HEYGEN_API_KEY`, from HeyGen's API balance |
 | Packages | the `gemini` extra | the `heygen` extra |
 
-`python -m shorts voices --gender male` lists HeyGen's voices, each with a link to hear it. The narration is spoken in the intro's voice either way, so the video sounds like one person.
+`makable-shorts voices --gender male` lists HeyGen's voices, each with a link to hear it. The narration is spoken in the intro's voice either way, so the video sounds like one person.
 
-Anything else (Higgsfield, HeyGen's own site, the Gemini app) works too: film the clips there and bring them in, a file or a link to one (`python -m shorts import RUN intro CLIP`). A service with an API is one more `Filmer` in `shorts/filmers.py`: what it's made from, for knowing when to film again, and how it films a line.
+Anything else (Higgsfield, HeyGen's own site, the Gemini app) works too: film the clips there and bring them in, a file or a link to one (`makable-shorts import RUN intro CLIP`). A service with an API is one more `Filmer` in `shorts/filmers.py`: what it's made from, for knowing when to film again, and how it films a line.
 
-## Recording by driving Chrome (`python -m shorts drive`)
+## Recording by driving Chrome (`makable-shorts drive`)
 
 This is how Claude Code records, in `/make-video`. Chrome runs in a process of its own that stays open, recording, and each command does one thing in it and prints the page as it is after it:
 
 ```sh
-python -m shorts drive RUN start --signed-in        # opens makable, signed in as the demo user, and prints the page
-python -m shorts drive RUN click 12 --goal "Open the site menu"
-python -m shorts drive RUN type 9 "A one-page website for …" --goal "Describe the site"
-python -m shorts drive RUN wait-for "Live preview" --timeout 240
-python -m shorts drive RUN stop --report "what it showed"
+makable-shorts drive RUN start --url https://app.example.com --signed-in   # opens it, and prints the page
+makable-shorts drive RUN click 12 --goal "Open the share menu"
+makable-shorts drive RUN type 9 "My teammate's email" --goal "Add a teammate"
+makable-shorts drive RUN wait-for "Shared" --timeout 240
+makable-shorts drive RUN stop --report "what it showed"
 ```
 
+- **The window** is 720×1280 unless `start --window` says otherwise: a site's phone layout, which fills the vertical video. A product without one records at `--window 1280x800`, and the video shows it whole over a blurred copy.
 - **The page.** `start`, `look` and every step print the tabs, the page's elements with a number each (what `click`, `type` and `scroll --number` take), and the path of a screenshot. They're browser-use's own, the ones its agent's model is shown.
-- **The steps.** Each command is a step, kept with its `--goal`, what it did and when, in the same steps file `browse` writes. The other commands are `keys`, `scroll`, `wait`, `tab`, `open` and `act` (any other of browser-use's actions); `python -m shorts drive RUN --help` lists them.
+- **The steps.** Each command is a step, kept with its `--goal`, what it did and when, in the same steps file `browse` writes. The other commands are `keys`, `scroll`, `wait`, `tab`, `open` and `act` (any other of browser-use's actions); `makable-shorts drive RUN --help` lists them.
+- **The spotlight.** It's off unless asked for: Claude adds it only when you ask. `click` and `type` take `--spotlight`: the rest of the page blurs and dims, and the element stands out in a ring with a shadow, so it looks raised. Buttons are never spotlit, even with `--spotlight`: on a small one it's a ring round a speck. It comes on half a second before the pointer moves to the element, and goes as the click lands, or once the typing's done. It's drawn in the page while it records, like the pointer, and follows the element as it moves or grows. A text field without a border of its own, such as a chat app's prompt, lights the box it's in.
 - **Afterwards.** `stop` cuts out the time between commands and the still parts of the waits, as `browse` does, and brings the tight recording in as the footage.
 
-It needs no model and no key: whoever sends the commands is the model, Claude Code here. The commands talk to the Chrome process on a local port with a token (`RUN/recordings/<name>.driving.json`, there while it records), so only that process needs browser-use (`SHORTS_BROWSE_PYTHON`, below). Its log is `RUN/recordings/<name>.drive.log`. A driver that's sent nothing for 30 minutes stops by itself, keeping what it recorded.
+It needs no model and no key: whoever sends the commands is the model, Claude Code here. The commands talk to the Chrome process on a local port with a token (`RUN/recordings/<name>.driving.json`, there while it records), so only that process needs browser-use (in its own environment, below). Its log is `RUN/recordings/<name>.drive.log`. A driver that's sent nothing for 30 minutes stops by itself, keeping what it recorded.
 
-## Recording from a task (`python -m shorts browse`)
+## Recording from a task (`makable-shorts browse`)
 
 ```sh
-python -m shorts browse RUN --name demo --task task.md --signed-in
+makable-shorts browse RUN --url https://app.example.com --name demo --task task.md --signed-in
 ```
 
-This has browser-use's agent do the task in `task.md` on makable, signed in as the demo user. The task is in plain words: what to do and show.
+This has browser-use's agent do the task in `task.md` on your product, signed in as you left it (`signin`). The task is in plain words: what to do and show.
 
-- **While it records:** Chrome's screencast is recorded in real time (`shorts/browse.py`), with a drawn mouse pointer gliding to each click, and each step's goal and times are kept.
-- **Afterwards:** `cut_pauses` takes out the model's thinking, and the parts of its waits where nothing changes on the page. It plays typing 4× as fast, and zooms in on each click.
+- **While it records:** Chrome's screencast is recorded in real time (`shorts/browse.py`), with a drawn mouse pointer gliding to each click and fading out 2 s after it, and each step's goal and times are kept.
+- **Afterwards:** `cut_pauses` takes out the model's thinking, and the parts of its waits where nothing changes on the page. It plays typing 4× as fast (only the typing: the pointer gliding to the field plays at its own speed), and zooms in on each click.
 - **In the run:** the tight recording comes in as the footage `demo`, with its steps. The recordings, and what they were made with, stay in `RUN/recordings/`.
 
-`python -m shorts frames RUN demo` makes contact sheets of the recording's frames, labelled with their times, to see what's on screen when.
+`makable-shorts frames RUN demo` makes contact sheets of the recording's frames, labelled with their times, to see what's on screen when.
 
 The agent's model is `provider:model`, from `--model`, from `SHORTS_BROWSE_MODEL`, or the default `google:gemini-3.6-flash`:
 
@@ -137,57 +157,23 @@ The agent's model is `provider:model`, from `--model`, from `SHORTS_BROWSE_MODEL
 
 A model that fails (429, 5xx) hands the rest of the run to `--fallback`.
 
-browser-use pins its own packages, so it lives in an environment of its own. `browse` runs itself there when this environment doesn't have it, and `drive start` runs Chrome's process there:
+browser-use pins its own packages, so it lives in an environment of its own, which `makable-shorts` makes the first time a command needs a browser. `browse` and `signin` run themselves there, and `drive start` runs Chrome's process there: the Python `SHORTS_BROWSE_PYTHON` names, in a checkout of the repo (see Working on it).
+
+## Recording signed in (`makable-shorts signin`)
+
+Most of what's worth showing is behind a sign-in, and every product signs people in its own way (a password, Google, GitHub, a code by email). So you sign in once, by hand:
 
 ```sh
-uv venv ~/browse-env --python 3.12 && uv pip install --python ~/browse-env -e '.[browse]'
-export SHORTS_BROWSE_PYTHON=~/browse-env/bin/python     # or in .env
+makable-shorts signin --url https://app.example.com    # Chrome opens: sign in, then close the window
 ```
 
-## Recording makable signed in
+Chrome opens on the page in a profile of the site's own (`SHORTS_HOME/sites/<host>`). Once you close the window, the profile keeps what the site saved: its cookies, local storage and IndexedDB. `drive start --signed-in` and `browse --signed-in` then record headless in that profile, so they start signed in. A site that refreshes its session as it's used saves the new one there too, so it stays signed in from one recording to the next. When a session runs out, sign in again; `--forget` deletes the profile. A site is its host, with or without `www.`.
 
-browser-use can't do GitHub's sign-in, so a demo user signs in with a password instead. `shorts/signin.py` asks Supabase for a session for that user. It then gives Chrome the two cookies makable's backend sets after a GitHub sign-in (`makable_access`, `makable_refresh`), so the recording opens signed in. Every run gets a new session, so there's nothing to save between runs, and the backend doesn't change.
+- **Use a demo account** if you can: the recordings show it, and what they make stays in it.
+- **One Chrome at a time** per site: a recording can't use the profile while the sign-in window is open, and says so.
+- **GitHub Actions** can't sign in by hand, so recordings there are signed out.
 
-Set up once, in Supabase:
-
-1. **A demo GitHub account.** Make a separate GitHub account and sign in to makable with it once. That creates the Supabase user and makable's user, with the GitHub token makable builds with. The agent really uses the site, so what it builds or publishes ends up on this account's GitHub, not yours.
-2. **Give that user a password.** Copy the user's id from *Authentication → Users*. Then run this with the project's secret key (*Project Settings → API Keys*). That key can do anything, so keep it out of the repo:
-
-   ```sh
-   curl -X PUT "https://<ref>.supabase.co/auth/v1/admin/users/<user-id>" \
-     -H "apikey: <secret key>" -H "Content-Type: application/json" \
-     -d '{"password": "<a long random password>"}'
-   ```
-
-   With the legacy `service_role` key, also add `-H "Authorization: Bearer <service_role key>"`.
-3. **Turn on the Email provider** (*Authentication → Sign In / Providers → Email*). Supabase refuses password sign-in without it.
-4. **Allow only GitHub sign-ups.** With Email on, anyone can also sign up with an email and a password. makable wouldn't let them in (the backend only knows users who signed in with GitHub, so they'd get a 401), but they'd fill up your users and get confirmation emails. In the *SQL Editor*:
-
-   ```sql
-   create or replace function public.only_github_signups(event jsonb)
-   returns jsonb
-   language plpgsql
-   as $$
-   begin
-     if event->'user'->'app_metadata'->>'provider' = 'github' then
-       return '{}'::jsonb;
-     end if;
-     return jsonb_build_object('error', jsonb_build_object('http_code', 403, 'message', 'Sign up with GitHub.'));
-   end;
-   $$;
-
-   grant execute on function public.only_github_signups to supabase_auth_admin;
-   revoke execute on function public.only_github_signups from authenticated, anon, public;
-   ```
-
-   Then, in *Authentication → Hooks*, add a **Before User Created** hook of type Postgres that runs `public.only_github_signups`. Don't turn off *Allow new users to sign up* instead: that stops new GitHub users too.
-5. **Four settings**, in `.env` locally and as repository secrets for GitHub Actions:
-   - `SUPABASE_URL`: `https://<ref>.supabase.co`
-   - `SUPABASE_PUBLISHABLE_KEY`: the one makable-backend uses
-   - `MAKABLE_DEMO_EMAIL`: the demo user's email, shown in *Authentication → Users*
-   - `MAKABLE_DEMO_PASSWORD`
-
-Then `drive start --signed-in` and `browse --signed-in` record makable signed in. `signed_in` asks makable who the session belongs to before recording. A user makable doesn't know fails there with a clear error, instead of recording the signed-out page.
+It's the Chrome browser-use records with (`shorts/signin.py`), so the profile suits it.
 
 ## The voice API (`services/voice`, on Modal)
 
@@ -217,14 +203,20 @@ What it costs, and how long the first request waits:
 - **Containers:** at most one at a time per model, and each stops two minutes after its last request. You pay for the GPU while it speaks, and a little while after.
 - **Cold starts:** the first request after a while waits for the container to start and load the model. The models download only once, into a Volume.
 
-## Setting up, and the command line
+## Working on it: a checkout of the repo
+
+The repo is the plugin and its marketplace (`.claude-plugin/`). `claude --plugin-dir .` loads your working copy as the plugin for a session (`/reload-plugins` picks up changes), so `makable-shorts` and the skill are the ones you're editing. `claude plugin validate .` checks it.
+
+`makable-shorts` is `python -m shorts` in its own environments. In a checkout, you can also run the module in one of your own:
 
 ```sh
-uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech]'
-cp .env.example .env      # and fill it in
+uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech,heygen]'
+uv venv --python 3.12 ~/browse-env && uv pip install --python ~/browse-env -e '.[browse]'   # SHORTS_BROWSE_PYTHON
+mkdir -p ~/.config/makable-shorts && cp .env.example ~/.config/makable-shorts/.env          # and fill it in
+.venv/bin/python -m shorts status .makable-shorts/runs/first
 ```
 
-Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`; `browse` in its own environment), so a machine installs only what the stages it runs need. Everything needs ffmpeg.
+Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` in its own environment), so a machine installs only what the stages it runs need. Everything needs ffmpeg.
 
 Omni films with `GEMINI_API_KEY`, through the Gemini API (AI Studio), which only spends credits while a prepaid balance is above $0. Or it can film on Agent Platform (Vertex AI), which spends Google Cloud credits (the Free Trial's, Google AI Pro's) with no prepaid balance:
 
@@ -233,15 +225,21 @@ gcloud auth application-default login       # once; GitHub Actions uses google-g
 export GOOGLE_GENAI_USE_ENTERPRISE=true GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
 ```
 
-The Omni model id is picked for the backend (`shorts/intro.py`). Without Claude Code, a video is made like this:
+The Omni model id is picked for the backend (`shorts/intro.py`). Without Claude Code, a video is made like this, in a checkout of the repo:
 
 ```sh
-.venv/bin/python -m shorts new runs/first --face assets/face.jpg --music assets/music.mp3   # [--language hi] [--tone hype]
-.venv/bin/python -m shorts browse runs/first --name demo --task task.md --signed-in
-.venv/bin/python -m shorts import runs/first script script.json   # checked first: check-script shows the problems
-.venv/bin/python -m shorts status runs/first
-.venv/bin/python -m shorts run runs/first --paid      # --paid: film the intro and outro too (about $1 each)
-.venv/bin/python -m shorts speak runs/first           # or one stage at a time, here
+export PATH="$PWD/bin:$PATH"     # makable-shorts, in this shell: the plugin puts it only on Claude's PATH
+makable-shorts me --face ~/Pictures/me.png --music ~/Music/calm.mp3   # once: kept for every video
+makable-shorts signin --url https://app.example.com                    # once, if it needs signing in
+makable-shorts new .makable-shorts/runs/first      # [--language hi] [--tone hype] [--pronounce Acme=akmee]
+# task.md is yours to write: what to do and show, in plain words (skills/make-video/references/task.md)
+makable-shorts browse .makable-shorts/runs/first --url https://app.example.com --name demo --task task.md --signed-in
+makable-shorts frames .makable-shorts/runs/first demo   # what's on screen when, in RUN/frames/
+# script.json is yours to write too, from the recording's steps and frames (skills/make-video/references/script.md)
+makable-shorts import .makable-shorts/runs/first script script.json   # checked first: check-script shows the problems
+makable-shorts status .makable-shorts/runs/first
+makable-shorts run .makable-shorts/runs/first --paid      # --paid: film the intro and outro too (about $1 each)
+makable-shorts speak .makable-shorts/runs/first           # or one stage at a time, here
 ```
 
 The tests make small videos with ffmpeg and run the stages, the orchestrator and the voice API on them:
