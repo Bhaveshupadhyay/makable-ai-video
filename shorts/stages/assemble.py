@@ -9,7 +9,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from ..compose import GAP, TAIL, Part, compose, even, whole_frames
+from ..compose import COLOURS, GAP, TAIL, Part, compose, even, whole_frames
 from ..media import duration, speech_span
 from ..run import (
     FILMED_INTRO,
@@ -61,7 +61,7 @@ class Assemble(Stage):
         if missing:
             raise NotReady(f"missing {', '.join(missing)}")
         hashes = {what: file_hash(path) for what, path in files.items()}
-        source = fingerprint(script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL)
+        source = fingerprint(script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS)
         return {FINAL: source, METADATA: source}
 
     def parts(self, run: Run, settings: Settings, script: Script) -> list[Part]:
