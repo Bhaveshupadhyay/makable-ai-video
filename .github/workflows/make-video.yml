@@ -2,6 +2,7 @@
 # Claude Code runs the makable-shorts plugin's make-video skill there, with the repo's code at hand, and --yes, so it
 # asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro with Gemini
 # Omni (about $2) or HeyGen, has ElevenLabs or your own voice API on Modal speak the narration, and uploads the video.
+# Or, with no avatar, it opens and ends on cards, narrated by Kokoro on the runner (free) or with no voice at all.
 #
 # Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
 #
@@ -12,9 +13,12 @@
 # goes in the notes' recording tips: the notes are uploaded with the video, for you to commit if they changed.
 #
 # Who films you and who speaks the narration are repository variables (Settings, Secrets and variables, Actions):
-#   SHORTS_FILMER              omni (the default) or heygen: clips you film yourself can't be brought in here
+#   SHORTS_FILMER              omni (the default) or heygen: clips you film yourself can't be brought in here. Or
+#                              none: a product demo with no avatar, which opens and ends on cards, and needs no photo
 #   SHORTS_FILMER_VOICE        with heygen: HeyGen's voice to film you in (makable-shorts voices lists them)
-#   SHORTS_NARRATOR            elevenlabs (the default), or modal: your own voice API (makable-shorts deploy-voice)
+#   SHORTS_NARRATOR            elevenlabs (the default), or modal: your own voice API (makable-shorts deploy-voice).
+#                              Or with no avatar: kokoro, on the runner, for nothing, or none, for no voice
+#   SHORTS_KOKORO_VOICE        with kokoro: its voice (af_heart, am_michael, ...), if not its own for the language
 #   GOOGLE_CLOUD_PROJECT       with omni: the Google Cloud project Omni films in (else the service account's)
 #   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT    with omni, to sign in to Google Cloud with Workload
 #                              Identity Federation, with no key file: or the secret GOOGLE_CREDENTIALS instead
@@ -26,7 +30,7 @@
 #   HEYGEN_API_KEY             with heygen
 #   ELEVENLABS_API_KEY         with elevenlabs
 #   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    with modal: what deploy-voice wrote in your .env
-#   FACE_URL                   a link to your photo (a secret holds at most 48 KB, too little for the photo)
+#   FACE_URL                   a link to your photo, for an avatar (a secret holds at most 48 KB, too little for it)
 #   MUSIC_URL                  (optional) a link to music to play under the video
 #   PRODUCT_REPO_TOKEN         (optional) a token that can read the rest of the product's code, if some is in another
 #                              private repo (a fine-grained one with Contents: read), for videos from its commits
@@ -139,7 +143,7 @@ jobs:
             mv "$RUNNER_TEMP/$1" "$RUNNER_TEMP/$1.$type"
             makable-shorts me "--$1" "$RUNNER_TEMP/$1.$type"
           }
-          fetch face "$FACE_URL"
+          if [ -n "$FACE_URL" ]; then fetch face "$FACE_URL"; fi  # an avatar video needs it: the skill says so
           if [ -n "$MUSIC_URL" ]; then fetch music "$MUSIC_URL"; fi
 
       - name: Who films you and who speaks
@@ -147,7 +151,10 @@ jobs:
           FILMER: ${{ vars.SHORTS_FILMER || 'omni' }}
           FILMER_VOICE: ${{ vars.SHORTS_FILMER_VOICE }}
           NARRATOR: ${{ vars.SHORTS_NARRATOR || 'elevenlabs' }}
-        run: makable-shorts me --filmer "$FILMER" --narrator "$NARRATOR" ${FILMER_VOICE:+--filmer-voice "$FILMER_VOICE"}
+          KOKORO_VOICE: ${{ vars.SHORTS_KOKORO_VOICE }}
+        run: >-
+          makable-shorts me --filmer "$FILMER" --narrator "$NARRATOR" ${FILMER_VOICE:+--filmer-voice "$FILMER_VOICE"}
+          ${KOKORO_VOICE:+--kokoro-voice "$KOKORO_VOICE"}
 
       - name: Make the video (Claude Code, with the make-video skill)
         uses: anthropics/claude-code-action@v1

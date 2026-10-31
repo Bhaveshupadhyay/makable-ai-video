@@ -41,8 +41,10 @@ NEEDS = {
     "omni": ("GOOGLE_CLOUD_PROJECT",),
     "heygen": ("HEYGEN_API_KEY",),
     "import": (),
+    "none": (),  # no avatar, or no voice
     "elevenlabs": ("ELEVENLABS_API_KEY",),
     "modal": ("SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY"),
+    "kokoro": (),  # on this machine
 }
 
 

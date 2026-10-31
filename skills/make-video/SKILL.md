@@ -1,6 +1,6 @@
 ---
 name: make-video
-description: Makes a Short, a 1-minute vertical video for YouTube Shorts and Instagram Reels, showing something the user's own web product can do, from its commits or from a prompt describing the functionality. You work out what to show, record it by driving the browser yourself, write the script from the recording, and the shorts pipeline films the user's avatar from their photo, speaks the narration and edits the video. Use when the user asks to make a video, a Short, a Reel or a product demo, or to write or redo a video's script.
+description: Makes a Short, a 1-minute vertical video for YouTube Shorts and Instagram Reels, showing something the user's own web product can do, from its commits or from a prompt describing the functionality. You work out what to show, record it by driving the browser yourself, write the script from the recording, and the shorts pipeline edits the video. It can open with an AI avatar of the user filmed from their photo, or with a title card and no avatar, and be narrated in a cloned voice, by a free voice on their own machine, or have no voice, only captions. Use when the user asks to make a video, a Short, a Reel or a product demo, or to write or redo a video's script.
 argument-hint: "[product] [commits or a prompt] [--tone hype] [--language hi] [--yes]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(makable-shorts *), Bash(git show *), Bash(git log *), Bash(git diff *), Bash(gh api *), Bash(gh search code *), Bash(git clone --depth 1 *), Bash(git -C *), Bash(ffprobe *)
 ---
@@ -19,15 +19,20 @@ The video is made by this plugin's pipeline, the `makable-shorts` command. Its s
 
 The pipeline does everything mechanical.
 
-The finished video has three parts:
+The finished video has three parts, and the user chooses which kind of video it is (step 1):
 
-1. **Intro:** the user's avatar says a hook to the camera: filmed from their photo by Gemini Omni or HeyGen, or a
-   clip they film elsewhere and bring in.
-2. **The screen recording** of the product, narrated in the avatar's voice by ElevenLabs, or by the user's own voice
-   API on Modal.
-3. **Outro:** the avatar signs off.
+1. **Intro:** the hook. In an **avatar video**, the user's avatar says it to the camera: filmed from their photo by
+   Gemini Omni or HeyGen, or a clip they film elsewhere and bring in. In a **product demo**, there's no avatar: a
+   title card shows the hook in big letters over a still of the recording.
+2. **The screen recording** of the product, narrated:
+   - in the avatar's voice by ElevenLabs, or by the user's own voice API on Modal (an avatar video);
+   - in a demo, by Kokoro, a free voice that runs on the user's machine, or in the user's own voice from a sample
+     (ElevenLabs, or their voice API);
+   - or not at all: a **silent demo**, where each scene's text is a caption, and music plays under it.
+3. **Outro:** the avatar signs off, or an end card shows the sign-off.
 
-The intro and outro are used as they were filmed.
+The intro and outro are used as they were filmed. Cards are drawn by the pipeline, and the narrator says their lines
+too, unless the video has no voice.
 
 Run the pipeline with `makable-shorts …`: the plugin puts it on the Bash tool's PATH. The first time, and after an
 update, a command sets up its Python environments first, which takes a few minutes: give it a Bash timeout of
@@ -63,8 +68,24 @@ Run `makable-shorts me`. It prints where the user's own things are kept (SHORTS_
 - `keys`: which of the keys their choices need are set, for step 8, and with Omni, whether Google Cloud's sign-in
   is on this machine (`google`).
 
-**Who films the user, and who speaks.** If `me` shows `filmer` or `narrator` not chosen, ask once, in one message
-(interactive):
+**The kind of video, who films the user, and who speaks.** If `me` shows `filmer` or `narrator` not chosen, ask
+once (interactive), first which kind of video they want, then what that kind needs, in one message if you can:
+
+- **An AI avatar video:** an avatar of them, filmed from their photo, says the hook and signs off, and narrates the
+  recording in its voice. They choose who films it and who speaks, below. It costs about $2 a video with Omni.
+- **A narrated product demo,** with no avatar and no photo: a title card, the recording, an end card. Who speaks:
+  - **Kokoro** (`kokoro`), free: a small open voice model that runs on their own machine, on its CPU, with no key
+    or account. It speaks in a voice of its own, not theirs: `af_heart` (a woman, American English), `am_michael`
+    (a man), `bf_emma` and `bm_george` (British), `hf_alpha` and `hm_omega` (Hindi). Offer two or three for the
+    video's language, and keep the one they pick with `me --kokoro-voice VOICE`. The first video downloads it
+    (about 1 GB in all, a few minutes); after that a minute of narration takes well under a minute.
+  - **Their own voice**, cloned from a sample of them talking (`me --voice SAMPLE`: 3 to 10 seconds, clear), by
+    ElevenLabs or their own voice API, as below.
+- **A silent product demo:** no avatar and no voice. The cards and each scene's text are captions, with music under
+  them if they have some. Free, with no keys.
+
+Keep the kind with `me --filmer none` for a demo (no avatar), and `--narrator kokoro|elevenlabs|modal`, or
+`--narrator none` for a silent one. For an avatar video, ask:
 
 - **Who films their intro and outro**, from their photo:
   - **Gemini Omni** (`omni`), in their own Google Cloud project: about $1 a clip, from its billing or its credits.
@@ -110,11 +131,14 @@ Two things every video needs, and you never go on without:
 
 - **The product's address,** the notes' `url`, where recordings start. If the notes have none, ask for it
   (interactive), or stop and say so (`--yes`). Never guess one.
-- **A photo of the user,** for whoever films the avatar. If `me` shows no `face`, ask for one: their face and
-  shoulders, looking at the camera, in good light. One with the background removed is best, since Omni films the
-  setting the script describes. Keep it with `makable-shorts me --face PATH`. Ask about music at the same time,
-  once: a file of their own (`me --music PATH`), or none. With `--yes` and no face, stop. Only clips the user
-  films elsewhere and brings in (filmer `import`) need no photo.
+- **A photo of the user,** for an avatar video (filmer `omni` or `heygen`). If `me` shows no `face`, ask for one:
+  their face and shoulders, looking at the camera, in good light. One with the background removed is best, since
+  Omni films the setting the script describes. Keep it with `makable-shorts me --face PATH`. With `--yes` and no
+  face, stop. Clips the user films elsewhere (filmer `import`) and demos (filmer `none`) need no photo. A demo
+  narrated in their own voice needs a sample instead (`voice`): ask for it the same way, or stop with `--yes`.
+
+Ask about music once, with the photo, or on its own for a demo: a file of their own (`me --music PATH`), or none. A
+silent demo is better with some.
 
 ## 2. What the video is about
 
@@ -156,14 +180,17 @@ If a prompt is too vague to pick one flow, ask (interactive), or pick the most d
 makable-shorts new <runs>/<yyyy-mm-dd>-<slug> [--tone hype] [--language hi] [--pronounce WORD=SAID ...]
 ```
 
-A new run takes the user's photo, music and voice from `me`, and who films them and who speaks. The defaults are
-this flow's: an outro, and narration in the avatar's voice.
+A new run takes the user's photo, music and voice from `me`, and the kind of video they chose: who films them (a
+demo's `intro` and `outro` are `card`) and who speaks (`narrator`, with `kokoro_voice`). A demo narrated by an API
+speaks in their voice sample (`narration_voice` `sample`).
 
 - `--tone` and `--language` from the request (friendly and English by default).
 - `--pronounce` for each of the notes' `pronounce` words in the run's language.
-- **Another filmer, for this video only,** if the user asks for one: `--intro heygen --outro heygen
-  --filmer-voice VOICE_ID` (a voice from `makable-shorts voices`), `--intro omni --outro omni`, or `--intro import
-  --outro import` for clips they film elsewhere. Their keys are step 1's.
+- **Another kind, for this video only,** if the user asks for one: `--intro card --outro card` for no avatar,
+  `--narrator kokoro [--kokoro-voice VOICE]` or `--narrator none` for no voice; `--intro omni --outro omni`, or
+  `--intro heygen --outro heygen --filmer-voice VOICE_ID` (a voice from `makable-shorts voices`) for an avatar, or
+  `--intro import --outro import` for clips they film elsewhere. What it needs (keys, a photo, a sample) is step 1's.
+  For Hindi with Kokoro, its voice must be a Hindi one (`hf_alpha`, `hm_omega`).
 
 ## 4. Record it
 
@@ -216,14 +243,17 @@ Fix every error, and every warning unless there's a reason not to. When it's cle
 
 ## 7. Approval (skip with `--yes`)
 
-Filming costs money, so show the user:
-- the intro line, each scene (its stretch, its speed from `check-script` and its text), the outro line,
-  the title and the description;
+Show the user:
+- the intro line (or the title card's), each scene (its stretch, its speed from `check-script` and its text), the
+  outro line (or the end card's), the title and the description;
 - anything you left out of the recording, and why.
 
-Then ask: film it, change something, or stop. Filming costs about two dollars with Omni (the intro and the outro,
-about a dollar each), or what HeyGen takes from their balance. With their own clips (`import`), ask them instead to
-film the intro line and the outro line (in the setting the script gives) and to give you the files or links.
+Then ask: make it, change something, or stop, with what making it costs:
+- **An avatar video:** about two dollars with Omni (the intro and the outro, about a dollar each), or what HeyGen
+  takes from their balance. With their own clips (`import`), ask them instead to film the intro line and the outro
+  line (in the setting the script gives) and to give you the files or links.
+- **A demo:** nothing with Kokoro or with no voice. In their own voice, what ElevenLabs or Modal charges for under
+  a minute of speech.
 
 ## 8. Make it
 
@@ -233,10 +263,12 @@ makable-shorts run RUN --paid
 
 This takes a few minutes, so run it in the background. It does everything that's due, in order:
 1. films the intro and the outro (Omni or HeyGen, as `run.json` says). The user's own clips come in first instead:
-   `makable-shorts import RUN intro FILE_OR_LINK` (and `outro`);
-2. takes the avatar's voice from the intro;
-3. has ElevenLabs, or the user's voice API, speak each scene in it (`run.json`'s `narrator`);
-4. assembles `RUN/final.mp4` with captions and music.
+   `makable-shorts import RUN intro FILE_OR_LINK` (and `outro`). A demo has nothing to film;
+2. takes the avatar's voice from the intro, in an avatar video;
+3. has ElevenLabs, the user's voice API, or Kokoro speak each scene (`run.json`'s `narrator`), and in a demo the
+   cards' lines too. The first time Kokoro speaks, the command sets up its environment and downloads it: give it a
+   Bash timeout of 1800000 ms. A silent demo has nothing to speak;
+4. assembles `RUN/final.mp4` with captions and music, and in a demo, draws the cards.
 
 If it stops, it says why and what's next. Fix that and run it again: only what's missing or out of date
 is made again. Never delete `intro/filmed.mp4` or `outro/filmed.mp4` without asking, since each costs about
@@ -249,7 +281,11 @@ Tell the user:
 - the scenes as they were made;
 - anything to check by eye or ear: Omni sometimes says a line a little differently, and the outro's voice
   can differ from the intro's, since each clip is a separate take. If one is off, delete that clip and run
-  step 8 again to film it again (about a dollar);
+  step 8 again to film it again (about a dollar). A narrator can say a name or a web address wrong (Kokoro
+  especially, since it reads from spelling, not from a voice it copied): respell it with `new RUN --pronounce WORD=SAID`, add it to the notes'
+  `pronounce`, and run step 8 again, which speaks only the lines with it again;
+- whether to tick YouTube's "altered or synthetic content" box: `metadata.json`'s `containsSyntheticMedia` says
+  so for an avatar or a cloned voice, not for Kokoro's voice or a silent demo;
 - notes you wrote or changed in the repo (`.makable-shorts/products/`): they're the user's to commit. In GitHub
   Actions, they're uploaded with the video.
 

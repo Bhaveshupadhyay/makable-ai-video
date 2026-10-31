@@ -167,6 +167,14 @@ def test_me_keeps_who_films_you_and_who_speaks_and_says_the_keys_they_need(
     me("--filmer-voice", "")
     assert chosen() == {"filmer": "heygen", "narrator": "modal"}
 
+    shown = me("--filmer", "none", "--narrator", "kokoro")  # a product demo, narrated for nothing
+    assert "filmer     no one: no avatar, the video opens on a title card" in shown
+    assert "narrator   Kokoro, on this machine, for nothing, in its own voice for the video's language" in shown
+    assert "keys       set: none" in shown and "not set: none" in shown and "google" not in shown
+    assert "in its voice am_michael" in me("--kokoro-voice", "am_michael")
+    assert "in your voice sample's" in me("--narrator", "elevenlabs")  # no avatar to take it from
+    assert "no voice, the captions say it" in me("--narrator", "none")
+
 
 def test_a_new_run_takes_your_choices(tmp_path: Path, kept: Path) -> None:
     shorts("me", "--filmer", "heygen", "--filmer-voice", "v1", "--narrator", "elevenlabs", cwd=tmp_path, home=kept)

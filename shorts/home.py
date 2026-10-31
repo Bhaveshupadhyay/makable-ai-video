@@ -3,8 +3,9 @@
     .env                 your keys (KEY=value lines), for what the environment doesn't set (`shorts.keys`)
     me/face.png          a photo of you, for whoever films you; me/music.mp3, played under the video; and
     me/voice.wav         a sample of you talking (`python -m shorts me` keeps them)
-    choices.json         who films you (Gemini Omni, HeyGen, or clips you bring in) and who speaks the narration
-                         (ElevenLabs, or your own voice API on Modal): `python -m shorts me --filmer --narrator`
+    choices.json         who films you (Gemini Omni, HeyGen, clips you bring in, or no one: a video without an
+                         avatar) and who speaks the narration (ElevenLabs, your own voice API on Modal, Kokoro on
+                         this machine, or no one: a video without a voice): `python -m shorts me --filmer --narrator`
     products/<name>.md   what the make-video skill knows about each product: its address, how to say its name, ...
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
 
@@ -26,7 +27,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 MINE = ("face", "music", "voice")  # what `me` keeps: run.json's settings of the same names
-CHOICES = ("filmer", "filmer_voice", "narrator")  # and what it keeps of your choices (`chosen`)
+CHOICES = ("filmer", "filmer_voice", "narrator", "kokoro_voice")  # and what it keeps of your choices (`chosen`)
 
 
 def home() -> Path:
@@ -84,8 +85,9 @@ def keep(kind: str, file: Path | None) -> Path | None:
 
 
 def chosen() -> dict[str, str]:
-    """Your choices, those you've made: `filmer` ("omni", "heygen" or "import"), the HeyGen voice it films you in
-    (`filmer_voice`), and `narrator` ("elevenlabs" or "modal")."""
+    """Your choices, those you've made: `filmer` ("omni", "heygen", "import", or "none" for no avatar), the HeyGen
+    voice it films you in (`filmer_voice`), `narrator` ("elevenlabs", "modal", "kokoro", or "none" for no voice), and
+    Kokoro's voice (`kokoro_voice`)."""
     file = home() / "choices.json"
     return json.loads(file.read_text()) if file.exists() else {}
 

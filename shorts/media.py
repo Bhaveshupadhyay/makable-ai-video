@@ -48,6 +48,13 @@ def frame_size(path: Path) -> tuple[int, int]:
     return stream["width"], stream["height"]
 
 
+def still(path: Path, at: float, out: Path) -> Path:
+    """Saves the frame `at` seconds into a video as an image (a PNG, say): the last one, if it's past the end."""
+    at = max(0.0, min(at, duration(path) - 0.1))
+    ffmpeg("-ss", f"{at:.3f}", "-i", path, "-frames:v", "1", "-update", "1", out)
+    return out
+
+
 def has_sound(path: Path) -> bool:
     """Whether a media file has an audio stream."""
     result = subprocess.run(

@@ -1,11 +1,14 @@
-"""The narrator's voice: a text-to-speech API speaks each scene (`ApiVoice`), in a voice cloned from a sample.
+"""The narrator's voice: a text-to-speech API speaks each scene (`ApiVoice`), in a voice cloned from a sample, or
+Kokoro does, on this machine, in a voice of its own (`KokoroVoice`).
 
 The API is ElevenLabs, or the voice API on your own Modal account (services/voice, with OmniVoice and Chatterbox
 on GPUs: `speech_api`), so nothing here needs a GPU. The sample is the avatar's voice, taken from the intro
-(`voice_sample`), or a recording of you.
+(`voice_sample`), or a recording of you. Kokoro is a small open model (82M parameters, Apache-2.0) that speaks on the
+CPU, about as fast as it talks, and costs nothing: it needs the `kokoro` extra.
 """
 
 import re
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -25,6 +28,18 @@ def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: floa
         "-t", f"{length:.3f}", "-ac", "1", out,
     )  # fmt: skip
     return out
+
+
+def respelled(text: str, pronounce: dict[str, str]) -> str:
+    """`text` as a model reads it: the words in `pronounce` respelled, keeping a capital letter."""
+    for word, said in pronounce.items():
+        text = re.sub(
+            rf"\b{re.escape(word)}\b",
+            lambda match, said=said: said[:1].upper() + said[1:] if match[0][0].isupper() else said,
+            text,
+            flags=re.IGNORECASE,
+        )
+    return text
 
 
 class ApiVoice:
@@ -79,14 +94,7 @@ class ApiVoice:
 
     def spoken(self, text: str) -> str:
         """`text` as the model reads it: the words in `pronounce` respelled, keeping a capital letter."""
-        for word, said in self.pronounce.items():
-            text = re.sub(
-                rf"\b{re.escape(word)}\b",
-                lambda match, said=said: said[:1].upper() + said[1:] if match[0][0].isupper() else said,
-                text,
-                flags=re.IGNORECASE,
-            )
-        return text
+        return respelled(text, self.pronounce)
 
     def say(self, text: str, out: Path) -> Path:
         """Speaks `text` in the sample's voice, through the API, and saves it as WAV."""
@@ -109,3 +117,92 @@ class ApiVoice:
         if self.api is not None and self.voice_id is not None:
             self.api.delete_voice(self.voice_id)
             self.voice_id = None
+
+
+KOKORO = "hexgrad/Kokoro-82M"  # its weights, on Hugging Face: downloaded once, the first time it speaks
+KOKORO_VOICES = {"en": "af_heart", "hi": "hf_alpha"}  # its voice for each language, unless run.json names another
+# What each of its voices speaks, by the voice's first letter: af_heart is American English, bm_george British
+# English, hm_omega Hindi. Its other languages aren't ones a script is written in.
+KOKORO_LANGUAGES = {"a": "en", "b": "en", "h": "hi"}
+KOKORO_RATE = 24000  # samples a second
+ESPEAK_PATH = 150  # bytes: espeak-ng keeps its data folder's path in 160, with a file's name after it
+
+
+class KokoroVoice:
+    """The narrator: Kokoro, on this machine's CPU, in one of its own voices (it can't clone yours). Free: the model
+    downloads once (about 330 MB), and a minute of narration takes about a minute to speak.
+
+    What it speaks is named by the voice and its settings, as `ApiVoice`'s is by its model.
+    """
+
+    def __init__(
+        self, voice: str | None = None, language: str = "en", pronounce: dict[str, str] | None = None, **settings: float
+    ) -> None:
+        """
+        Args:
+            voice: One of Kokoro's voices for `language`, such as "am_michael" (None: KOKORO_VOICES').
+            language: What it speaks: one of KOKORO_LANGUAGES'.
+            pronounce: Words it says wrong, spelled the way they're said, as for `ApiVoice`.
+            settings: Its pipeline's options: `speed` (1 by default).
+
+        Raises:
+            ValueError: The voice isn't one of Kokoro's for the language.
+        """
+        self.voice = voice or KOKORO_VOICES.get(language, "")
+        speaks = KOKORO_LANGUAGES.get(self.voice[:1])
+        if speaks != language:
+            yours = ", ".join(f"{name} ({code})" for code, name in KOKORO_VOICES.items())
+            said = f"speaks {speaks}" if speaks else "isn't one of its voices for en or hi"
+            raise ValueError(f"Kokoro's voice {self.voice!r} {said}, and the script is in {language}: {yours}, say")
+        self.language = language
+        self.pronounce = pronounce or {}
+        self.tts_options = settings
+        self.pipeline = None
+
+    @property
+    def settings(self) -> str:
+        """The voice and the settings, for naming what's spoken with them."""
+        return repr(("kokoro", self.voice, sorted(self.tts_options.items())))
+
+    def spoken(self, text: str) -> str:
+        return respelled(text, self.pronounce)
+
+    def say(self, text: str, out: Path) -> Path:
+        """Speaks `text` in its voice, and saves it as WAV."""
+        import numpy
+        import soundfile
+
+        if self.pipeline is None:
+            from kokoro import KPipeline
+
+            espeak_data()
+            self.pipeline = KPipeline(lang_code=self.voice[0], repo_id=KOKORO)
+        said = [
+            numpy.asarray(audio)
+            for _, _, audio in self.pipeline(self.spoken(text), voice=self.voice, **self.tts_options)
+        ]
+        soundfile.write(out, numpy.concatenate(said), KOKORO_RATE)
+        return out
+
+    def close(self) -> None:
+        """Nothing to let go of: the model is on this machine."""
+
+
+def espeak_data() -> None:
+    """Points espeak-ng, which Kokoro reads some words with (and Hindi), at its data: the copy that comes with it, or
+    when that's in folders too deep for espeak-ng to find it (`ESPEAK_PATH`), a copy in the temp folder. espeak-ng
+    looks for a path that's too long in the folder it was built in instead, and quits."""
+    import espeakng_loader
+    from phonemizer.backend.espeak.wrapper import EspeakWrapper
+
+    data = Path(espeakng_loader.get_data_path())
+    if len(str(data).encode()) > ESPEAK_PATH:
+        copy = Path(tempfile.gettempdir()) / "makable-shorts-espeak-ng-data"
+        if not (copy / "phontab").exists():
+            part = copy.with_name(f".{copy.name}.part")  # first, so a copy that fails isn't taken for one
+            shutil.rmtree(part, ignore_errors=True)
+            shutil.copytree(data, part)
+            shutil.rmtree(copy, ignore_errors=True)
+            part.rename(copy)
+        data = copy
+    EspeakWrapper.set_data_path(str(data))

@@ -3,8 +3,9 @@
 # puts this folder on the Bash tool's PATH, so `makable-shorts drive RUN start ...` is a command like any other.
 #
 # The pipeline runs from the plugin's own folder, in Python environments of its own. This makes them with uv the first
-# time, and again when pyproject.toml changes (after an update): `pipeline`, for every stage, and `browser`, for
-# browser-use, which pins its own packages, made when a command first needs a browser. They're in
+# time, and again when pyproject.toml changes (after an update): `pipeline`, for every stage; `browser`, for
+# browser-use, which pins its own packages, made when a command first needs a browser; and `kokoro`, for Kokoro's
+# torch, made when a run Kokoro narrates is first made or spoken. They're in
 # ~/.cache/makable-shorts/envs (SHORTS_ENVS), outside the plugin, which is replaced on each update; deleting them is safe.
 set -euo pipefail
 
@@ -53,6 +54,16 @@ if [ -z "${SHORTS_BROWSE_PYTHON:-}" ]; then # unless you've your own environment
   drive | signin) environment browser browse ;;
   esac
   export SHORTS_BROWSE_PYTHON="$envs/browser/bin/python"
+fi
+
+if [ -z "${SHORTS_KOKORO_PYTHON:-}" ]; then # unless you've your own environment with Kokoro
+  case "${1:-}" in
+  run | speak)
+    # torch for the CPU (UV_TORCH_BACKEND): on Linux, pip's has CUDA's libraries too, gigabytes of them
+    if grep -qs '"narrator": "kokoro"' "${2:-}/run.json"; then UV_TORCH_BACKEND=cpu environment kokoro kokoro; fi
+    ;;
+  esac
+  if [ -x "$envs/kokoro/bin/python" ]; then export SHORTS_KOKORO_PYTHON="$envs/kokoro/bin/python"; fi
 fi
 
 export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"

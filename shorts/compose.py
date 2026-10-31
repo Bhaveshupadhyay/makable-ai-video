@@ -1,7 +1,8 @@
 """Putting the video together with ffmpeg: parts one after another, with captions and music.
 
 A part is footage on screen while something is heard: the intro and its speech, a scene's stretch of a
-recording and its narration, or a recording and its own sound. A stretch with an end is sped up or slowed
+recording and its narration, or a recording and its own sound. Its footage can be a picture (a title card), held
+for as long as the part lasts. A stretch with an end is sped up or slowed
 down to last as long as its part, so what's said is on screen while it's said; without one, the footage
 plays at its own speed from `start`, looping if it's shorter. Footage the frame's shape fills it, cropped a
 little; any other is shown whole over a blurred, darker copy of itself.
@@ -18,6 +19,7 @@ GAP = 0.35  # seconds of pause after each scene's narration
 TAIL = 1.0  # extra seconds on the last scene
 SAME_SHAPE = 0.05  # how far footage's width:height can be from the frame's (a share of it) and still fill it
 FONT_CACHE = Path.home() / ".cache" / "makable-shorts"
+PICTURES = (".png", ".jpg", ".jpeg")  # footage that's a picture, held on screen
 # Every part in the same colours: limited-range BT.709. Footage comes in either range (screen recordings are often
 # full range, filmed clips limited), and where the parts' colours change, ffmpeg starts compose's filters over,
 # without the captions it has already read: the captions after it are lost.
@@ -36,6 +38,7 @@ class Part:
     speech: Path | None = None  # what's heard (the footage itself, for its own sound); None: silence
     text: str = ""  # what's said, for the captions
     said: tuple[float, float] | None = None  # when in `speech` the words start and end; None: all along
+    whole: bool = False  # the caption all at once, not a few words at a time with the speech: for text not heard
     start: float = 0.0  # where in the footage to start
     end: float | None = None  # where to end, fitting start to end to `length`; None: at the footage's own speed
 
@@ -78,7 +81,10 @@ def fit(size: tuple[int, int], frame: tuple[int, int]) -> str:
 
 def render_part(part: Part, out: Path, frame: tuple[int, int] = SIZE) -> Path:
     """Encodes one part's picture (no sound), holding the last frame if the footage runs out."""
-    if part.end is None:
+    if part.footage.suffix.lower() in PICTURES:
+        source = ["-loop", "1", "-framerate", str(FPS), "-i", part.footage]
+        timing = ""
+    elif part.end is None:
         source = ["-stream_loop", "-1", "-ss", f"{part.start:.3f}", "-i", part.footage]
         timing = ""
     else:
@@ -151,7 +157,8 @@ def compose(
         for part in parts:
             if part.text:
                 begin, end = part.said or (0.0, part.length)
-                timings += timed(part.text, at + begin, at + min(end, part.length))
+                begin, end = at + begin, at + min(end, part.length)
+                timings += [Caption(part.text, begin, end)] if part.whole else timed(part.text, begin, end)
             at += part.length
         inputs += ["-f", "concat", "-i", render(timings, workdir / "captions", load_font(FONT_CACHE), size)]
         picture = ["-filter_complex", "[0:v][2:v]overlay=0:0:eof_action=pass,format=yuv420p[v]", "-map", "[v]"]

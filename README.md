@@ -1,10 +1,23 @@
 # makable Shorts
 
-Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) showing something your web product can do: a demo of a feature, narrated, with you on camera. The video has three parts, with captions and music:
+Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) showing something your web product can do: a demo of a feature, with captions and music. You choose the kind of video ([Kinds of video](#kinds-of-video)):
 
-1. A 10-second intro of you, filmed from your photo by Gemini Omni Flash or HeyGen ([Who films you](#who-films-you)).
-2. A screen recording, narrated in the voice of the avatar in that intro.
-3. An outro, filmed the same way.
+- **An AI avatar video:** a 10-second intro of you, filmed from your photo by Gemini Omni Flash or HeyGen ([Who films you](#who-films-you)); the screen recording, narrated in the voice of the avatar in that intro; and an outro, filmed the same way.
+- **A narrated product demo,** with no avatar: a title card with the hook, the screen recording, narrated by Kokoro (free, on your own machine) or in your own voice, and an end card.
+- **A silent product demo:** the cards and the recording, with each scene's words as captions, and music. Free, with no keys.
+
+## Kinds of video
+
+| | AI avatar video | Narrated demo | Silent demo |
+|---|---|---|---|
+| Opens on | your avatar saying the hook | a title card: the hook over a blurred still of the recording | the same |
+| The recording | narrated in your avatar's voice | narrated by Kokoro, or in your voice from a sample | each scene's text as a caption, at its own speed |
+| Ends on | your avatar signing off | an end card with the sign-off | the same |
+| Needs | your photo, and keys for whoever films and speaks | nothing (Kokoro), or a sample of your voice and a key | nothing |
+| Costs | about $2 (Omni), plus the narration | nothing (Kokoro) | nothing |
+| `makable-shorts me` | `--filmer omni\|heygen\|import --narrator elevenlabs\|modal` | `--filmer none --narrator kokoro\|elevenlabs\|modal` | `--filmer none --narrator none` |
+
+In run.json, a demo's `intro` and `outro` are `card`, and a silent one's `narrator` is `none` (`makable-shorts new RUN --intro card --outro card --narrator none`, for one video). The cards are drawn by `assemble` (`shorts/cards.py`). The narrator says their lines too (`narration/intro.wav`, `outro.wav`), so a narrated demo's cards stay up while they're said, and a silent one's for as long as they take to read. `metadata.json`'s `containsSyntheticMedia`, for YouTube's "altered or synthetic content", is true for an avatar or a cloned voice, and false for Kokoro's voice or no voice.
 
 ## Installing it, as a Claude Code plugin
 
@@ -16,7 +29,7 @@ Or, on Claude Code before 2.1.275: `/plugin marketplace add Bhaveshupadhyay/maka
 
 It needs [uv](https://docs.astral.sh/uv) and ffmpeg on your machine (`brew install uv ffmpeg` on a Mac), and Chrome, or browser-use downloads Chromium. The plugin's command is `makable-shorts` (`bin/makable-shorts`). The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
 
-**Your choices, and your keys.** The first time, the skill asks who films your avatar (Gemini Omni in your own Google Cloud project, HeyGen, or clips you film yourself) and who speaks the narration (ElevenLabs, or your own voice API on Modal), and keeps your answers (`makable-shorts me --filmer … --narrator …`). Then `makable-shorts keys --open` writes the keys those need into `~/.config/makable-shorts/.env`, each with where to get it, and opens the file in your text editor: you paste the keys in there, never into the chat. Your own voice API needs none from you: `makable-shorts deploy-voice` deploys it to your Modal account and writes its address and key there itself. See [Who films you](#who-films-you) and [Who speaks the narration](#who-speaks-the-narration).
+**Your choices, and your keys.** The first time, the skill asks which kind of video you want, then who films your avatar (Gemini Omni in your own Google Cloud project, HeyGen, clips you film yourself, or no one, for a demo) and who speaks the narration (ElevenLabs, your own voice API on Modal, Kokoro, or no one), and keeps your answers (`makable-shorts me --filmer … --narrator …`). A demo narrated by Kokoro, or a silent one, needs no keys at all. Then `makable-shorts keys --open` writes the keys those need into `~/.config/makable-shorts/.env`, each with where to get it, and opens the file in your text editor: you paste the keys in there, never into the chat. Your own voice API needs none from you: `makable-shorts deploy-voice` deploys it to your Modal account and writes its address and key there itself. See [Who films you](#who-films-you) and [Who speaks the narration](#who-speaks-the-narration).
 
 ## With Claude Code: `/make-video`
 
@@ -28,7 +41,7 @@ The usual way to make one. Run Claude Code in your product's own repo, so Claude
 /make-video acme-api@91c0e4a --tone hype --language hi
 ```
 
-**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, and who films you and who speaks (above), which are kept outside the repo, for every video after. Every video needs the product's address, and your photo unless you bring in clips you film yourself (`--filmer import`): the skill doesn't go on without them. `makable-shorts me` shows what's kept, and where.
+**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, and who films you and who speaks (above), which are kept outside the repo, for every video after. Every video needs the product's address, and an avatar video your photo, unless you bring in clips you film yourself (`--filmer import`): the skill doesn't go on without them. A demo needs no photo, and one in your own voice needs a sample of it instead (`me --voice`). `makable-shorts me` shows what's kept, and where.
 
 Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and keeps itself out of git (a `.gitignore` of its own), since its recordings and clips are big.
 
@@ -37,18 +50,18 @@ The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what
 1. **What to show.** Claude reads the commits, or looks up the functionality you describe in your product's code, or on the product itself. From the code, it learns the flow before recording: the page's route, the labels as the code writes them, what shows while something slow runs. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
 2. **The recording.** Claude drives Chrome itself with `makable-shorts drive`, a command at a time, signed in if your product needs it, while the pipeline records the screen. It needs no model or key of its own: Claude is the model. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again.
 3. **The script.** Claude writes it from what's on screen when (`references/script.md`). `makable-shorts check-script` checks each scene's stretch and pace before the script comes in.
-4. **The video.** You approve the script (filming with Omni costs about $2). Then `makable-shorts run --paid`:
+4. **The video.** You approve the script (filming with Omni costs about $2; a demo narrated by Kokoro, or a silent one, costs nothing). Then `makable-shorts run --paid`:
    - films the intro and the outro with Omni or HeyGen (or takes the clips you bring in), and uses them as filmed;
    - takes the avatar's voice from the intro;
-   - has ElevenLabs, or your own voice API, speak the narration in that voice;
+   - has ElevenLabs, or your own voice API, speak the narration in that voice, or Kokoro in its own, in a demo;
    - assembles `final.mp4`.
 
 With `--yes`, the skill asks nothing, for GitHub Actions. Copy `.github/workflows/make-video.yml` into your product's repo: it runs the skill there from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription and the notes committed in the repo, and uploads the video. Its header lists the secrets and variables it needs: who films you and who speaks are repository variables there, and Omni signs in to Google Cloud with `google-github-actions/auth`.
 
 To run it locally, it needs:
 
-- **Your photo**, and music if you want it: `makable-shorts me --face PHOTO [--music FILE]`, or the skill asks for them. A photo with its background removed works best with Omni, which films the setting the script describes.
-- **Who films you and who speaks:** `makable-shorts me --filmer omni|heygen|import --narrator elevenlabs|modal`, or the skill asks.
+- **Your photo**, for an avatar video, and music if you want it: `makable-shorts me --face PHOTO [--music FILE]`, or the skill asks for them. A photo with its background removed works best with Omni, which films the setting the script describes.
+- **Who films you and who speaks:** `makable-shorts me --filmer omni|heygen|import|none --narrator elevenlabs|modal|kokoro|none`, or the skill asks ([Kinds of video](#kinds-of-video)).
 - **The keys** those need: `makable-shorts keys --open` adds their lines to `~/.config/makable-shorts/.env` and opens it for you to fill in (`.env.example` lists them all). The environment wins over the files.
 
 **Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), who films you and who speaks (`choices.json`), the sites you've signed in to (`sites/`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), and your choices, unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
@@ -65,8 +78,8 @@ The stages share nothing but the video's **run folder**. Each reads the files th
 | `film-intro` | `intro/filmed.mp4` | the intro line, your photo | run.json's `intro`: Gemini Omni Flash or HeyGen (`shorts/filmers.py`), **about $1** |
 | `film-outro` | `outro/filmed.mp4` | the outro line, your photo | the same, in the intro's setting, **about $1** |
 | `take-voice` | `voice/avatar.wav` | the filmed intro | ffmpeg: the avatar's voice, for the narration |
-| `speak` | `narration/01.wav`, `02.wav`, … | each scene's text, the avatar's voice | run.json's `narrator`: ElevenLabs, or your voice API on Modal (`shorts/speech_api.py`) |
-| `assemble` | `final.mp4`, `metadata.json` | all of the above, music | ffmpeg + Pillow (`shorts/compose.py`, `shorts/captions.py`) |
+| `speak` | `narration/01.wav`, `02.wav`, … (and `intro.wav`, `outro.wav` for cards) | each scene's text, the avatar's voice | run.json's `narrator`: ElevenLabs, or your voice API on Modal (`shorts/speech_api.py`), or Kokoro (`shorts/voice.py`) |
+| `assemble` | `final.mp4`, `metadata.json` | all of the above, music | ffmpeg + Pillow (`shorts/compose.py`, `shorts/captions.py`, and `shorts/cards.py` for a demo's cards) |
 
 **The script** (`script.json`) is made by no stage. Claude writes it, and it comes in with `makable-shorts import RUN script FILE`, which checks it first (`shorts/script.py`).
 
@@ -89,7 +102,7 @@ The stages share nothing but the video's **run folder**. Each reads the files th
 makable-shorts import RUN footage --name demo recordings/demo-tight.mp4   # with its .steps.json
 makable-shorts import RUN intro gemini_generated_video.mp4         # a clip filmed in the Gemini app, HeyGen's, Higgsfield's…
 makable-shorts import RUN outro https://example.com/outro.mp4      # or a link to it: the file's own link, not a page
-makable-shorts import RUN narration ~/Downloads/download*.wav      # one audio file per scene
+makable-shorts import RUN narration ~/Downloads/download*.wav      # one audio file per scene (and per card, first and last)
 ```
 
 Narration files go in order by the numbers in their names (`download.wav`, `download (1).wav`, … `download (10).wav`, as browsers name repeated downloads); `--as-given` keeps your order. A file that's the same as one before it (downloaded twice) is left out.
@@ -158,7 +171,7 @@ It's the Chrome browser-use records with (`shorts/signin.py`), so the profile su
 
 ## Who speaks the narration
 
-`speak` sends each scene to a text-to-speech API, in a voice cloned from the avatar's, so the narration needs no GPU where the video is made. `makable-shorts me --narrator` says whose, for every run after (run.json's `narrator`):
+`speak` sends each scene to a text-to-speech API, in a voice cloned from the avatar's (or from your voice sample, in a demo), so the narration needs no GPU where the video is made. Or Kokoro speaks it on your own machine, for nothing (below). `makable-shorts me --narrator` says whose, for every run after (run.json's `narrator`):
 
 | | `elevenlabs` | `modal`: your own voice API |
 |---|---|---|
@@ -168,6 +181,12 @@ It's the Chrome browser-use records with (`shorts/signin.py`), so the profile su
 | `narrator_options` (its `voice_settings`) | `stability=0.5`, … | `speed=1.1` (OmniVoice), `exaggeration=0.7` (Chatterbox) |
 
 Our API has the shape of ElevenLabs' (the same paths, `xi-api-key` header and formats), so one client (`shorts/speech_api.py`) talks to either. The voice is cloned when the first scene is spoken, and deleted once they're all spoken. Each scene is a request of its own, so only the scenes whose text changed are spoken again.
+
+### Kokoro, on your own machine, for nothing
+
+`kokoro` speaks the narration on your own machine's CPU, with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M): a small open text-to-speech model (82M parameters, Apache-2.0). It needs no key, no account and no GPU, and costs nothing. It can't clone a voice, so it's for demos without an avatar, in one of its own voices: run.json's `kokoro_voice` (`me --kokoro-voice`), or by default `af_heart` in English and `hf_alpha` in Hindi. Others: `am_michael`, `bf_emma`, `bm_george`, `hm_omega`, and the rest of [its list](https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md) for American and British English and Hindi. `narrator_options` takes its `speed` (1 by default).
+
+It lives in an environment of its own, with torch for the CPU, which `makable-shorts` makes the first time a run Kokoro narrates is made or spoken (about 1 GB, a few minutes). The model downloads from Hugging Face the first time it speaks (about 330 MB). After that, a Short's narration takes well under a minute: about 55 s of speech took 28 s on an M-series Mac.
 
 ### Your own, on Modal (`makable-shorts deploy-voice`)
 
@@ -203,7 +222,7 @@ mkdir -p ~/.config/makable-shorts && cp .env.example ~/.config/makable-shorts/.e
 .venv/bin/python -m shorts status .makable-shorts/runs/first
 ```
 
-Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` in its own environment), so a machine installs only what the stages it runs need. Everything needs ffmpeg.
+Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` and `kokoro` in environments of their own), so a machine installs only what the stages it runs need. Everything needs ffmpeg. For Kokoro, in a checkout: `uv venv --python 3.12 ~/kokoro-env && UV_TORCH_BACKEND=cpu uv pip install --python ~/kokoro-env -e '.[kokoro]'`, and `SHORTS_KOKORO_PYTHON=~/kokoro-env/bin/python`.
 
 Omni films in your own Google Cloud project, on Agent Platform (Vertex AI). Once:
 
@@ -218,6 +237,7 @@ and `GOOGLE_CLOUD_PROJECT=<project>` in the `.env` (Omni is at the `global` loca
 export PATH="$PWD/bin:$PATH"     # makable-shorts, in this shell: the plugin puts it only on Claude's PATH
 makable-shorts me --face ~/Pictures/me.png --music ~/Music/calm.mp3   # once: kept for every video
 makable-shorts me --filmer omni --narrator elevenlabs                  # once: who films you, and who speaks
+#                 (or --filmer none --narrator kokoro: a demo with no avatar, narrated for nothing, with no keys)
 makable-shorts keys --open                                             # once: the keys those need, to fill in
 makable-shorts signin --url https://app.example.com                    # once, if it needs signing in
 makable-shorts new .makable-shorts/runs/first      # [--language hi] [--tone hype] [--pronounce Acme=akmee]
@@ -235,6 +255,6 @@ makable-shorts speak .makable-shorts/runs/first           # or one stage at a ti
 The tests make small videos with ffmpeg and run the stages, the orchestrator and the voice API on them:
 
 ```sh
-uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with pytest \
+uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with pytest --with numpy --with soundfile \
   --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
 ```

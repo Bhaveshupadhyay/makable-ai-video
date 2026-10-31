@@ -4,8 +4,11 @@
     film-intro      intro           Gemini Omni or HeyGen films you saying the intro line (about $1)
     film-outro      outro           and the outro line (about $1), when run.json wants an outro
     take-voice      avatar-voice    the intro's voice, to speak the narration in (ffmpeg)
-    speak           narration       ElevenLabs or your own voice API speaks each scene
-    assemble        video           ffmpeg and Pillow: final.mp4
+    speak           narration       ElevenLabs, your own voice API, or Kokoro speaks each scene
+    assemble        video           ffmpeg and Pillow: final.mp4 (with the cards, in a video without an avatar)
+
+A video without an avatar (intro and outro "card") isn't made from the intro or the outro, and one without a voice
+(narrator "none") isn't made from the narration: the stages that make them have nothing to do.
 
 What you bring in (`python -m shorts import`) is made by no stage: its product's stage is an `Import`. The script
 is always brought in, as Claude writes it (the make-video skill).

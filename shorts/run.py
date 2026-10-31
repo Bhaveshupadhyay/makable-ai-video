@@ -12,9 +12,11 @@ scenes spoken by another tool).
     footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known
     script.json                      what's said (`script.Script`): the intro and outro lines, and each scene
     intro/filmed.mp4                 a clip of you saying the intro line (Omni's, HeyGen's), used as filmed
-    outro/filmed.mp4                 and the outro line
+    outro/filmed.mp4                 and the outro line (a video without an avatar has cards instead, which
+                                     assemble draws: intro and outro "card")
     voice/avatar.wav                 the intro's voice, to speak the narration in (with narration_voice "intro")
-    narration/01.wav, 02.wav, ...    each scene's narration
+    narration/01.wav, 02.wav, ...    each scene's narration (none, with narrator "none")
+    narration/intro.wav, outro.wav   the title card's line, and the end card's, said over the cards
     final.mp4, metadata.json         the video, and what to upload it with
     .records/<product>.json          what made each of a product's files, and from what
     .gitignore                       all of it: a run folder stays out of git (`Run.make`)
@@ -44,6 +46,7 @@ SCRIPT = "script.json"
 FILMED_INTRO = "intro/filmed.mp4"
 FILMED_OUTRO = "outro/filmed.mp4"
 AVATAR_VOICE = "voice/avatar.wav"
+CARD_NARRATION = {"intro": "narration/intro.wav", "outro": "narration/outro.wav"}  # a card's line, spoken
 FINAL = "final.mp4"
 METADATA = "metadata.json"
 RECORDS = ".records"
@@ -65,7 +68,8 @@ def narration_file(index: int) -> str:
     return f"narration/{index + 1:02d}.wav"
 
 
-# The model each narrator's API speaks with, unless run.json's narrator_model names another.
+# The model each narrator's API speaks with, unless run.json's narrator_model names another. They clone a voice: the
+# avatar's, or yours.
 NARRATOR_MODELS = {"modal": "omnivoice", "elevenlabs": "eleven_multilingual_v2"}
 
 
@@ -75,15 +79,19 @@ class Settings(BaseModel):
     language: str = "en"  # what the script is written and spoken in: one of script.LANGUAGES
     tone: str = "friendly"  # how the script sounds: one of script.TONES
     footage: dict[str, str] = {}  # each recording, by name: a file to copy in (drive brings its recordings in)
-    # intro/filmed.mp4: who films it (shorts.filmers: Gemini Omni, HeyGen; about $1 a clip), or you bring it in
-    intro: Literal["omni", "heygen", "import"] = "omni"
-    outro: Literal["omni", "heygen", "import", "none"] = "omni"  # outro/filmed.mp4: the same, or no outro
+    # intro/filmed.mp4: who films it (shorts.filmers: Gemini Omni, HeyGen; about $1 a clip), or you bring it in. Or
+    # no avatar: a title card, the intro line in big letters over a still of the recording (shorts.cards).
+    intro: Literal["omni", "heygen", "import", "card"] = "omni"
+    # outro/filmed.mp4: the same, an end card with the outro line, or no outro
+    outro: Literal["omni", "heygen", "import", "card", "none"] = "omni"
     filmer_voice: str | None = None  # the voice the filmer gives you, for one that takes one: HeyGen's voice_id
     # Who speaks narration/*.wav: a text-to-speech API (shorts.speech_api: ElevenLabs, or the voice API on your own
-    # Modal account), or you bring it in. It's in the voice of the person in the intro (voice/avatar.wav), or of
-    # the `voice` sample, with narration_voice "sample".
-    narrator: Literal["modal", "elevenlabs", "import"] = "modal"
+    # Modal account), Kokoro on this machine (free, in a voice of its own: kokoro_voice), or you bring it in. Or
+    # nobody: a video with no voice, whose scenes are read in the captions. An API speaks in the voice of the person
+    # in the intro (voice/avatar.wav), or of the `voice` sample, with narration_voice "sample".
+    narrator: Literal["modal", "elevenlabs", "kokoro", "import", "none"] = "modal"
     narration_voice: Literal["intro", "sample"] = "intro"
+    kokoro_voice: str | None = None  # Kokoro's voice, such as "am_michael" (None: its own for the language, voice.py)
     narrator_model: str | None = None  # the API's model (None: its own, NARRATOR_MODELS'): "chatterbox", say
     narrator_options: dict[str, float | bool | str] = {}  # the API's voice_settings: OmniVoice's speed, say
     pronounce: dict[str, str] | None = None  # words the narrator says wrong, respelled: the product's name, say
@@ -111,6 +119,16 @@ class Settings(BaseModel):
         if isinstance(data, dict) and data.get("narrator") == "api":
             data = {**data, "narrator": "modal"}
         return data
+
+
+def narrated(script: Script, settings: Settings) -> list[tuple[str, str]]:
+    """What the narrator says, file by file (paths in the run folder, with their text): the title card's line, each
+    scene, and the end card's line. The narration's files, unless the video has no voice (narrator "none")."""
+    lines = [(CARD_NARRATION["intro"], script.intro_line)] if settings.intro == "card" else []
+    lines += [(narration_file(index), scene.text) for index, scene in enumerate(script.scenes)]
+    if settings.outro == "card" and script.outro_line.strip():
+        lines.append((CARD_NARRATION["outro"], script.outro_line))
+    return lines
 
 
 class Made(BaseModel):
@@ -197,9 +215,12 @@ class Run:
             return Settings.model_validate_json(file.read_text())
         yours: dict[str, Any] = {kind: str(path) for kind, path in mine().items()}
         choices = chosen()
-        if "filmer" in choices:
-            yours |= {"intro": choices["filmer"], "outro": choices["filmer"]}
-        yours |= {name: choices[name] for name in ("filmer_voice", "narrator") if name in choices}
+        if "filmer" in choices:  # no one: no avatar, but cards
+            filmed = "card" if choices["filmer"] == "none" else choices["filmer"]
+            yours |= {"intro": filmed, "outro": filmed}
+        yours |= {name: choices[name] for name in ("filmer_voice", "narrator", "kokoro_voice") if name in choices}
+        if choices.get("filmer") == "none" and choices.get("narrator") in NARRATOR_MODELS:
+            yours["narration_voice"] = "sample"  # there's no avatar to take a voice from: it's yours
         return Settings(**yours)
 
     def save_settings(self, settings: Settings) -> None:
