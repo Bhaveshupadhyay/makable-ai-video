@@ -81,6 +81,11 @@ class Assemble(Stage):
     def plan(self, run: Run) -> dict[str, str]:
         settings, script = run.settings(), read_script(run)
         files = self.inputs(run, settings, script)
+        if settings.narrator == "none" and not settings.captions:
+            raise NotReady(
+                "a video without a voice says what's happening in its captions, and run.json turns them off: turn them "
+                "on (new RUN --captions), or give it a narrator"
+            )
         missing = [what for what, path in files.items() if not path.exists()]
         if missing:
             raise NotReady(f"missing {', '.join(missing)}")

@@ -1,6 +1,7 @@
 """The kinds of video: with an avatar of you, or without one (a title card and an end card), narrated by an API in a
 cloned voice, by Kokoro on this machine, or with no voice at all."""
 
+import argparse
 import json
 import sys
 import types
@@ -8,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from shorts.__main__ import new
 from shorts.home import choose
 from shorts.media import duration
 from shorts.orchestrator import elsewhere, run_all, run_stage, status
@@ -18,6 +20,7 @@ from shorts.stages.bring_in import bring_in
 from shorts.voice import KokoroVoice, espeak_data
 
 from .conftest import needs_ffmpeg, script, speech, video
+from .test_home import options
 
 TITLE = "One sentence in, a whole website out."
 SIGN_OFF = "Try it free."
@@ -88,7 +91,7 @@ def test_a_cards_line_is_short_and_a_silent_scene_plays_at_its_own_speed() -> No
 
 @needs_ffmpeg
 def test_a_video_with_cards_and_no_voice(card_run: Run) -> None:
-    card_run.save_settings(card_run.settings().model_copy(update={"narrator": "none"}))
+    card_run.save_settings(card_run.settings().model_copy(update={"narrator": "none", "captions": True}))
     entries = {entry.product: entry for entry in status(card_run)}
     for product in ("intro", "outro", "avatar-voice", "narration"):
         assert not entries[product].needed, product
@@ -203,3 +206,34 @@ def test_a_stage_runs_in_the_python_with_its_packages(card_run: Run, monkeypatch
     assert elsewhere(card_run, "assemble") is None  # SHORTS_ASSEMBLE_PYTHON isn't set: here
     monkeypatch.setattr("shorts.orchestrator.missing_packages", lambda python, packages: [])
     assert elsewhere(card_run, "speak") is None  # this one has Kokoro
+
+
+def given(args: argparse.Namespace, **more: object) -> argparse.Namespace:
+    """`new`'s options, with more of those that come one at a time."""
+    return argparse.Namespace(**{**vars(args), **more})
+
+
+def test_a_run_made_a_demo_speaks_in_your_voice_and_only_its_narrators_options(tmp_path: Path) -> None:
+    run = Run(tmp_path / "first")
+    run.save_settings(Settings(narrator="elevenlabs", narrator_options={"stability": 0.5}))
+    sample = tmp_path / "me.wav"
+    sample.write_bytes(b"RIFF")
+    new(run, options(intro="card", outro="card", voice=str(sample)))  # no avatar to take a voice from: yours
+    assert run.settings().narration_voice == "sample"
+    new(run, options(narration_voice="intro"))  # what's asked for is kept, if only to be refused by speak
+    assert run.settings().narration_voice == "intro"
+
+    new(run, options(narrator="kokoro"))  # another narrator: none of ElevenLabs' options, which Kokoro refuses
+    assert run.settings().narrator_options == {}
+    new(run, given(options(), narrator_option=[("speed", 1.1)]))
+    new(run, options(tone="hype"))  # the same narrator: its options are kept
+    assert run.settings().narrator_options == {"speed": 1.1}
+    new(run, given(options(narrator="modal"), narrator_option=[("speed", 1.2)]))  # another, with its own given
+    assert run.settings().narrator_options == {"speed": 1.2}
+
+
+@needs_ffmpeg
+def test_a_video_without_a_voice_needs_its_captions(card_run: Run) -> None:
+    card_run.save_settings(card_run.settings().model_copy(update={"narrator": "none", "captions": False}))
+    assert "a video without a voice says what's happening in its captions" in status(card_run)[-1].summary()
+    assert not run_all(card_run)

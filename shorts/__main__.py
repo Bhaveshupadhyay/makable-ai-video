@@ -96,12 +96,19 @@ def new(run: Run, args: argparse.Namespace) -> None:
     for item in args.footage_items or []:
         name, _, source = item.partition("=")
         settings.footage[name] = run.relative(Path(source))
-    if args.narrator_option:
-        updates["narrator_options"] = {**settings.narrator_options, **dict(args.narrator_option)}
+    another = updates.get("narrator", settings.narrator) != settings.narrator
+    if another and "narrator_model" not in updates:
+        updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
+    if another or args.narrator_option:  # another narrator's options are its own: Kokoro takes none of an API's
+        updates["narrator_options"] = {
+            **({} if another else settings.narrator_options),
+            **dict(args.narrator_option or []),
+        }
     if args.respellings:
         updates["pronounce"] = {**(settings.pronounce or {}), **dict(args.respellings)}
-    if updates.get("narrator", settings.narrator) != settings.narrator and "narrator_model" not in updates:
-        updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
+    changed = settings.model_copy(update=updates)
+    if changed.intro == "card" and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
+        updates["narration_voice"] = "sample"  # no avatar to take a voice from: an API speaks in yours
     run.save_settings(settings.model_copy(update=updates))
     print(run.path(SETTINGS).read_text())
 
