@@ -65,9 +65,14 @@ def captioned(video: Path, at: float) -> bool:
 
 
 @needs_ffmpeg
-def test_captions_last_to_the_end_over_footage_of_any_colour_range(tmp_path: Path) -> None:
+def test_captions_last_to_the_end_over_footage_of_any_colour_range(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The intro and outro (limited range) around the scenes' screen recording (full range): each is captioned."""
-    pytest.importorskip("PIL")
+    pytest.importorskip("PIL", minversion="10.1")  # for ImageFont.load_default(size): Pillow's own font
+    from PIL import ImageFont
+
+    monkeypatch.setattr("shorts.captions.load_font", lambda cache: ImageFont.load_default(88))  # not downloaded
     avatar, screen = black(tmp_path / "avatar.mp4", 2), black(tmp_path / "screen.mp4", 2, full_range=True)
     parts = [Part(avatar, 2.0, text="Hi there."), Part(screen, 2.0, text="Look here."), Part(avatar, 2.0, text="Bye.")]
     out = compose(parts, tmp_path / "work", tmp_path / "out.mp4", size=(180, 320))
