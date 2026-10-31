@@ -25,7 +25,17 @@ In Claude Code:
 /plugin install makable-shorts --marketplace Bhaveshupadhyay/makable-ai-video
 ```
 
-On Claude Code before 2.1.275, add the marketplace first:
+The first time, it asks to add the marketplace (`github:Bhaveshupadhyay/makable-ai-video`): press **y**. Claude Code asks this once for any marketplace that isn't Anthropic's own, and not again for its updates.
+
+Or, from your terminal, in one step, with no question:
+
+```sh
+claude plugin install makable-shorts --marketplace Bhaveshupadhyay/makable-ai-video
+```
+
+A Claude Code session that's already running picks it up with `/reload-plugins`.
+
+On Claude Code before 2.1.275 (2.1.292 for the terminal's `--marketplace`), add the marketplace first:
 
 ```
 /plugin marketplace add Bhaveshupadhyay/makable-ai-video
