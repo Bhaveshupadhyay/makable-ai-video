@@ -7,19 +7,38 @@
 # browser-use, which pins its own packages, made when a command first needs a browser; and `kokoro`, for Kokoro's
 # torch, made when a run Kokoro narrates is first made or spoken. They're in
 # ~/.cache/makable-shorts/envs (SHORTS_ENVS), outside the plugin, which is replaced on each update; deleting them is safe.
+#
+# Nothing needs installing by hand: uv is yours if you have it, or else its own, downloaded the first time; ffmpeg is
+# imageio-ffmpeg's, one of the pipeline's packages; and browser-use downloads Chromium if there's no Chrome.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-envs="${SHORTS_ENVS:-${XDG_CACHE_HOME:-$HOME/.cache}/makable-shorts/envs}"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/makable-shorts"
+envs="${SHORTS_ENVS:-$cache/envs}"
 
-needs() { # a program the pipeline needs, and how to get it
-  command -v "$1" >/dev/null 2>&1 || {
-    echo "makable-shorts needs $1: $2" >&2
-    exit 1
-  }
-}
-needs uv "curl -LsSf https://astral.sh/uv/install.sh | sh (see https://docs.astral.sh/uv)"
-needs ffmpeg "brew install ffmpeg on a Mac, sudo apt-get install ffmpeg on Linux"
+# uv's own installer, into the cache only (UV_UNMANAGED_INSTALL: your shell's profile is left as it is). uvx comes
+# with it, which browser-use downloads Chromium with.
+uv_version=0.13.1
+if ! command -v uv >/dev/null 2>&1; then
+  if [ ! -x "$cache/uv/uv" ]; then
+    command -v curl >/dev/null 2>&1 || {
+      echo "makable-shorts needs curl, to download uv (or uv itself: https://docs.astral.sh/uv)" >&2
+      exit 1
+    }
+    echo "makable-shorts: downloading uv $uv_version, which sets up its Python (the first time only)" >&2
+    mkdir -p "$cache/uv"
+    download="$(mktemp -d "$cache/.uv-download.XXXXXX")" # beside it, so moving it in is a rename
+    trap 'rm -rf "$download"' EXIT
+    # Under Rosetta (an Intel shell on an Apple Mac), the installer would pick Intel's uv, and it Intel's Python
+    installer=sh
+    if [ "$(/usr/sbin/sysctl -n sysctl.proc_translated 2>/dev/null)" = 1 ]; then installer="arch -arm64 sh"; fi
+    curl -LsSf "https://astral.sh/uv/$uv_version/install.sh" | UV_UNMANAGED_INSTALL="$download" UV_PRINT_QUIET=1 $installer >&2
+    mv "$download/uvx" "$download/uv" "$cache/uv/" # uv last: once it is there, both are
+    rm -rf "$download"
+    trap - EXIT
+  fi
+  export PATH="$cache/uv:$PATH"
+fi
 
 # Makes the environment $1, with pyproject.toml's dependencies and its extras $2 (a comma-separated list), unless it's
 # made for this pyproject.toml already. uv's own Python, so it's native (not an Intel one under Rosetta, say). One

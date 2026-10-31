@@ -32,7 +32,7 @@ On Claude Code before 2.1.275, add the marketplace first:
 /plugin install makable-shorts@makable-shorts
 ```
 
-It also needs [uv](https://docs.astral.sh/uv), ffmpeg and Chrome on your machine (`brew install uv ffmpeg` on a Mac; without Chrome, browser-use downloads Chromium). The first video takes a few minutes longer, while it sets up its own Python environments.
+There's nothing else to install. The first video takes a few minutes longer, while the plugin downloads what it needs: uv, its Python and packages (ffmpeg among them), and Chromium if you don't have Chrome.
 
 ### Turn on auto-update
 
@@ -109,7 +109,7 @@ Then `makable-shorts keys --open` writes the keys those need into `~/.config/mak
 
 **Kinds, in run.json.** A demo's `intro` and `outro` are `card`, and a silent one's `narrator` is `none` (`makable-shorts new RUN --intro card --outro card --narrator none`, for one video). The cards are drawn by `assemble` (`shorts/cards.py`). The narrator says their lines too (`narration/intro.wav`, `outro.wav`), so a narrated demo's cards stay up while they're said, and a silent one's for as long as they take to read. `metadata.json`'s `containsSyntheticMedia`, for YouTube's "altered or synthetic content", is true for an avatar or a cloned voice, and false for Kokoro's voice or no voice.
 
-**The `makable-shorts` command** is `bin/makable-shorts`. The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
+**The `makable-shorts` command** is `bin/makable-shorts`. The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages. It uses your uv if you have one, or else downloads its own into `~/.cache/makable-shorts/uv`, leaving your shell's profile alone. Its ffmpeg is one of those packages ([imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg)'s static build), and browser-use downloads Chromium when there's no Chrome, so it needs nothing installed by hand.
 
 ### From GitHub Actions
 
@@ -271,7 +271,7 @@ mkdir -p ~/.config/makable-shorts && cp .env.example ~/.config/makable-shorts/.e
 .venv/bin/python -m shorts status .makable-shorts/runs/first
 ```
 
-Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` and `kokoro` in environments of their own), so a machine installs only what the stages it runs need. Everything needs ffmpeg. For Kokoro, in a checkout: `uv venv --python 3.12 ~/kokoro-env && UV_TORCH_BACKEND=cpu uv pip install --python ~/kokoro-env -e '.[kokoro]'`, and `SHORTS_KOKORO_PYTHON=~/kokoro-env/bin/python`.
+Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` and `kokoro` in environments of their own), so a machine installs only what the stages it runs need. Every environment gets ffmpeg from imageio-ffmpeg (`IMAGEIO_FFMPEG_EXE` names another), with no ffprobe: a file's length and streams are read from what ffmpeg prints about it (`shorts/media.py`). For Kokoro, in a checkout: `uv venv --python 3.12 ~/kokoro-env && UV_TORCH_BACKEND=cpu uv pip install --python ~/kokoro-env -e '.[kokoro]'`, and `SHORTS_KOKORO_PYTHON=~/kokoro-env/bin/python`.
 
 Omni films in your own Google Cloud project, on Agent Platform (Vertex AI). Once:
 
@@ -304,8 +304,8 @@ makable-shorts speak .makable-shorts/runs/first           # or one stage at a ti
 The tests make small videos with ffmpeg and run the stages, the orchestrator and the voice API on them:
 
 ```sh
-uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with pytest --with numpy --with soundfile \
-  --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
+uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with imageio-ffmpeg==0.6.0 --with pytest --with numpy \
+  --with soundfile --with websockets --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
 ```
 
 ## License

@@ -21,7 +21,7 @@ from shorts.stages.base import CURRENT, STALE, NotReady  # noqa: E402
 from shorts.stages.bring_in import bring_in  # noqa: E402
 
 from .conftest import needs_ffmpeg, script, video  # noqa: E402
-from .test_voice_api import KEY, Tone  # noqa: E402
+from .test_voice_api import KEY, Tone, api_needs_ffmpeg  # noqa: E402
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def avatar_run(run: Run, tmp_path: Path) -> Run:
     return run
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_the_narration_is_spoken_in_the_avatars_voice(avatar_run: Run, tone: Tone, voices: Path) -> None:
     run = avatar_run
     entries = {entry.product: entry for entry in status(run)}
@@ -104,7 +104,7 @@ def test_without_the_api_speak_says_what_to_set(avatar_run: Run, monkeypatch: py
         run_stage(avatar_run, "speak")
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_a_voice_the_api_couldnt_delete_is_a_warning(
     avatar_run: Run, tone: Tone, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
@@ -119,7 +119,7 @@ def test_a_voice_the_api_couldnt_delete_is_a_warning(
     assert "Warning: the voice is still in the API" in capsys.readouterr().out
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_elevenlabs_speaks_with_its_own_model(avatar_run: Run, tone: Tone) -> None:
     avatar_run.save_settings(
         avatar_run.settings().model_copy(update={"narrator": "elevenlabs", "narrator_options": {}})

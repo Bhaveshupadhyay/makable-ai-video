@@ -13,18 +13,23 @@ opens a new tab when the last one closes: closing the window is how you say you'
 
 import contextlib
 import json
+import re
 import shutil
 import socket
 import subprocess
+import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
+from typing import IO
 
 from . import COMMAND
 from .home import site, site_profile
 
 WAIT = 20 * 60  # seconds to wait for the window to close
 OPENING = 180  # seconds for Chrome to open: the first run after an update can take a while (under Rosetta, say)
+DOWNLOADING = 10 * 60  # seconds for Chromium to download, when there's no Chrome
 
 
 def recording_profile(url: str) -> Path:
@@ -52,11 +57,36 @@ def _chrome() -> str:
     from browser_use.browser.watchdogs.local_browser_watchdog import LocalBrowserWatchdog
 
     chrome = LocalBrowserWatchdog._find_installed_browser_path()
+    failed = ""
+    if not chrome:  # Chromium, got the way browser-use gets it for a recording: playwright's, through uv
+        print("No Chrome here: downloading Chromium (the first time only, a minute or two)", file=sys.stderr)
+        # Without --with-deps: its system packages need root. A desktop has them, and if not, sign_in says so.
+        try:
+            command = ["uv", "tool", "run", "playwright", "install", "chromium"]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=DOWNLOADING)
+            failed = result.stderr.strip() if result.returncode else ""
+        except (OSError, subprocess.TimeoutExpired) as error:  # no uv (an environment of your own), or it stalled
+            failed = str(error)
+        chrome = LocalBrowserWatchdog._find_installed_browser_path()
     if not chrome:
         raise RuntimeError(
             "No Chrome or Chromium to sign in with: install Chrome, or `uvx playwright install chromium`"
+            + (f". Downloading Chromium failed: {failed}" if failed else "")
         )
     return chrome
+
+
+def _not_open(profile: Path, said: IO[bytes]) -> str:
+    """Why Chrome didn't open, from what it said: a system library it needs is missing (Linux), or else the profile's
+    in use, most likely."""
+    said.seek(0)
+    missing = re.search(rb"error while loading shared libraries: ([^:\s]+)", said.read())
+    if missing:
+        return (
+            f"Chrome can't start without {missing[1].decode()}, a system library: install the ones it needs with "
+            "`sudo uv tool run playwright install-deps chromium`"
+        )
+    return f"Chrome didn't open: is another Chrome using {profile} (a recording)?"
 
 
 def _pages(port: int) -> list[dict]:
@@ -91,37 +121,38 @@ def sign_in(url: str, wait: float = WAIT) -> Path:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    chrome = subprocess.Popen(
-        [executable, f"--user-data-dir={profile}", f"--remote-debugging-port={port}", "--no-first-run",
-         "--no-default-browser-check", url],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )  # fmt: skip
     up = False
-    try:
-        opened = time.time()
-        while True:  # until its page is up
-            with contextlib.suppress(OSError):
-                up = bool(_pages(port))
-            if up:
-                break
-            if chrome.poll() is not None or time.time() - opened > OPENING:
-                raise RuntimeError(f"Chrome didn't open: is another Chrome using {profile} (a recording)?")
-            time.sleep(0.5)
-        deadline = time.time() + wait
-        while time.time() < deadline:  # until the window's closed (on a Mac, Chrome stays open without windows)
-            try:
-                if not _pages(port):
-                    break
-            except OSError:  # Chrome quit
-                break
-            time.sleep(1)
-    finally:
-        _quit(port)
+    with tempfile.TemporaryFile() as said:  # what Chrome says, for why it didn't open
+        chrome = subprocess.Popen(
+            [executable, f"--user-data-dir={profile}", f"--remote-debugging-port={port}", "--no-first-run",
+             "--no-default-browser-check", url],
+            stdout=subprocess.DEVNULL,
+            stderr=said,
+        )  # fmt: skip
         try:
-            chrome.wait(30)
-        except subprocess.TimeoutExpired:
-            chrome.kill()
-        if made and not up:
-            shutil.rmtree(profile, ignore_errors=True)
+            opened = time.time()
+            while True:  # until its page is up
+                with contextlib.suppress(OSError):
+                    up = bool(_pages(port))
+                if up:
+                    break
+                if chrome.poll() is not None or time.time() - opened > OPENING:
+                    raise RuntimeError(_not_open(profile, said))
+                time.sleep(0.5)
+            deadline = time.time() + wait
+            while time.time() < deadline:  # until the window's closed (on a Mac, Chrome stays open without windows)
+                try:
+                    if not _pages(port):
+                        break
+                except OSError:  # Chrome quit
+                    break
+                time.sleep(1)
+        finally:
+            _quit(port)
+            try:
+                chrome.wait(30)
+            except subprocess.TimeoutExpired:
+                chrome.kill()
+            if made and not up:
+                shutil.rmtree(profile, ignore_errors=True)
     return profile

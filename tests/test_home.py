@@ -287,3 +287,53 @@ def test_a_sign_in_whose_chrome_never_opens_leaves_no_profile(kept: Path, monkey
     with pytest.raises(RuntimeError, match="Chrome didn't open"):
         signin.sign_in("https://app.example.com")
     assert signed_in_sites() == ["app.example.com"]
+
+
+def test_a_chrome_missing_a_system_library_says_which(
+    kept: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from shorts import signin
+
+    chrome = tmp_path / "chrome"  # as Chromium quits on a Linux without the libraries it needs
+    chrome.write_text(
+        "#!/bin/sh\necho 'chrome: error while loading shared libraries: libnss3.so: cannot open shared object file' >&2\n"
+        "exit 127\n"
+    )
+    chrome.chmod(0o755)
+    monkeypatch.setattr(signin, "_chrome", lambda: str(chrome))
+    with pytest.raises(RuntimeError, match=r"without libnss3\.so, a system library.*playwright install-deps chromium"):
+        signin.sign_in("https://app.example.com")
+
+
+def test_with_no_chrome_sign_in_downloads_chromium_or_says_why_it_couldnt(monkeypatch: pytest.MonkeyPatch) -> None:
+    from shorts import signin
+
+    found: list[str | None] = []  # what each look for a browser finds, in turn
+    watchdog = SimpleNamespace(LocalBrowserWatchdog=SimpleNamespace(_find_installed_browser_path=lambda: found.pop(0)))
+    monkeypatch.setitem(sys.modules, "browser_use.browser.watchdogs.local_browser_watchdog", watchdog)
+    ran: list[tuple[list[str], float]] = []
+    outcome: list = []
+
+    def run(command: list[str], *, timeout: float, **_: object) -> SimpleNamespace:
+        ran.append((command, timeout))
+        if isinstance(outcome[0], Exception):
+            raise outcome[0]
+        return SimpleNamespace(returncode=outcome[0][0], stderr=outcome[0][1])
+
+    monkeypatch.setattr(signin.subprocess, "run", run)
+
+    found[:], outcome[:] = [None, "/cache/chromium"], [(0, "")]
+    assert signin._chrome() == "/cache/chromium"
+    assert ran == [(["uv", "tool", "run", "playwright", "install", "chromium"], signin.DOWNLOADING)]  # no root needed
+
+    found[:], outcome[:] = [None, None], [(1, "Error: Download failed: server returned code 403")]
+    with pytest.raises(RuntimeError, match="Downloading Chromium failed: Error: Download failed: server returned"):
+        signin._chrome()
+
+    found[:], outcome[:] = [None, None], [subprocess.TimeoutExpired(["uv"], signin.DOWNLOADING)]
+    with pytest.raises(RuntimeError, match="Downloading Chromium failed: .*timed out"):
+        signin._chrome()
+
+    found[:] = ["/Applications/Google Chrome.app"]  # Chrome's here: nothing to download
+    ran.clear()
+    assert signin._chrome() == "/Applications/Google Chrome.app" and ran == []
