@@ -20,8 +20,6 @@ from .conftest import needs_ffmpeg, script, speech, video
 class Omni:
     """A stand-in for google.genai's client: it films nothing, and returns `data` as the clip."""
 
-    vertexai = False
-
     def __init__(self, data: bytes) -> None:
         self.asked: list[dict] = []
         self.interactions = SimpleNamespace(create=self.create)
@@ -70,6 +68,7 @@ def test_omni_is_asked_for_a_vertical_clip_of_the_photo(tmp_path: Path) -> None:
     film(client, "a prompt", face, tmp_path / "clip.mp4")
     assert (tmp_path / "clip.mp4").read_bytes() == b"mp4 bytes"
     [request] = client.asked
+    assert request["model"] == "gemini-omni-1.1-flash-preview"  # Omni's id on Agent Platform
     assert request["response_format"] == {"type": "video", "aspect_ratio": "9:16", "resolution": "720p"}
     assert [part["type"] for part in request["input"]] == ["image", "text"]
     assert request["input"][1]["text"] == "a prompt"

@@ -81,7 +81,16 @@ def test_settings_keep_paths_relative_to_the_run(run: Run, tmp_path: Path) -> No
 def test_a_run_from_before_the_voice_api_loads_with_its_engine_as_the_apis_model() -> None:
     # Those files wrote narrator_model out too, unused: the engine they named is what they spoke with.
     old = Settings.model_validate({"narrator": "chatterbox", "narrator_model": "omnivoice"})
-    assert (old.narrator, old.narrator_model) == ("api", "chatterbox")
+    assert (old.narrator, old.narrator_model) == ("modal", "chatterbox")
     older = Settings.model_validate({"narrator": "omnivoice", "narrator_options": {"speed": 1.1}})
-    assert (older.narrator, older.narrator_model, older.narrator_options) == ("api", "omnivoice", {"speed": 1.1})
+    assert (older.narrator, older.narrator_model, older.narrator_options) == ("modal", "omnivoice", {"speed": 1.1})
     assert Settings.model_validate({"narrator": "import"}).narrator == "import"
+
+
+def test_each_narrator_speaks_with_its_own_model_unless_the_run_names_another() -> None:
+    # A run from before ElevenLabs was a choice spoke through the voice API at SHORTS_SPEECH_URL, with its model.
+    before = Settings.model_validate({"narrator": "api", "narrator_model": "omnivoice"})
+    assert (before.narrator, before.narration_model) == ("modal", "omnivoice")
+    assert Settings(narrator="elevenlabs").narration_model == "eleven_multilingual_v2"
+    assert Settings(narrator="modal").narration_model == "omnivoice"
+    assert Settings(narrator="elevenlabs", narrator_model="eleven_flash_v2_5").narration_model == "eleven_flash_v2_5"

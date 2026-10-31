@@ -1,12 +1,15 @@
 """Your own things, kept for every video, in SHORTS_HOME (~/.config/makable-shorts unless that's set):
 
-    .env                 your keys (KEY=value lines), for what the environment doesn't set
+    .env                 your keys (KEY=value lines), for what the environment doesn't set (`shorts.keys`)
     me/face.png          a photo of you, for whoever films you; me/music.mp3, played under the video; and
     me/voice.wav         a sample of you talking (`python -m shorts me` keeps them)
+    choices.json         who films you (Gemini Omni, HeyGen, or clips you bring in) and who speaks the narration
+                         (ElevenLabs, or your own voice API on Modal): `python -m shorts me --filmer --narrator`
     products/<name>.md   what the make-video skill knows about each product: its address, how to say its name, ...
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
 
-A new run takes a copy of your photo, music and voice from here, unless it's given others (`shorts.run`).
+A new run takes a copy of your photo, music and voice from here, and your choices, unless it's given others
+(`shorts.run`).
 
 And in the project it's run in, the product's own repo (the top of the git repo it's run in, or else the working
 directory), under .makable-shorts/:
@@ -15,6 +18,7 @@ directory), under .makable-shorts/:
     runs/<name>/         each video's run folder, which keeps itself out of git (`shorts.run`)
 """
 
+import json
 import os
 import re
 import shutil
@@ -22,6 +26,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 MINE = ("face", "music", "voice")  # what `me` keeps: run.json's settings of the same names
+CHOICES = ("filmer", "filmer_voice", "narrator")  # and what it keeps of your choices (`chosen`)
 
 
 def home() -> Path:
@@ -75,6 +80,26 @@ def keep(kind: str, file: Path | None) -> Path | None:
     for old in folder.glob(f"{kind}.*"):
         if old != kept:
             old.unlink()
+    return kept
+
+
+def chosen() -> dict[str, str]:
+    """Your choices, those you've made: `filmer` ("omni", "heygen" or "import"), the HeyGen voice it films you in
+    (`filmer_voice`), and `narrator` ("elevenlabs" or "modal")."""
+    file = home() / "choices.json"
+    return json.loads(file.read_text()) if file.exists() else {}
+
+
+def choose(**choices: str | None) -> dict[str, str]:
+    """Keeps these choices (any of CHOICES) in place of the ones before, or forgets those given as "". Returns all
+    of them."""
+    kept = {**chosen(), **{name: value for name, value in choices.items() if value is not None}}
+    kept = {name: value for name, value in kept.items() if value}
+    file = home() / "choices.json"
+    file.parent.mkdir(parents=True, exist_ok=True)
+    part = file.with_name(f".{file.name}.part")  # first, so a failed write loses nothing
+    part.write_text(json.dumps(kept, indent=1) + "\n")
+    part.replace(file)
     return kept
 
 

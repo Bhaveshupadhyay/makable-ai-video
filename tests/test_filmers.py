@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from shorts.filmers import FILMERS, _heygen_film, heygen_voices
+from shorts.filmers import FILMERS, _heygen_film, _omni_film, heygen_voices, omni_client
 from shorts.run import FILMED_INTRO, Run
 from shorts.stages.bring_in import bring_in
 from shorts.stages.film_intro import FilmIntro, FilmOutro
@@ -100,6 +100,28 @@ def test_each_clip_is_filmed_by_its_filmer_and_again_when_that_changes(run: Run,
     run.save_settings(run.settings().model_copy(update={"intro": "omni"}))
     assert intro.plan(run)[FILMED_INTRO] != planned
     assert set(FILMERS) == {"omni", "heygen"}
+
+
+def test_omni_films_in_your_google_cloud_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    genai = pytest.importorskip("google.genai")
+    from google.auth.exceptions import DefaultCredentialsError
+
+    made: dict = {}
+    monkeypatch.setattr(genai, "Client", lambda **options: made.update(options) or "a client")
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    with pytest.raises(ValueError, match="Set GOOGLE_CLOUD_PROJECT"):
+        omni_client()
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+    assert omni_client() == "a client"
+    assert made == {"enterprise": True, "project": "my-project", "location": "global"}
+
+    def unsigned(client, prompt, face, out):  # the client signs in when it first asks for something
+        raise DefaultCredentialsError("Your default credentials were not found")
+
+    monkeypatch.setattr("shorts.intro.film", unsigned)
+    with pytest.raises(ValueError, match="gcloud auth application-default login"):
+        _omni_film("Hi.", "A room.", tmp_path / "face.jpg", tmp_path / "clip.mp4", Run(tmp_path).settings())
 
 
 @pytest.fixture

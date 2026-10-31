@@ -1,24 +1,16 @@
-"""Footage from instructions: browser-use's agent does a task in Chromium while the screen is recorded.
-
-At each step browser-use shows the model the page (its elements and a screenshot) and runs the
-actions the model picks, so you write what to show, not the clicks. Each step's goal and actions
-are kept with when they happened, so the script can say what's on screen at each moment.
+"""Chrome, recorded: browser-use's Chrome and its actions, with the screen recorded while Claude Code drives it a
+command at a time (`shorts.drive`). Each step's goal and actions are kept with when they happened, so the script can
+say what's on screen at each moment.
 
 browser-use's own recorder (`record_video_dir`) writes Chrome's screencast frames as they arrive,
 at a fixed rate. Chrome only sends a frame when the page changes, so that video runs fast and skips
-pauses (27 s of agent became 7.6 s), and it's squashed unless its size is given. This keeps each
-frame's timestamp instead, so the recording is in real time, and `cut_pauses` then takes out the
-time the model spent thinking, and the parts of its waits where nothing changes.
+pauses, and it's squashed unless its size is given. This keeps each frame's timestamp instead, so the
+recording is in real time, and `cut_pauses` then takes out the time between the steps (whoever drives
+it thinking), and the parts of its waits where nothing changes.
 
 Headless Chrome draws no mouse pointer, so `Cursor` draws one into the page and glides it to each
-element before the agent clicks or types into it, in place of browser-use's highlight box. It fades out
+element before it's clicked or typed into, in place of browser-use's highlight box. It fades out
 2 s after a click.
-
-The model that drives it is any browser-use takes, named "provider:model" (`chat_model`): Gemini through its
-API ("google:gemini-3.6-flash", the default) or Agent Platform ("vertex:..."), Claude ("anthropic:..."), or
-GPT and anything else with OpenAI's API ("openai:...", with OPENAI_BASE_URL for another provider's). Or Claude Code
-drives it itself, a command at a time, with no model here (`shorts.drive`): the same Chrome, recorder and pointer
-(`open_browser`), and the same steps.
 
 browser-use pins its own packages, so it runs in a virtualenv of its own (SHORTS_BROWSE_PYTHON).
 """
@@ -38,64 +30,11 @@ from typing import Any
 from .media import changes, ffmpeg, frame_size
 
 FPS = 30
-MODEL = "google:gemini-3.6-flash"  # ~2 s a call; 3.8 Flash queued for 5-60 s on Vertex (Oct 2026)
-FALLBACK = "google:gemini-3-flash-preview"  # for the rest of a run once MODEL answers 429 or 5xx
 
 # browser-use reads these when it's imported: no usage reports (it would also sync runs to its cloud), and time
 # to type a long prompt a key at a time (more than its 60 s).
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
 os.environ.setdefault("TIMEOUT_TypeTextEvent", "180")
-
-
-def _key(name: str) -> str:
-    if not os.environ.get(name):
-        raise ValueError(f"Set {name}: the model's key (in .env, or the environment)")
-    return os.environ[name]
-
-
-def _google(model: str, timeout: float, retries: int) -> Any:
-    from browser_use import ChatGoogle
-
-    options = {"http_options": {"timeout": int(timeout * 1000)}, "max_retries": retries}
-    return ChatGoogle(model=model, api_key=_key("GEMINI_API_KEY"), **options)
-
-
-def _vertex(model: str, timeout: float, retries: int) -> Any:
-    from browser_use import ChatGoogle
-
-    where = {"project": _key("GOOGLE_CLOUD_PROJECT"), "location": os.environ.get("GOOGLE_CLOUD_LOCATION") or "global"}
-    options = {"http_options": {"timeout": int(timeout * 1000)}, "max_retries": retries}
-    return ChatGoogle(model=model, vertexai=True, **where, **options)
-
-
-def _anthropic(model: str, timeout: float, retries: int) -> Any:
-    from browser_use import ChatAnthropic
-
-    return ChatAnthropic(model=model, api_key=_key("ANTHROPIC_API_KEY"), timeout=timeout, max_retries=retries)
-
-
-def _openai(model: str, timeout: float, retries: int) -> Any:
-    from browser_use import ChatOpenAI
-
-    where = os.environ.get("OPENAI_BASE_URL") or None  # another provider with OpenAI's API, such as OpenRouter
-    return ChatOpenAI(model=model, api_key=_key("OPENAI_API_KEY"), base_url=where, timeout=timeout, max_retries=retries)
-
-
-# Each provider's chat model, from its name, a timeout (seconds) and how many tries a request gets.
-CHAT_MODELS = {"google": _google, "vertex": _vertex, "anthropic": _anthropic, "openai": _openai}
-
-
-def chat_model(spec: str, *, timeout: float = 120.0, retries: int = 2) -> Any:
-    """browser-use's chat model for `spec`, "provider:model", such as "google:gemini-3.6-flash".
-
-    Each request has a `timeout` (else a stalled one waits forever), and `retries` tries, so a fallback model
-    takes over soon when this one is out of capacity. Keys come from the environment: GEMINI_API_KEY,
-    GOOGLE_CLOUD_PROJECT (and Google's sign-in) for Vertex, ANTHROPIC_API_KEY, OPENAI_API_KEY.
-    """
-    provider, _, model = spec.partition(":")
-    if provider not in CHAT_MODELS or not model:
-        raise ValueError(f"No model {spec!r}: provider:model, with provider one of {', '.join(CHAT_MODELS)}")
-    return CHAT_MODELS[provider](model, timeout, retries)
 
 
 # The pointer, the ripple of a click and the spotlight, added to every page of the tab. They're in a shadow
@@ -222,20 +161,20 @@ CURSOR_JS = """(() => {
 
 @dataclass
 class Step:
-    """One step of the agent's: what it set out to do, what it did, and when (seconds into the video)."""
+    """One step: what it set out to do, what it did, and when (seconds into the video)."""
 
     goal: str
     actions: list[dict[str, Any]]
     did: list[str]  # browser-use's account of each action, e.g. "Clicked button Generate"
     url: str
-    start: float  # the actions start (the model has answered)
+    start: float  # the actions start (whoever drives it has decided on them)
     end: float  # they've finished and the page has settled
     clicks: list[list[float]] = field(default_factory=list)  # [when, x, y]: x and y in the video's pixels
     typing: list[list[float]] = field(default_factory=list)  # [from, to]: when it typed (none kept: all of it)
 
 
 class Screencast:
-    """Records Chrome's screencast of the tab the agent works in: JPEG frames with their timestamps."""
+    """Records Chrome's screencast of the tab in use: JPEG frames with their timestamps."""
 
     def __init__(self, session: Any, frames: Path, size: tuple[int, int]):
         self.session = session
@@ -260,7 +199,7 @@ class Screencast:
         await self._follow_focus()
 
     async def _follow_focus(self, event: Any = None) -> None:
-        """Records the tab the agent is in (it can open and switch tabs)."""
+        """Records the tab in use (a step can open and switch tabs)."""
         cdp = await self.session.get_or_create_cdp_session()
         if cdp.session_id == self.target:
             return
@@ -342,7 +281,7 @@ LIT = 0.5  # seconds the spotlight is on before the pointer moves to its element
 
 
 class Cursor:
-    """A mouse pointer drawn into the page, gliding to what the agent clicks or types into, and fading out a
+    """A mouse pointer drawn into the page, gliding to what's clicked or typed into, and fading out a
     moment after a click. It can put a spotlight on the element too, blurring the rest of the page."""
 
     def __init__(self, session: Any, size: tuple[int, int], glide: float = 0.6, hide: float | None = 2.0):
@@ -377,7 +316,7 @@ class Cursor:
         await cdp.cdp_client.send.Runtime.evaluate(params={"expression": expression}, session_id=cdp.session_id)
 
     async def show(self) -> None:
-        """Draws it where it was (a page the agent just opened doesn't have it yet), or not, if it's faded out."""
+        """Draws it where it was (a page just opened doesn't have it yet), or not, if it's faded out."""
         x, y = self.at
         with contextlib.suppress(Exception):  # the page may be in the middle of loading
             await self._run(f"window.__cursor?.glide({x}, {y}, {x}, {y}, 0, {self._hide_in()})")
@@ -545,7 +484,18 @@ async def open_browser(
     profile: Path | None = None,
     cursor: bool = True,
 ) -> Browser:
-    """Starts Chrome on `url`, then records it, for a video at `out` (see `record_task` for the arguments)."""
+    """Starts Chrome on `url`, then records it, for a video at `out`.
+
+    Args:
+        out: Where the MP4 will be saved (`close_browser`): its frames are kept next to it until then.
+        url: The page to start on. It's open before the recording starts, so the video starts on it.
+        size: The window, in CSS pixels: 720x1280 gets a site's phone layout, and a wider one its desktop
+            layout, which the video shows whole. Chrome's screencast sends frames at this size whatever the
+            pixel ratio, and `compose` scales them up.
+        profile: A Chrome profile to record in, used as it is: one signed in to the site (`signin`), for
+            pages behind a sign-in. None: a new, empty one.
+        cursor: Draw a mouse pointer that glides to what's clicked, instead of browser-use's highlight box.
+    """
     from browser_use import BrowserProfile, BrowserSession
 
     width, height = size
@@ -617,94 +567,6 @@ async def close_browser(browser: Browser, out: Path) -> Path:
     return browser.screencast.save(out)
 
 
-async def record_task(
-    task: str,
-    out: Path,
-    llm: Any,
-    *,
-    fallback: Any = None,
-    url: str | None = None,
-    size: tuple[int, int] = (720, 1280),
-    max_steps: int = 25,
-    profile: Path | None = None,
-    cursor: bool = True,
-) -> tuple[Path, list[Step]]:
-    """Has browser-use's agent do `task`, recording it to `out` (MP4) and its steps to `out.steps.json`.
-
-    Args:
-        task: What to do and show, in plain words: "Add three todos, then mark the second one done".
-        out: Where to save the MP4.
-        llm: browser-use's chat model, e.g. `ChatGoogle(model=..., vertexai=True, project=..., location="global")`.
-        fallback: Another model the agent switches to, for the rest of the run, when `llm` answers
-            429 or 5xx (Vertex runs out of shared capacity for a model now and then).
-        url: The page to start on. It's open before the recording starts, so the video starts on it.
-        size: The window, in CSS pixels: 720x1280 gets a site's phone layout, and a wider one its desktop
-            layout, which the video shows whole. Chrome's screencast sends frames at this size whatever the
-            pixel ratio, and `compose` scales them up.
-        max_steps: The most steps the agent may take.
-        profile: A Chrome profile to record in, used as it is: one signed in to the site (`signin`), for
-            pages behind a sign-in. None: a new, empty one.
-        cursor: Draw a mouse pointer that glides to what the agent clicks, instead of browser-use's
-            highlight box.
-    """
-    from browser_use import Agent
-
-    marks: dict[int, tuple[float, str, list[dict[str, Any]], str]] = {}
-
-    def on_step(state: Any, output: Any, number: int) -> None:  # the model has answered; the actions come next
-        actions = [action.model_dump(exclude_none=True) for action in output.action]
-        marks[number] = (time.time(), output.next_goal or "", actions, state.url)
-
-    browser = await open_browser(out, url=url, size=size, profile=profile, cursor=cursor)
-    try:
-        agent = Agent(
-            task=task,
-            llm=llm,
-            fallback_llm=fallback,
-            browser_session=browser.session,
-            tools=tools_with(browser.pointer) if browser.pointer else None,
-            register_new_step_callback=on_step,
-            directly_open_url=False,  # it's open already
-            use_judge=False,  # a second model call that grades the run
-            enable_signal_handler=False,  # Jupyter owns Ctrl+C
-        )
-        history = await agent.run(max_steps=max_steps)
-    except BaseException:
-        await browser.session.kill()
-        raise
-    await close_browser(browser, out)
-
-    steps = []
-    for item in history.history:
-        if item.metadata is None or item.metadata.step_number not in marks:
-            continue
-        at, goal, actions, page = marks[item.metadata.step_number]
-        # The final report in full: browser-use's memory of it keeps only the first 100 characters.
-        did = [
-            (result.is_done and result.extracted_content)
-            or result.long_term_memory
-            or result.extracted_content
-            or result.error
-            or ""
-            for result in item.result
-        ]
-        end = item.metadata.step_end_time
-        steps.append(
-            Step(
-                goal,
-                actions,
-                did,
-                page,
-                browser.since(at),
-                browser.since(end),
-                clicks=browser.clicks(at, end),
-                typing=browser.typing(at, end),
-            )
-        )
-    save_steps(out, steps)
-    return out, steps
-
-
 def _waits(step: Step) -> bool:
     """Whether all the step does is wait (say, 30 s while the product works on something)."""
     return bool(step.actions) and all(set(action) == {"wait"} for action in step.actions)
@@ -756,7 +618,8 @@ def cut_pauses(
     typing: float = 4.0,
     zoom: float = 1.5,
 ) -> tuple[Path, list[Step]]:
-    """Cuts out the time the model spent thinking, and the parts of its waits where nothing changes.
+    """Cuts out the time between the steps (whoever drives it thinking), and the parts of its waits where nothing
+    changes.
 
     Typing plays `typing` times as fast: browser-use types a key at a time, so a long prompt takes 20 s.
     That's the stretches of a step that typed, or the whole step, if it doesn't say when it typed; the
@@ -768,7 +631,7 @@ def cut_pauses(
     `after` seconds after: a new line in a chat, a preview loading. A wait with nothing new is cut whole.
     A ticking timer or a shimmering "Thinking…" doesn't count: in the app this was tuned on, they change
     up to 0.12 % of the frame, under `changes`' 0.15 %; a new line in its chat changed 0.3 % or more, its
-    preview 10-60 %. Changes while the model thinks are cut too: a home page that swaps its headline
+    preview 10-60 %. Changes between the steps are cut too: a home page that swaps its headline
     every 2 s, say.
 
     Returns the new video and the steps timed for it (also saved as `out.steps.json`).

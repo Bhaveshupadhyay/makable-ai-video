@@ -1,5 +1,5 @@
-"""record: the footage. Each recording named in run.json is copied in, with its steps if browser-use made it
-(`python -m shorts browse` records one and names it there).
+"""record: the footage. Each recording named in run.json is copied in, with its steps if it has them
+(`python -m shorts drive` records one and names it there).
 """
 
 import shutil
@@ -26,7 +26,7 @@ class RecordFootage(Stage):
             if not video.exists():
                 raise NotReady(f"the footage {name!r} is {video}, which isn't there")
             plan[footage_file(name)] = fingerprint("copy", file_hash(video))
-            steps = video.with_suffix(".steps.json")  # where browse.record_task saves them
+            steps = video.with_suffix(".steps.json")  # where drive saves them
             if steps.exists():
                 plan[steps_file(name)] = fingerprint("copy", file_hash(steps))
         return plan

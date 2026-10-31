@@ -1,10 +1,10 @@
 """The stages, and which one makes each product for a run (from its run.json).
 
-    record          footage         copies the recordings in (browse records them), with their steps
-    film-intro      intro           Gemini Omni films you saying the intro line (about $1)
+    record          footage         copies the recordings in (drive records them), with their steps
+    film-intro      intro           Gemini Omni or HeyGen films you saying the intro line (about $1)
     film-outro      outro           and the outro line (about $1), when run.json wants an outro
     take-voice      avatar-voice    the intro's voice, to speak the narration in (ffmpeg)
-    speak           narration       the voice API speaks each scene
+    speak           narration       ElevenLabs or your own voice API speaks each scene
     assemble        video           ffmpeg and Pillow: final.mp4
 
 What you bring in (`python -m shorts import`) is made by no stage: its product's stage is an `Import`. The script

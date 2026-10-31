@@ -1,12 +1,14 @@
 """The command line: set a video up, see where it is, and make it, a stage at a time or all that's left.
 
     python -m shorts me [--face PHOTO] [--music FILE] [--voice FILE]   your own files, kept for every video
+                [--filmer omni|heygen|import] [--filmer-voice ID] [--narrator elevenlabs|modal]   and your choices
                                                (in SHORTS_HOME, ~/.config/makable-shorts: see shorts/home.py),
-                                               the products' notes, and where run folders go
+                                               the products' notes, where run folders go, and the keys you need
+    python -m shorts keys [--open]             a line in SHORTS_HOME's .env for each key your choices need, for
+                                               you to fill in (see shorts/keys.py)
+    python -m shorts deploy-voice              the voice API, on your own Modal account (see shorts/deploy.py)
     python -m shorts signin --url URL          sign in to a site by hand, once, for recordings --signed-in
     python -m shorts new RUN [--face PHOTO] [--music FILE] [--language hi] [--tone hype]   a run, with your files
-    python -m shorts browse RUN --url URL --name NAME --task FILE [--signed-in] [--model PROVIDER:MODEL]   footage
-                                               recorded from a task in plain words (browser-use)
     python -m shorts drive RUN start|look|click|type|...|stop   footage recorded by driving Chrome a command
                                                at a time, as Claude Code does (see shorts/drive.py)
     python -m shorts import RUN PRODUCT FILE ...   files made elsewhere, or links to them: the script (always),
@@ -21,15 +23,10 @@
                                                with their times, in contact sheets (RUN/frames/NAME-1.png, ...)
 
 Keys and settings come from the environment, or from a .env file (KEY=value lines) for what the environment doesn't
-set: the one in SHORTS_HOME, or one next to shorts/. GEMINI_API_KEY, SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY, ... (see
-.env.example).
-
-Omni's Gemini client (film-intro, film-outro) is set up from the environment. For Agent Platform (Vertex AI), with
-`gcloud auth application-default login` (or, in GitHub Actions, google-github-actions/auth):
-
-    GOOGLE_GENAI_USE_ENTERPRISE=true GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
-
-For the Gemini API (AI Studio): GEMINI_API_KEY=<key>.
+set: the one in SHORTS_HOME, or one next to shorts/. Which keys depends on who films you and who speaks the narration
+(`shorts.keys`): GOOGLE_CLOUD_PROJECT for Omni, signed in with `gcloud auth application-default login` (or, in
+GitHub Actions, google-github-actions/auth), HEYGEN_API_KEY for HeyGen, and ELEVENLABS_API_KEY, or SHORTS_SPEECH_URL
+and SHORTS_SPEECH_KEY for your own voice API (see .env.example).
 """
 
 import argparse
@@ -42,11 +39,11 @@ import sys
 from pathlib import Path
 
 from . import COMMAND
-from .browse import FALLBACK, MODEL
 from .filmers import FILMERS, heygen_voices
-from .home import MINE, home, keep, mine, products, runs, signed_in_sites, site
+from .home import MINE, choose, chosen, home, keep, mine, products, runs, signed_in_sites, site
+from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
 from .orchestrator import PACKAGE_ROOT, advice, run_all, run_stage, status
-from .run import SCRIPT, SETTINGS, Run, Settings, footage_file
+from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import LANGUAGES, TONES, Script, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.bring_in import PRODUCTS as IMPORTABLE
@@ -104,13 +101,20 @@ def new(run: Run, args: argparse.Namespace) -> None:
     print(run.path(SETTINGS).read_text())
 
 
-# The keys a video needs (.env.example says what each is for): `me` says which are set, never what they are.
-# Omni films with GEMINI_API_KEY, or on Google Cloud with GOOGLE_CLOUD_PROJECT; HeyGen only if it films you.
-KEYS = ("GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "HEYGEN_API_KEY", "SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY")
+# Who can film you and who can speak the narration, for `me` to keep, as it says them.
+FILMED_BY = {
+    "omni": "Gemini Omni, in your Google Cloud project (about $1 a clip)",
+    "heygen": "HeyGen, from your HeyGen API balance",
+    "import": "clips you film elsewhere and bring in",
+}
+NARRATED_BY = {"elevenlabs": "ElevenLabs", "modal": "your own voice API, on Modal"}
+CHOOSE = f"{COMMAND} me --filmer {'|'.join(FILMED_BY)} --narrator {'|'.join(NARRATED_BY)}"
+UNASKED = ("SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY")  # the keys deploy-voice sets, not you
 
 
 def show_me(args: argparse.Namespace) -> None:
-    """Keeps the files given (or forgets those given as ""), then says what's kept for every video."""
+    """Keeps the files and the choices given (or forgets those given as ""), then says what's kept for every video,
+    and which keys the choices need (never what they are)."""
     for kind in MINE:
         file = getattr(args, kind)
         if file and not Path(file).expanduser().is_file():
@@ -120,19 +124,62 @@ def show_me(args: argparse.Namespace) -> None:
                 keep(kind, Path(file) if file else None)
         except ValueError as problem:
             sys.exit(f"me: {problem}")
+    given = {"filmer": args.filmer, "filmer_voice": args.filmer_voice, "narrator": args.narrator}
+    choices = choose(**given) if any(value is not None for value in given.values()) else chosen()
     kept = mine()
     print(home())
     for kind in MINE:
         print(f"  {kind:10} {kept.get(kind, '(none)')}")
+    filmer, narrator = choices.get("filmer"), choices.get("narrator")
+    filmed = FILMED_BY[filmer] if filmer else f"(not chosen: {COMMAND} me --filmer {'|'.join(FILMED_BY)})"
+    if filmer == "heygen":
+        voice = choices.get("filmer_voice")
+        filmed += (
+            f", in its voice {voice}" if voice else f": pick its voice ({COMMAND} voices, then me --filmer-voice ID)"
+        )
+    narrated = NARRATED_BY[narrator] if narrator else f"(not chosen: {COMMAND} me --narrator {'|'.join(NARRATED_BY)})"
+    print(f"  {'filmer':10} {filmed}")
+    print(f"  {'narrator':10} {narrated}")
     notes = products() or {"(none)": ""}  # each product's notes, with where they are: in SHORTS_HOME or the project
     width = max(map(len, notes))
     for line, (name, path) in enumerate(notes.items()):
         print(f"  {'' if line else 'products':10} {name:{width}}  {path}".rstrip())
     print(f"  {'runs':10} {runs()}")
     print(f"  {'signed in':10} {', '.join(signed_in_sites()) or '(nowhere)'}")
-    unset = [key for key in KEYS if not os.environ.get(key)]
-    print(f"  {'keys':10} set: {', '.join(key for key in KEYS if key not in unset) or 'none'}")
-    print(f"  {'':10} not set: {', '.join(unset) or 'none'} (in {home() / '.env'}, or the environment)")
+    if not (filmer and narrator):
+        print(f"  {'keys':10} (they depend on who films you and who speaks: choose them first)")
+        return
+    keys = needed(choices)
+    unset = [key for key in keys if not os.environ.get(key)]
+    print(f"  {'keys':10} set: {', '.join(key for key in keys if key not in unset) or 'none'}")
+    where = f" (in {env_file()}: `{COMMAND} keys --open` adds their lines)" if unset else ""
+    print(f"  {'':10} not set: {', '.join(unset) or 'none'}{where}")
+    if filmer == "omni":
+        signed = "signed in" if google_signed_in() else "not signed in: gcloud auth application-default login"
+        print(f"  {'google':10} {signed}")
+
+
+def show_keys(args: argparse.Namespace) -> None:
+    """Adds a line to SHORTS_HOME's .env for each key your choices need, then says which are still empty, and with
+    --open, opens it in your text editor if you've some to fill in."""
+    choices = chosen()
+    if not {"filmer", "narrator"} <= choices.keys():
+        sys.exit(f"keys: choose who films you and who speaks the narration first: {CHOOSE}")
+    file, keys = env_file(), needed(choices)
+    empty = add(keys, file)
+    print(file)
+    for key in keys:
+        print(f"  {key:22} {'empty' if key in empty else 'set'}")
+    if not keys:
+        print("  (your choices need no keys)")
+    if set(UNASKED) & set(empty):
+        print(f"`{COMMAND} deploy-voice` deploys your voice API to Modal, and sets {' and '.join(UNASKED)}")
+    if choices["filmer"] == "omni" and not google_signed_in():
+        print(
+            "Google Cloud has no sign-in here yet: sign in once, in a terminal, with gcloud auth application-default login"
+        )
+    if args.open and set(empty) - set(UNASKED):
+        print("Opened it in your text editor" if open_in_editor(file) else "Open it in a text editor to fill it in")
 
 
 def sign_in(args: argparse.Namespace) -> None:
@@ -195,16 +242,6 @@ def show_frames(run: Run, name: str, times: list[float] | None, every: float, wi
     for number, first in enumerate(range(0, len(times), 30), 1):
         sheet = contact_sheet(video, times[first : first + 30], run.path(f"frames/{name}-{number}.png"), width=width)
         print(f"{sheet}: {times[first]:g}-{times[first : first + 30][-1]:g} s")
-
-
-def load_env(file: Path) -> None:
-    """Sets what a .env file says (KEY=value lines, # for comments), for what the environment doesn't set."""
-    if not file.exists():
-        return
-    for line in file.read_text().splitlines():
-        key, equals, value = line.strip().removeprefix("export ").partition("=")
-        if equals and key.strip() and not key.startswith("#"):
-            os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
 def browse_python() -> tuple[str, dict[str, str]]:
@@ -270,8 +307,8 @@ def drive(run: Run, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    for env in (home() / ".env", PACKAGE_ROOT / ".env"):  # first: the options' defaults come from the environment too
-        load_env(env)
+    for env in (env_file(), PACKAGE_ROOT / ".env"):  # first: the options' defaults come from the environment too
+        load(env)
     parser = argparse.ArgumentParser(prog=COMMAND, description="Make a 1-minute video, stage by stage.")
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -286,22 +323,31 @@ def main() -> None:
     setup.add_argument("--intro", choices=[*FILMERS, "import"], help="who films the intro (shorts/filmers.py)")
     setup.add_argument("--outro", choices=[*FILMERS, "import", "none"], help="who films the outro, or none")
     setup.add_argument("--filmer-voice", help=f"the filmer's voice, for HeyGen: a voice_id ({COMMAND} voices)")
-    setup.add_argument("--narrator", choices=["api", "import"])
+    setup.add_argument("--narrator", choices=[*NARRATOR_MODELS, "import"], help="who speaks the narration")
     setup.add_argument("--narration-voice", choices=["intro", "sample"], help="the intro's voice, or --voice's")
-    setup.add_argument("--narrator-model", help="the voice API's model: \"omnivoice\", or ElevenLabs' own")
+    models = ", ".join(f"{model!r} on {narrator}" for narrator, model in NARRATOR_MODELS.items())
+    setup.add_argument("--narrator-model", help=f"the voice API's model, if not its own ({models})")
     setup.add_argument("--narrator-option", type=option, action="append", metavar="KEY=VALUE")
     setup.add_argument("--pronounce", dest="respellings", type=respelling, action="append", metavar="WORD=SAID")
     setup.add_argument("--reference-text", help="what's said in the voice sample, for OmniVoice")
     setup.add_argument("--size", type=size, help="the video's width x height (default 1080x1920)")
     setup.add_argument("--captions", action=argparse.BooleanOptionalAction)
 
-    me = commands.add_parser("me", help="your own files, kept for every video: a photo, music, a voice sample")
+    me = commands.add_parser("me", help="your own files and choices, kept for every video, and the keys you need")
     for kind, what in (
         ("face", "a photo of you, for whoever films you"),
         ("music", "music to play quietly under your videos"),
         ("voice", "a sample of you talking, 3 to 10 seconds, to narrate in your voice"),
     ):
         me.add_argument(f"--{kind}", metavar="FILE", help=f'{what} ("" to forget it)')
+    me.add_argument("--filmer", choices=FILMED_BY, help="who films your intro and outro, from your photo")
+    me.add_argument("--filmer-voice", metavar="ID", help=f"HeyGen's voice to film you in ({COMMAND} voices)")
+    me.add_argument("--narrator", choices=NARRATED_BY, help="who speaks the narration, in your avatar's voice")
+
+    keyed = commands.add_parser("keys", help="add the keys your choices need to your .env, for you to fill in")
+    keyed.add_argument("--open", action="store_true", help="open it in your text editor, if there's a key to fill in")
+
+    commands.add_parser("deploy-voice", help="deploy the voice API to your own Modal account, and keep its key")
 
     signing = commands.add_parser("signin", help="sign in to a site by hand, once, for recordings --signed-in")
     signing.add_argument("--url", required=True, help="the site's page to sign in on")
@@ -334,19 +380,6 @@ def main() -> None:
     voices = commands.add_parser("voices", help="HeyGen's voices, for run.json's filmer_voice")
     voices.add_argument("--language", default="English", help='such as "English" or "Hindi" ("" for all)')
     voices.add_argument("--gender", choices=["male", "female"])
-
-    record = commands.add_parser("browse", help="record footage from a task in plain words (browser-use)")
-    record.add_argument("run", type=Path)
-    record.add_argument("--name", default="demo", help="the footage's name, as the script calls it")
-    record.add_argument("--task", type=Path, required=True, help="a text file: what to do and show, in plain words")
-    record.add_argument("--url", required=True, help="the page it starts on: the product's")
-    record.add_argument("--signed-in", action="store_true", help="signed in, as `signin` left the site")
-    record.add_argument("--window", type=size, default=(720, 1280), help=WINDOW)
-    record.add_argument("--max-steps", type=int, default=60)
-    model = os.environ.get("SHORTS_BROWSE_MODEL") or MODEL
-    record.add_argument("--model", default=model, help=f"provider:model, such as anthropic:... (default {model})")
-    fallback = os.environ.get("SHORTS_BROWSE_FALLBACK", FALLBACK)
-    record.add_argument("--fallback", default=fallback, help=f'when the model fails ("" for none; default {fallback})')
 
     driving = commands.add_parser("drive", help="record footage by driving Chrome a command at a time (Claude Code)")
     driving.add_argument("run", type=Path)
@@ -405,6 +438,20 @@ def main() -> None:
     if args.command == "me":
         show_me(args)
         return
+    if args.command == "keys":
+        show_keys(args)
+        return
+    if args.command == "deploy-voice":
+        from .deploy import deploy_voice, health
+
+        try:
+            address = deploy_voice()
+        except (RuntimeError, FileNotFoundError) as problem:  # Modal said no, or there's no uv to run it with
+            sys.exit(f"deploy-voice: {problem}")
+        print(
+            f"Your voice API is at {address}, speaking with {health(address)}: its address and key are in {env_file()}"
+        )
+        return
     if args.command == "signin":
         try:
             sign_in(args)
@@ -436,18 +483,6 @@ def main() -> None:
             sys.exit(0 if show_check(run, args.file) else 1)
         elif args.command == "frames":
             show_frames(run, args.name, args.at, args.every, args.width)
-        elif args.command == "browse":
-            if importlib.util.find_spec("browser_use") is None:
-                browse_elsewhere()
-            from .stages.browse import browse
-
-            options = {"url": args.url, "signed_in": args.signed_in, "window": args.window, "max_steps": args.max_steps}
-            try:
-                browse(
-                    run, args.name, args.task.read_text(), model=args.model, fallback=args.fallback or None, **options
-                )
-            except RuntimeError as problem:  # Chrome couldn't open the signed-in profile: another Chrome has it
-                sys.exit(f"browse: {problem}")
         elif args.command == "drive":
             drive(run, args)
         else:

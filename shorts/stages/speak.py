@@ -1,9 +1,9 @@
-"""speak: each scene's narration, narration/01.wav and on, spoken by a text-to-speech API (`shorts.speech_api`): the
-voice API on Modal (services/voice), or ElevenLabs.
+"""speak: each scene's narration, narration/01.wav and on, spoken by a text-to-speech API (`shorts.speech_api`):
+ElevenLabs, or the voice API on your own Modal account (services/voice), as run.json's `narrator` says.
 
-It's in the voice of the person in Omni's intro (voice/avatar.wav, from take-voice), or with `narration_voice`
-"sample" in run.json, of its `voice` sample. Which API speaks is the machine's business, not the video's, so it
-comes from the environment (SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY); run.json's `narrator_model` is its model, and
+It's in the voice of the person in the intro (voice/avatar.wav, from take-voice), or with `narration_voice`
+"sample" in run.json, of its `voice` sample. The API's key comes from the environment (ELEVENLABS_API_KEY, or
+SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY); run.json's `narrator_model` is its model, unless it's the API's own, and
 `narrator_options` its voice settings. Only the scenes whose spoken text, voice or settings changed are spoken again.
 """
 
@@ -20,10 +20,13 @@ class Speak(Stage):
     product = "narration"
     needs = ("script",)
     extra = "speech"
-    where = "pip install 'makable-shorts[speech]', with SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY (see the README)"
+    where = (
+        "pip install 'makable-shorts[speech]', with ELEVENLABS_API_KEY, or SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY "
+        "(see the README)"
+    )
 
     def by(self, settings: Settings) -> str:
-        return f"speak ({settings.narrator_model})"
+        return f"speak ({settings.narration_model})"
 
     def requires(self, settings: Settings) -> tuple[str, ...]:
         return self.needs + (("avatar-voice",) if settings.narration_voice == "intro" else ())
@@ -46,9 +49,10 @@ class Speak(Stage):
         return ApiVoice(
             sample,
             language,
-            settings.narrator_model,
+            settings.narration_model,
             settings.reference_text,
             settings.pronounce,
+            narrator=settings.narrator,
             **settings.narrator_options,
         )
 
