@@ -305,7 +305,7 @@ The tests make small videos with ffmpeg and run the stages, the orchestrator and
 
 ```sh
 uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with imageio-ffmpeg==0.6.0 --with pytest --with numpy \
-  --with soundfile --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
+  --with soundfile --with websockets --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
 ```
 
 ## License
