@@ -45,7 +45,8 @@ When there are no notes for the product the user means, ask them, in one message
    without a `url`, and never guess one. In the product's repo, look for it first (a `homepage` in
    package.json, the README, a CNAME file, the deploy's config: vercel.json, netlify.toml, fly.toml), and ask
    the user to confirm what you found. A local address (`http://localhost:3000`) works too, for what isn't
-   deployed yet, while the app runs there.
+   deployed yet, but only for recording on this machine, while the app runs there. The GitHub workflow can't
+   reach it, so notes it uses need an address on the internet.
 2. **Sign-in:** whether what's worth showing is behind a sign-in. If it is, suggest a demo account: the
    recordings show the account and act in it, so what they make stays there. Then sign in once, by hand: run
    `makable-shorts signin --url <url>` in the background, and tell the user: "Chrome is open on

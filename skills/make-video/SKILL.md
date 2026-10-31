@@ -221,6 +221,7 @@ Tell the user:
 - anything to check by eye or ear: Omni sometimes says a line a little differently, and the outro's voice
   can differ from the intro's, since each clip is a separate take. If one is off, delete that clip and run
   step 8 again to film it again (about a dollar);
-- notes you wrote or changed in the repo (`.makable-shorts/products/`): they're the user's to commit.
+- notes you wrote or changed in the repo (`.makable-shorts/products/`): they're the user's to commit. In GitHub
+  Actions, they're uploaded with the video.
 
 In `--yes` mode, also say what you decided on your own.

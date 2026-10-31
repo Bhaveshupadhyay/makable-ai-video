@@ -232,7 +232,10 @@ export PATH="$PWD/bin:$PATH"     # makable-shorts, in this shell: the plugin put
 makable-shorts me --face ~/Pictures/me.png --music ~/Music/calm.mp3   # once: kept for every video
 makable-shorts signin --url https://app.example.com                    # once, if it needs signing in
 makable-shorts new .makable-shorts/runs/first      # [--language hi] [--tone hype] [--pronounce Acme=akmee]
+# task.md is yours to write: what to do and show, in plain words (skills/make-video/references/task.md)
 makable-shorts browse .makable-shorts/runs/first --url https://app.example.com --name demo --task task.md --signed-in
+makable-shorts frames .makable-shorts/runs/first demo   # what's on screen when, in RUN/frames/
+# script.json is yours to write too, from the recording's steps and frames (skills/make-video/references/script.md)
 makable-shorts import .makable-shorts/runs/first script script.json   # checked first: check-script shows the problems
 makable-shorts status .makable-shorts/runs/first
 makable-shorts run .makable-shorts/runs/first --paid      # --paid: film the intro and outro too (about $1 each)

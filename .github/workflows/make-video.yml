@@ -7,7 +7,9 @@
 #
 # The product's notes come from the repo, .makable-shorts/products/<name>.md: the skill writes them there when you
 # first make a video in the repo locally, for you to commit. Nobody can sign in by hand here, so it only records
-# products whose notes don't say signed_in: for one that does, the skill stops before recording.
+# products whose notes don't say signed_in: for one that does, the skill stops before recording. Their url has to be
+# on the internet: a localhost one is the runner's own, where nothing is running. What a recording teaches the skill
+# goes in the notes' recording tips: the notes are uploaded with the video, for you to commit if they changed.
 #
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
@@ -117,6 +119,13 @@ jobs:
             --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(makable-shorts:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(git -C:*),Bash(ffprobe:*),Bash(ls:*)"
           settings: '{"env": {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "1800000"}}'
 
+      - name: Say if the notes changed
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain -- .makable-shorts/products)" ]; then
+            echo "::notice::The product's notes changed (new recording tips): they're uploaded with the video, in products/, for you to commit"
+          fi
+
       - name: Upload the video
         if: always()
         uses: actions/upload-artifact@v7
@@ -125,6 +134,7 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true  # .makable-shorts is a hidden folder
           path: |
+            .makable-shorts/products/*.md
             .makable-shorts/runs/*/final.mp4
             .makable-shorts/runs/*/metadata.json
             .makable-shorts/runs/*/script.json
