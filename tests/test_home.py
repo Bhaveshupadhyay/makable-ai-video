@@ -12,7 +12,7 @@ import pytest
 
 from shorts import browse as recorder
 from shorts.__main__ import new
-from shorts.home import home, keep, mine, signed_in_sites, site, site_profile
+from shorts.home import home, keep, mine, products, project, runs, signed_in_sites, site, site_profile
 from shorts.orchestrator import PACKAGE_ROOT
 from shorts.run import Run
 from shorts.signin import forget, recording_profile
@@ -118,20 +118,62 @@ def test_a_run_made_by_a_recording_first_takes_your_files_too(tmp_path: Path, ke
     assert run.settings().face == "me/face.png" and run.path("me/face.png").read_bytes() == b"me"
 
 
+def shorts(*args: str, cwd: Path, home: Path) -> str:
+    """The command line, run in `cwd`."""
+    environment = {**os.environ, "PYTHONPATH": str(PACKAGE_ROOT), "SHORTS_HOME": str(home)}
+    command = [sys.executable, "-m", "shorts", *args]
+    return subprocess.run(command, capture_output=True, text=True, env=environment, cwd=cwd, check=True).stdout
+
+
 def test_me_keeps_and_shows_your_files(tmp_path: Path, kept: Path) -> None:
     def me(*args: str) -> str:
-        environment = {**os.environ, "PYTHONPATH": str(PACKAGE_ROOT), "SHORTS_HOME": str(kept)}
-        command = [sys.executable, "-m", "shorts", "me", *args]
-        return subprocess.run(command, capture_output=True, text=True, env=environment, check=True).stdout
+        return shorts("me", *args, cwd=tmp_path, home=kept)
 
     shown = me("--face", str(a_file(tmp_path / "me.png")))
     assert f"face       {kept / 'me' / 'face.png'}" in shown and "music      (none)" in shown
+    assert "products   (none)" in shown and f"runs       {tmp_path / '.makable-shorts' / 'runs'}" in shown
     a_file(kept / "products" / "makable.md")
-    assert "products   makable" in me()
+    assert f"products   makable  {kept / 'products' / 'makable.md'}" in me()
     assert "face       (none)" in me("--face", "")
     with pytest.raises(subprocess.CalledProcessError) as refused:
         me("--face", str(a_file(tmp_path / "photo")))
     assert "has no extension" in refused.value.stderr
+
+
+def test_the_products_repo_has_its_own_notes_and_runs(
+    tmp_path: Path, kept: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "acme"
+    (repo / ".git").mkdir(parents=True)
+    (repo / "web" / "src").mkdir(parents=True)
+    monkeypatch.chdir(repo / "web" / "src")  # Claude Code, in a folder of the repo
+    assert project() == repo and runs() == repo / ".makable-shorts" / "runs"
+    a_file(kept / "products" / "acme.md", b"mine")
+    a_file(kept / "products" / "other.md")
+    assert products() == {"acme": kept / "products" / "acme.md", "other": kept / "products" / "other.md"}
+    a_file(repo / ".makable-shorts" / "products" / "acme.md", b"the repo's")  # committed with its code: it wins
+    assert products() == {
+        "acme": repo / ".makable-shorts" / "products" / "acme.md",
+        "other": kept / "products" / "other.md",
+    }
+    shown = shorts("me", cwd=repo / "web", home=kept)
+    assert f"products   acme   {repo / '.makable-shorts' / 'products' / 'acme.md'}" in shown
+    assert f"           other  {kept / 'products' / 'other.md'}" in shown
+
+    monkeypatch.chdir(tmp_path)  # not in a repo: here, then
+    assert project() == tmp_path and set(products()) == {"acme", "other"}
+
+
+def test_a_run_folder_keeps_itself_out_of_git(tmp_path: Path, kept: Path) -> None:
+    repo = tmp_path / "acme"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    a_file(repo / ".makable-shorts" / "products" / "acme.md")
+    keep("face", a_file(tmp_path / "me.png"))
+    shorts("new", ".makable-shorts/runs/first", "--tone", "hype", cwd=repo, home=kept)
+    assert Run(repo / ".makable-shorts" / "runs" / "first").settings().tone == "hype"
+    git = ["git", "status", "--porcelain", "--untracked-files=all"]
+    changed = subprocess.run(git, cwd=repo, capture_output=True, text=True, check=True).stdout
+    assert changed == "?? .makable-shorts/products/acme.md\n"  # the notes, to commit; none of the run
 
 
 def test_chrome_quits_by_itself_and_lets_go_of_the_profile(tmp_path: Path) -> None:

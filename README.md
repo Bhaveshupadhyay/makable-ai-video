@@ -20,7 +20,7 @@ Your keys go in `~/.config/makable-shorts/.env` (copy `.env.example`): Gemini's 
 
 ## With Claude Code: `/make-video`
 
-The usual way to make one. In Claude Code, with the plugin installed, ask for a video, or:
+The usual way to make one. Run Claude Code in your product's own repo, so Claude has its code at hand, and with the plugin installed, ask for a video, or:
 
 ```
 /make-video 3f2a9c1 7be04d2                 # what these commits (in your product's code) changed
@@ -28,11 +28,13 @@ The usual way to make one. In Claude Code, with the plugin installed, ask for a 
 /make-video acme-api@91c0e4a --tone hype --language hi
 ```
 
-**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. It asks for your photo too, and music if you want some. They're all kept for every video after, outside the repo (`makable-shorts me` shows them).
+**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, which are kept outside the repo, for every video after. Every video needs the product's address and your photo: the skill doesn't go on without them. `makable-shorts me` shows what's kept, and where.
+
+Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and keeps itself out of git (a `.gitignore` of its own), since its recordings and clips are big.
 
 The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what needs judgment, and the pipeline below does the rest:
 
-1. **What to show.** Claude reads the commits, or looks up the functionality you describe in your product's code, or on the product itself. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
+1. **What to show.** Claude reads the commits, or looks up the functionality you describe in your product's code, or on the product itself. From the code, it learns the flow before recording: the page's route, the labels as the code writes them, what shows while something slow runs. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
 2. **The recording.** Claude drives Chrome itself with `makable-shorts drive`, a command at a time, signed in if your product needs it, while the pipeline records the screen. It needs no model or key of its own: Claude is the model. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again. (Or browser-use's agent records it from a task in plain words, `makable-shorts browse`, if you ask for that.)
 3. **The script.** Claude writes it from what's on screen when (`references/script.md`). `makable-shorts check-script` checks each scene's stretch and pace before the script comes in.
 4. **The video.** You approve the script (filming costs about $2). Then `makable-shorts run --paid`:
@@ -41,14 +43,14 @@ The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what
    - has the voice API speak the narration in that voice;
    - assembles `final.mp4`.
 
-With `--yes`, the skill asks nothing, for GitHub Actions. `.github/workflows/make-video.yml` runs it from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription, and uploads the video. Its header lists the secrets it needs.
+With `--yes`, the skill asks nothing, for GitHub Actions. Copy `.github/workflows/make-video.yml` into your product's repo: it runs the skill there from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription and the notes committed in the repo, and uploads the video. Its header lists the secrets it needs.
 
 To run it locally, it needs:
 
 - **Your photo**, and music if you want it: `makable-shorts me --face PHOTO [--music FILE]`, or the skill asks for them. A photo with its background removed works best with Omni, which films the setting the script describes.
 - **The keys:** copy `.env.example` to `~/.config/makable-shorts/.env` (or `.env` here), and fill it in. The environment wins over the files.
 
-**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), each product's notes (`products/<name>.md`), the sites you've signed in to (`sites/`), and a `.env`. A new run takes a copy of your photo, music and voice from there (in its own `me/`), unless it's given others, so changing yours later leaves the videos made before as they were.
+**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), the sites you've signed in to (`sites/`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
 
 ## How it's built: stages that share a folder
 
@@ -211,7 +213,7 @@ The repo is the plugin and its marketplace (`.claude-plugin/`). `claude --plugin
 uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech,heygen]'
 uv venv --python 3.12 ~/browse-env && uv pip install --python ~/browse-env -e '.[browse]'   # SHORTS_BROWSE_PYTHON
 mkdir -p ~/.config/makable-shorts && cp .env.example ~/.config/makable-shorts/.env          # and fill it in
-.venv/bin/python -m shorts status runs/first
+.venv/bin/python -m shorts status .makable-shorts/runs/first
 ```
 
 Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` in its own environment), so a machine installs only what the stages it runs need. Everything needs ffmpeg.
@@ -229,12 +231,12 @@ The Omni model id is picked for the backend (`shorts/intro.py`). Without Claude 
 export PATH="$PWD/bin:$PATH"     # makable-shorts, in this shell: the plugin puts it only on Claude's PATH
 makable-shorts me --face ~/Pictures/me.png --music ~/Music/calm.mp3   # once: kept for every video
 makable-shorts signin --url https://app.example.com                    # once, if it needs signing in
-makable-shorts new runs/first      # [--language hi] [--tone hype] [--pronounce Acme=akmee]
-makable-shorts browse runs/first --url https://app.example.com --name demo --task task.md --signed-in
-makable-shorts import runs/first script script.json   # checked first: check-script shows the problems
-makable-shorts status runs/first
-makable-shorts run runs/first --paid      # --paid: film the intro and outro too (about $1 each)
-makable-shorts speak runs/first           # or one stage at a time, here
+makable-shorts new .makable-shorts/runs/first      # [--language hi] [--tone hype] [--pronounce Acme=akmee]
+makable-shorts browse .makable-shorts/runs/first --url https://app.example.com --name demo --task task.md --signed-in
+makable-shorts import .makable-shorts/runs/first script script.json   # checked first: check-script shows the problems
+makable-shorts status .makable-shorts/runs/first
+makable-shorts run .makable-shorts/runs/first --paid      # --paid: film the intro and outro too (about $1 each)
+makable-shorts speak .makable-shorts/runs/first           # or one stage at a time, here
 ```
 
 The tests make small videos with ffmpeg and run the stages, the orchestrator and the voice API on them:

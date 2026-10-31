@@ -1,12 +1,13 @@
-# Makes a Short about your product in GitHub Actions: Claude Code runs this repo as its plugin, and the plugin's
-# make-video skill (skills/make-video) with --yes, so it asks nothing. It records the change by driving Chrome, writes the script, films the intro and the
-# outro with Gemini Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
+# Makes a Short about your product in GitHub Actions. Copy it into your product's own repo (.github/workflows/):
+# Claude Code runs the makable-shorts plugin's make-video skill there, with the repo's code at hand, and --yes, so it
+# asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro with Gemini
+# Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
 #
 # Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
 #
-# Your product's notes come from this repo: commit them as .makable-shorts/products/<name>.md (the skill writes them
-# in ~/.config/makable-shorts/products/ when you first make a video locally). Nobody can sign in by hand here, so
-# it only records products whose notes don't say signed_in: for one that does, the skill stops before recording.
+# The product's notes come from the repo, .makable-shorts/products/<name>.md: the skill writes them there when you
+# first make a video in the repo locally, for you to commit. Nobody can sign in by hand here, so it only records
+# products whose notes don't say signed_in: for one that does, the skill stops before recording.
 #
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
@@ -15,8 +16,8 @@
 #   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
 #   FACE_URL                   a link to your photo, for Omni (a secret holds at most 48 KB, too little for the photo)
 #   MUSIC_URL                  (optional) a link to music to play under the video
-#   PRODUCT_REPO_TOKEN         (optional) a token that can read the product's code, if it's in another private repo
-#                              (a fine-grained one with Contents: read), for videos from its commits
+#   PRODUCT_REPO_TOKEN         (optional) a token that can read the rest of the product's code, if some is in another
+#                              private repo (a fine-grained one with Contents: read), for videos from its commits
 
 name: Make a video
 
@@ -58,7 +59,7 @@ jobs:
       HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
       SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}
       SHORTS_SPEECH_KEY: ${{ secrets.SHORTS_SPEECH_KEY }}
-      SHORTS_HOME: ${{ github.workspace }}/.makable-shorts  # the product's notes; the photo and the music go here
+      MAKABLE_SHORTS_REF: main  # the plugin's version: a branch or a tag of its repo
     steps:
       - name: Check what to make it about
         if: inputs.commits == '' && inputs.prompt == ''
@@ -67,15 +68,20 @@ jobs:
           exit 1
 
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # every commit, for videos about older ones
 
       - uses: astral-sh/setup-uv@v10
 
       - name: ffmpeg
         run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
 
-      - name: The plugin's command, and Chromium for browser-use
+      - name: The plugin, its command, and Chromium for browser-use
         run: |
-          echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"   # makable-shorts makes its Python environments on first use
+          # Outside the repo, so Claude's searches of the product's code never land in the plugin's
+          git clone -q --depth 1 --branch "$MAKABLE_SHORTS_REF" https://github.com/Bhaveshupadhyay/makable-ai-video "$RUNNER_TEMP/makable-shorts"
+          echo "$RUNNER_TEMP/makable-shorts/bin" >> "$GITHUB_PATH"   # makable-shorts makes its Python environments on first use
+          echo "SHORTS_HOME=$RUNNER_TEMP/makable-shorts-home" >> "$GITHUB_ENV"   # the photo and the music go here
           uvx playwright install --with-deps chromium
 
       - name: The photo and the music
@@ -107,8 +113,8 @@ jobs:
             --tone ${{ inputs.tone }} --language ${{ inputs.language }} --yes
           # What the skill runs. Recording and making the video take minutes: Bash may wait up to 30 for one.
           claude_args: >-
-            --plugin-dir ${{ github.workspace }}
-            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(makable-shorts:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(git -C:*),Bash(ffprobe:*),Bash(ls:*)"
+            --plugin-dir ${{ runner.temp }}/makable-shorts
+            --allowedTools "Read,Write,Edit,Glob,Grep,Skill,Bash(makable-shorts:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(gh api:*),Bash(gh search code:*),Bash(git clone --depth 1:*),Bash(git -C:*),Bash(ffprobe:*),Bash(ls:*)"
           settings: '{"env": {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "1800000"}}'
 
       - name: Upload the video
@@ -117,20 +123,21 @@ jobs:
         with:
           name: video
           if-no-files-found: warn
+          include-hidden-files: true  # .makable-shorts is a hidden folder
           path: |
-            runs/*/final.mp4
-            runs/*/metadata.json
-            runs/*/script.json
-            runs/*/changes.md
-            runs/*/task.md
-            runs/*/footage/*.steps.json
-            runs/*/recordings/*.browse.json
-            runs/*/recordings/*.drive.log
+            .makable-shorts/runs/*/final.mp4
+            .makable-shorts/runs/*/metadata.json
+            .makable-shorts/runs/*/script.json
+            .makable-shorts/runs/*/changes.md
+            .makable-shorts/runs/*/task.md
+            .makable-shorts/runs/*/footage/*.steps.json
+            .makable-shorts/runs/*/recordings/*.browse.json
+            .makable-shorts/runs/*/recordings/*.drive.log
 
       - name: Check a video was made
         if: always()  # the skill can stop without one (a recording that never showed the change), and still succeed
         run: |
-          if ! find runs -path 'runs/*/final.mp4' -size +0 2>/dev/null | grep -q .; then
+          if ! find .makable-shorts/runs -path '.makable-shorts/runs/*/final.mp4' -size +0 2>/dev/null | grep -q .; then
             echo "::error::No video was made: see what Claude reported above, and the files uploaded with the run"
             exit 1
           fi

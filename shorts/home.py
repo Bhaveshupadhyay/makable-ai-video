@@ -7,6 +7,12 @@
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
 
 A new run takes a copy of your photo, music and voice from here, unless it's given others (`shorts.run`).
+
+And in the project it's run in, the product's own repo (the top of the git repo it's run in, or else the working
+directory), under .makable-shorts/:
+
+    products/<name>.md   the notes on the product whose code this is, committed with it, for teammates and CI too
+    runs/<name>/         each video's run folder, which keeps itself out of git (`shorts.run`)
 """
 
 import os
@@ -20,6 +26,26 @@ MINE = ("face", "music", "voice")  # what `me` keeps: run.json's settings of the
 
 def home() -> Path:
     return Path(os.environ.get("SHORTS_HOME") or Path.home() / ".config" / "makable-shorts").expanduser()
+
+
+def project() -> Path:
+    """The project the pipeline is run in: the top of the git repo holding the working directory, or the working
+    directory itself, outside one."""
+    here = Path.cwd()
+    return next((folder for folder in (here, *here.parents) if (folder / ".git").exists()), here)
+
+
+def runs() -> Path:
+    """Where the project's run folders go."""
+    return project() / ".makable-shorts" / "runs"
+
+
+def products() -> dict[str, Path]:
+    """The notes on each product, by its name: SHORTS_HOME's, and the project's (which win, for the same name)."""
+    found = {}
+    for folder in (home() / "products", project() / ".makable-shorts" / "products"):
+        found.update({notes.stem: notes for notes in folder.glob("*.md")})
+    return dict(sorted(found.items()))
 
 
 def mine() -> dict[str, Path]:

@@ -17,6 +17,7 @@ scenes spoken by another tool).
     narration/01.wav, 02.wav, ...    each scene's narration
     final.mp4, metadata.json         the video, and what to upload it with
     .records/<product>.json          what made each of a product's files, and from what
+    .gitignore                       all of it: a run folder stays out of git (`Run.make`)
 
 A product is the files one stage makes. Its record notes, for each file, a fingerprint of what it was made
 from and of the file as written. So a file is out of date when what it would be made from now differs (the
@@ -154,6 +155,14 @@ class Run:
 
     def __init__(self, folder: Path | str) -> None:
         self.folder = Path(folder)
+
+    def make(self) -> None:
+        """Makes the run folder, if it isn't there, with a .gitignore that keeps all of it out of git: in a product's
+        repo (.makable-shorts/runs/), its recordings and clips would be far too big to commit."""
+        self.folder.mkdir(parents=True, exist_ok=True)
+        ignore = self.folder / ".gitignore"
+        if not ignore.exists():
+            ignore.write_text("# a video's run folder (makable-shorts): too big to commit\n*\n")
 
     def path(self, name: str) -> Path:
         """A file in the run folder, by its name in the contract."""

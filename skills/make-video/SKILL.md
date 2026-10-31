@@ -2,7 +2,7 @@
 name: make-video
 description: Makes a Short, a 1-minute vertical video for YouTube Shorts and Instagram Reels, showing something the user's own web product can do, from its commits or from a prompt describing the functionality. You work out what to show, record it by driving the browser yourself, write the script from the recording, and the shorts pipeline films the user's avatar from their photo, speaks the narration and edits the video. Use when the user asks to make a video, a Short, a Reel or a product demo, or to write or redo a video's script.
 argument-hint: "[product] [commits or a prompt] [--tone hype] [--language hi] [--yes]"
-allowed-tools: Read, Write, Edit, Bash(makable-shorts *), Bash(gh api *), Bash(gh search code *), Bash(git clone --depth 1 *), Bash(git -C *), Bash(ffprobe *)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(makable-shorts *), Bash(git show *), Bash(git log *), Bash(git diff *), Bash(gh api *), Bash(gh search code *), Bash(git clone --depth 1 *), Bash(git -C *), Bash(ffprobe *)
 ---
 
 # Making a Short about a product
@@ -10,7 +10,7 @@ allowed-tools: Read, Write, Edit, Bash(makable-shorts *), Bash(gh api *), Bash(g
 The request: $ARGUMENTS
 
 The video is made by this plugin's pipeline, the `makable-shorts` command. Its stages share a **run folder**
-(`runs/<name>/`, in the working directory), and `${CLAUDE_PLUGIN_ROOT}/shorts/run.py` describes every file in it. Your part is what needs judgment:
+(`.makable-shorts/runs/<name>/` in the project), and `${CLAUDE_PLUGIN_ROOT}/shorts/run.py` describes every file in it. Your part is what needs judgment:
 
 - what to show,
 - recording it: you drive the browser, a command at a time,
@@ -37,8 +37,13 @@ where to get each. Never print their values, and never ask the user to paste one
 **Interactive or not.** With `--yes` (GitHub Actions), never ask anything: decide, and say what you
 decided in the final report. Otherwise, ask only where this says to.
 
+**The product's own repo** is the best place to make its videos: the user runs Claude Code there. Then you have
+its code at hand, to plan the recording and write the script from. Its notes are kept in it, committed, so teammates
+and the GitHub workflow share them, and the run folders go in it too, in `.makable-shorts/runs/`, which git ignores.
+Anywhere else works too, from notes in SHORTS_HOME and the code on GitHub.
+
 **Redoing a video's script.** If the request is to write or redo the script of a video already started (it names
-its run, `runs/<…>`, or it's the one just made), don't record again: go to step 6 in that run, whose footage,
+its run, a folder in `.makable-shorts/runs/`, or it's the one just made), don't record again: go to step 6 in that run, whose footage,
 steps and `changes.md` are there, with the notes of the product it's about. Then steps 7 and 8, where only what
 the new script changes is made again: the narration of each scene whose text changed, and the intro or the outro
 (about a dollar each) only if its line or its setting did.
@@ -48,8 +53,10 @@ the new script changes is made again: the narration of each scene whose text cha
 Run `makable-shorts me`. It prints where the user's own things are kept (SHORTS_HOME), and:
 
 - `face`, `music`, `voice`: their photo, the music under their videos, a sample of their voice;
-- `products`: the products there are notes on (`products/<name>.md` there);
+- `products`: the notes on each product, and where each is: the project's own (`.makable-shorts/products/` in
+  this repo), or SHORTS_HOME's;
 - `signed in`: the sites they've signed in to, for recordings that need it;
+- `runs`: where this project's run folders go;
 - `keys`: which keys are set, for step 8. Filming needs the key of whoever films the user (step 3): for Omni, the
   default, `GEMINI_API_KEY` (or `GOOGLE_CLOUD_PROJECT`, for Google Cloud); for HeyGen, `HEYGEN_API_KEY`; none for
   clips the user brings in. The narration needs `SHORTS_SPEECH_URL` and `SHORTS_SPEECH_KEY`. If one this video needs
@@ -58,32 +65,46 @@ Run `makable-shorts me`. It prints where the user's own things are kept (SHORTS_
 
 **The product.** Every video is about one product, and its notes say how to record it and how to talk about it
 ([references/product.md](references/product.md)). Read them before anything else.
-- If the request names a product, or there are notes on only one, it's that one.
-- If there are notes on several and the request doesn't say which, ask (interactive), or stop and say so (`--yes`).
+- If the request names a product, it's that one. If not, and the project has notes of its own, it's the
+  project's product. Otherwise, if there are notes on only one, it's that one.
+- If there are notes on several and none of that settles it, ask (interactive), or stop and say so (`--yes`).
 - If there are none for it, set them up with the user as product.md says (interactive), or stop (`--yes`).
 
-**The photo.** Whoever films the avatar needs a photo of the user. If `me` shows no `face`, ask for one: their
-face and shoulders, looking at the camera, in good light. One with the background removed is best, since Omni
-films the setting the script describes. Keep it with `makable-shorts me --face PATH`. Ask about
-music at the same time, once: a file of their own (`me --music PATH`), or none. With `--yes` and no face, stop.
+Two things every video needs, and you never go on without:
+
+- **The product's address,** the notes' `url`, where recordings start. If the notes have none, ask for it
+  (interactive), or stop and say so (`--yes`). Never guess one.
+- **A photo of the user,** for whoever films the avatar. If `me` shows no `face`, ask for one: their face and
+  shoulders, looking at the camera, in good light. One with the background removed is best, since Omni films the
+  setting the script describes. Keep it with `makable-shorts me --face PATH`. Ask about music at the same time,
+  once: a file of their own (`me --music PATH`), or none. With `--yes` and no face, stop. Only clips the user
+  films elsewhere and brings in (step 3) need no photo.
 
 ## 2. What the video is about
 
 The request gives commits, a prompt, or both:
 
 - **Commits:** a SHA, `repo@sha`, a GitHub commit URL or a range `a..b`, in the product's code (the notes'
-  `code`). Read each commit with `gh api repos/<owner>/<repo>/commits/<sha>` (its message, files and patch), or
-  a range with `gh api repos/<owner>/<repo>/compare/<a>...<b>`. For code in a folder on this machine, use
-  `git -C <folder> show <sha>`, or `git -C <folder> log -p <a>..<b>`.
+  `code`). In the repo you're in (`code: .`), read each with `git show <sha>`, or a range with
+  `git log -p <a>..<b>`: commits that aren't pushed yet too. On GitHub, use
+  `gh api repos/<owner>/<repo>/commits/<sha>` (its message, files and patch), or
+  `gh api repos/<owner>/<repo>/compare/<a>...<b>`. In a folder elsewhere on this machine, `git -C <folder> show <sha>`.
 - **A prompt:** text describing the functionality to show, such as "show how to share a note with a teammate".
-  Find it in the product's code: `gh search code --repo <owner>/<repo> "<words>"`, or
-  `git clone --depth 1 https://github.com/<owner>/<repo>` into a temporary folder and search it. With no code,
-  find it on the product itself, with `drive start` and `look`. Find the page it's on, the path a user takes to
-  it, and the exact labels of the buttons and boxes.
+  Find it in the product's code: in the repo you're in, search it (Grep, Glob, Read); on GitHub,
+  `gh search code --repo <owner>/<repo> "<words>"`, or `git clone --depth 1 https://github.com/<owner>/<repo>`
+  into a temporary folder and search it. With no code, find it on the product itself, with `drive start` and
+  `look`.
 - **Both:** the prompt says what to focus on among the commits' changes.
 - **Neither:** ask for commits or a description (interactive), or stop and say what's missing (`--yes`).
 
-Pick the run's folder, `runs/<yyyy-mm-dd>-<slug>`, where the slug is a few words of what the video is about.
+**Learn the flow from the code** before you record, whenever you have it: the route of the page it's on and the
+path a user takes to it, the labels of the buttons and boxes exactly as the code writes them (in the run's
+language, if the app is translated), what shows while something slow runs and once it's done (for `wait-for`),
+and what it depends on (a plan, a feature flag, something that must exist first). With it, the recording works
+the first time, and the script says what the product really does.
+
+Pick the run's folder, `<runs>/<yyyy-mm-dd>-<slug>`, in the `runs` folder `me` printed, where the slug is a few
+words of what the video is about: it's `RUN` in the commands below.
 Write `changes.md` in it, with:
 - what a user can now do, in a sentence;
 - where it is in the UI, with the labels exactly as shown;
@@ -96,7 +117,7 @@ If a prompt is too vague to pick one flow, ask (interactive), or pick the most d
 ## 3. The run
 
 ```sh
-makable-shorts new runs/<yyyy-mm-dd>-<slug> [--tone hype] [--language hi] [--pronounce WORD=SAID ...]
+makable-shorts new <runs>/<yyyy-mm-dd>-<slug> [--tone hype] [--language hi] [--pronounce WORD=SAID ...]
 ```
 
 A new run takes the user's photo, music and voice from `me`. The defaults are this flow's: an outro, and
@@ -199,6 +220,7 @@ Tell the user:
 - the scenes as they were made;
 - anything to check by eye or ear: Omni sometimes says a line a little differently, and the outro's voice
   can differ from the intro's, since each clip is a separate take. If one is off, delete that clip and run
-  step 8 again to film it again (about a dollar).
+  step 8 again to film it again (about a dollar);
+- notes you wrote or changed in the repo (`.makable-shorts/products/`): they're the user's to commit.
 
 In `--yes` mode, also say what you decided on your own.

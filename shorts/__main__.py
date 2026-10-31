@@ -1,7 +1,8 @@
 """The command line: set a video up, see where it is, and make it, a stage at a time or all that's left.
 
     python -m shorts me [--face PHOTO] [--music FILE] [--voice FILE]   your own files, kept for every video
-                                               (in SHORTS_HOME, ~/.config/makable-shorts: see shorts/home.py)
+                                               (in SHORTS_HOME, ~/.config/makable-shorts: see shorts/home.py),
+                                               the products' notes, and where run folders go
     python -m shorts signin --url URL          sign in to a site by hand, once, for recordings --signed-in
     python -m shorts new RUN [--face PHOTO] [--music FILE] [--language hi] [--tone hype]   a run, with your files
     python -m shorts browse RUN --url URL --name NAME --task FILE [--signed-in] [--model PROVIDER:MODEL]   footage
@@ -43,7 +44,7 @@ from pathlib import Path
 from . import COMMAND
 from .browse import FALLBACK, MODEL
 from .filmers import FILMERS, heygen_voices
-from .home import MINE, home, keep, mine, signed_in_sites, site
+from .home import MINE, home, keep, mine, products, runs, signed_in_sites, site
 from .orchestrator import PACKAGE_ROOT, advice, run_all, run_stage, status
 from .run import SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import LANGUAGES, TONES, Script, speed, words
@@ -123,8 +124,11 @@ def show_me(args: argparse.Namespace) -> None:
     print(home())
     for kind in MINE:
         print(f"  {kind:10} {kept.get(kind, '(none)')}")
-    products = sorted(path.stem for path in (home() / "products").glob("*.md"))
-    print(f"  {'products':10} {', '.join(products) or '(none)'}")
+    notes = products() or {"(none)": ""}  # each product's notes, with where they are: in SHORTS_HOME or the project
+    width = max(map(len, notes))
+    for line, (name, path) in enumerate(notes.items()):
+        print(f"  {'' if line else 'products':10} {name:{width}}  {path}".rstrip())
+    print(f"  {'runs':10} {runs()}")
     print(f"  {'signed in':10} {', '.join(signed_in_sites()) or '(nowhere)'}")
     unset = [key for key in KEYS if not os.environ.get(key)]
     print(f"  {'keys':10} set: {', '.join(key for key in KEYS if key not in unset) or 'none'}")
@@ -417,6 +421,8 @@ def main() -> None:
             print(f"{voice['voice_id']}  {about}  {voice.get('preview_audio_url') or ''}")
         return
     run = Run(args.run)
+    if args.command not in ("status", "check-script"):  # the rest write to it
+        run.make()
     try:
         if args.command == "new":
             new(run, args)
