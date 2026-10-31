@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from shorts.compose import Part, compose, fills
-from shorts.media import duration, frame_size
+from shorts.media import duration, executable, frame_size, has_sound
 
 from .conftest import needs_ffmpeg, speech, video
 
@@ -33,20 +33,14 @@ def test_parts_one_after_another(tmp_path: Path) -> None:
     out = compose(parts, tmp_path / "work", tmp_path / "out.mp4", size=(180, 320), captions=False)
     assert duration(out) == pytest.approx(6.5, abs=0.05)
     assert frame_size(out) == (180, 320)
-    streams = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(out)],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    assert sorted(streams) == ["audio", "video"]
+    assert has_sound(out)
 
 
 def black(out: Path, seconds: float, *, full_range: bool = False) -> Path:
     """Black footage: limited range, as filmed avatar clips are, or full range, as screen recordings often are."""
     form = ["-vf", "scale=out_range=pc", "-pix_fmt", "yuvj420p", "-color_range", "pc"] if full_range else []
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=180x320:r=30", "-t", str(seconds),
+        [executable(), "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=180x320:r=30", "-t", str(seconds),
          *form, str(out)],
         check=True,
     )  # fmt: skip
@@ -56,7 +50,7 @@ def black(out: Path, seconds: float, *, full_range: bool = False) -> Path:
 def captioned(video: Path, at: float) -> bool:
     """Whether the frame at `at` seconds has a caption on it: white, on black footage."""
     frame = subprocess.run(
-        ["ffmpeg", "-v", "error", "-ss", str(at), "-i", str(video), "-frames:v", "1",
+        [executable(), "-v", "error", "-ss", str(at), "-i", str(video), "-frames:v", "1",
          "-f", "rawvideo", "-pix_fmt", "gray", "-"],
         capture_output=True,
         check=True,

@@ -6,17 +6,18 @@ from pathlib import Path
 
 import pytest
 
+from shorts.media import executable
 from shorts.run import Run, Settings
 from shorts.script import Scene, Script
 
-needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
+needs_ffmpeg = pytest.mark.skipif(shutil.which(executable()) is None, reason="needs ffmpeg (imageio-ffmpeg)")
 
 
 def make(out: Path, *sources: str, seconds: float) -> Path:
     """A file made from ffmpeg's test sources (lavfi), such as "testsrc2=s=180x320:r=30"."""
     inputs = [arg for source in sources for arg in ("-f", "lavfi", "-i", source)]
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", *inputs, "-t", str(seconds), "-pix_fmt", "yuv420p", str(out)],
+        [executable(), "-v", "error", "-y", *inputs, "-t", str(seconds), "-pix_fmt", "yuv420p", str(out)],
         check=True,
     )
     return out
@@ -29,7 +30,7 @@ def video(out: Path, seconds: float, *, size: str = "180x320", tone: int | None 
 
 def speech(out: Path, seconds: float, tone: int = 440) -> Path:
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"sine=f={tone}:d={seconds}", str(out)], check=True
+        [executable(), "-v", "error", "-y", "-f", "lavfi", "-i", f"sine=f={tone}:d={seconds}", str(out)], check=True
     )
     return out
 

@@ -116,9 +116,6 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10
 
-      - name: ffmpeg
-        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
-
       - name: The plugin, its command, and Chromium for browser-use
         run: |
           # Outside the repo, so Claude's searches of the product's code never land in the plugin's

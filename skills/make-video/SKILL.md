@@ -36,7 +36,8 @@ too, unless the video has no voice.
 
 Run the pipeline with `makable-shorts …`: the plugin puts it on the Bash tool's PATH. The first time, and after an
 update, a command sets up its Python environments first, which takes a few minutes: give it a Bash timeout of
-600000 ms. It needs uv and ffmpeg, and says how to install one that's missing: tell the user, and stop.
+600000 ms. It downloads what it needs itself (uv, if the machine has none, and ffmpeg with its packages), so
+never ask the user to install anything. If setting up fails (no network, say), tell the user what it said, and stop.
 
 Keys come from the environment, or from `.env` in SHORTS_HOME, which the user fills in themselves (step 1). Never
 print a key's value, never read the `.env`, and never ask the user to paste a key into the chat.

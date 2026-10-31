@@ -16,6 +16,7 @@ import json
 import shutil
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 from pathlib import Path
@@ -52,6 +53,12 @@ def _chrome() -> str:
     from browser_use.browser.watchdogs.local_browser_watchdog import LocalBrowserWatchdog
 
     chrome = LocalBrowserWatchdog._find_installed_browser_path()
+    if not chrome:  # Chromium, got the way browser-use gets it for a recording: playwright's, through uvx
+        print("No Chrome here: downloading Chromium (the first time only, a minute or two)", file=sys.stderr)
+        command = ["uvx", "playwright", "install", "chromium", *(["--with-deps"] if sys.platform == "linux" else [])]
+        with contextlib.suppress(OSError):  # no uvx: an environment of your own
+            subprocess.run(command, capture_output=True)
+        chrome = LocalBrowserWatchdog._find_installed_browser_path()
     if not chrome:
         raise RuntimeError(
             "No Chrome or Chromium to sign in with: install Chrome, or `uvx playwright install chromium`"

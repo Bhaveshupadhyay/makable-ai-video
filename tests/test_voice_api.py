@@ -1,6 +1,7 @@
 """The voice API (services/voice) and the pipeline's client for it (shorts.speech_api), talking to each other in
 this process, with a stand-in for the models: the same requests the pipeline sends to Modal, or to ElevenLabs."""
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -16,7 +17,10 @@ from services.voice.api import FolderVoices, create_app  # noqa: E402
 from shorts.media import duration  # noqa: E402
 from shorts.speech_api import SpeechAPI, SpeechAPIError  # noqa: E402
 
-from .conftest import needs_ffmpeg, speech  # noqa: E402
+from .conftest import speech  # noqa: E402
+
+# The API runs the ffmpeg on PATH, which its image installs (services/voice/app.py), not the pipeline's own
+api_needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="the voice API needs ffmpeg on PATH")
 
 KEY = "a-key"
 
@@ -58,7 +62,7 @@ def test_health_needs_no_key_and_everything_else_does(server: TestClient) -> Non
     assert server.get("/v1/voices/0123456789abcdef0123", headers={"xi-api-key": "wrong"}).status_code == 401
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_speech_in_a_voice_from_a_sample(api: SpeechAPI, tone: Tone, tmp_path: Path) -> None:
     sample = speech(tmp_path / "sample.wav", 3)
     voice = api.add_voice("avatar", sample, transcript="Hi there.", language="en")
@@ -73,7 +77,7 @@ def test_speech_in_a_voice_from_a_sample(api: SpeechAPI, tone: Tone, tmp_path: P
     assert size > 1000  # the sample, as WAV
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_what_the_api_refuses(api: SpeechAPI, server: TestClient, tmp_path: Path) -> None:
     voice = api.add_voice("avatar", speech(tmp_path / "sample.wav", 2))
     with pytest.raises(SpeechAPIError, match="404 No voice"):
@@ -92,7 +96,7 @@ def test_what_the_api_refuses(api: SpeechAPI, server: TestClient, tmp_path: Path
     assert server.get("/v1/voices/..%2F..%2Fetc", headers=headers).status_code == 404  # only ids, never paths
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_pcm_and_wav_as_elevenlabs_sends_them(api: SpeechAPI, server: TestClient, tmp_path: Path) -> None:
     voice = api.add_voice("avatar", speech(tmp_path / "sample.wav", 2))
     headers, body = {"xi-api-key": KEY}, {"text": "one two three four five", "model_id": "omnivoice"}
@@ -103,7 +107,7 @@ def test_pcm_and_wav_as_elevenlabs_sends_them(api: SpeechAPI, server: TestClient
     assert wav.content[:4] == b"RIFF"
 
 
-@needs_ffmpeg
+@api_needs_ffmpeg
 def test_a_deleted_voice_is_gone(api: SpeechAPI, server: TestClient, tmp_path: Path) -> None:
     voice = api.add_voice("avatar", speech(tmp_path / "sample.wav", 2), transcript="Hi.")
     assert server.get(f"/v1/voices/{voice}", headers={"xi-api-key": KEY}).json()["transcript"] == "Hi."
