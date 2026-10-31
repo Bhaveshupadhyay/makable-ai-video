@@ -40,3 +40,35 @@ def test_parts_one_after_another(tmp_path: Path) -> None:
         check=True,
     ).stdout.split()
     assert sorted(streams) == ["audio", "video"]
+
+
+def black(out: Path, seconds: float, *, full_range: bool = False) -> Path:
+    """Black footage: limited range, as filmed avatar clips are, or full range, as screen recordings often are."""
+    form = ["-vf", "scale=out_range=pc", "-pix_fmt", "yuvj420p", "-color_range", "pc"] if full_range else []
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=180x320:r=30", "-t", str(seconds),
+         *form, str(out)],
+        check=True,
+    )  # fmt: skip
+    return out
+
+
+def captioned(video: Path, at: float) -> bool:
+    """Whether the frame at `at` seconds has a caption on it: white, on black footage."""
+    frame = subprocess.run(
+        ["ffmpeg", "-v", "error", "-ss", str(at), "-i", str(video), "-frames:v", "1",
+         "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+        capture_output=True,
+        check=True,
+    ).stdout  # fmt: skip
+    return sum(pixel > 200 for pixel in frame) > 50
+
+
+@needs_ffmpeg
+def test_captions_last_to_the_end_over_footage_of_any_colour_range(tmp_path: Path) -> None:
+    """The intro and outro (limited range) around the scenes' screen recording (full range): each is captioned."""
+    pytest.importorskip("PIL")
+    avatar, screen = black(tmp_path / "avatar.mp4", 2), black(tmp_path / "screen.mp4", 2, full_range=True)
+    parts = [Part(avatar, 2.0, text="Hi there."), Part(screen, 2.0, text="Look here."), Part(avatar, 2.0, text="Bye.")]
+    out = compose(parts, tmp_path / "work", tmp_path / "out.mp4", size=(180, 320))
+    assert [captioned(out, at) for at in (1.0, 3.0, 5.0)] == [True, True, True]

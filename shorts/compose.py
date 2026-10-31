@@ -18,6 +18,13 @@ GAP = 0.35  # seconds of pause after each scene's narration
 TAIL = 1.0  # extra seconds on the last scene
 SAME_SHAPE = 0.05  # how far footage's width:height can be from the frame's (a share of it) and still fill it
 FONT_CACHE = Path.home() / ".cache" / "makable-shorts"
+# Every part in the same colours: limited-range BT.709. Footage comes in either range (screen recordings are often
+# full range, filmed clips limited), and where the parts' colours change, ffmpeg starts compose's filters over,
+# without the captions it has already read: the captions after it are lost.
+COLOURS = (
+    "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+    "setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709"
+)
 
 
 @dataclass
@@ -80,7 +87,7 @@ def render_part(part: Part, out: Path, frame: tuple[int, int] = SIZE) -> Path:
     ffmpeg(
         *source,
         "-filter_complex",
-        f"[0:v]{timing}fps={FPS},{fit(frame_size(part.footage), frame)},setsar=1,format=yuv420p,"
+        f"[0:v]{timing}fps={FPS},{fit(frame_size(part.footage), frame)},setsar=1,{COLOURS},"
         f"tpad=stop_mode=clone:stop_duration={part.length:.3f}[v]",
         "-map", "[v]", "-t", f"{part.length:.3f}", "-an",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", out,
