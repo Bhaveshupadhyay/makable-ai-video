@@ -1,9 +1,9 @@
-"""A client for text to speech in a cloned voice, over ElevenLabs' API or anything with its shape: our voice API on
-Modal (`services/voice`), or ElevenLabs itself.
+"""A client for text to speech in a cloned voice, over ElevenLabs' API or anything with its shape: ElevenLabs itself,
+or the voice API (`services/voice`) on your own Modal account.
 
-Which one is the machine's business, not the video's, so it comes from the environment: SHORTS_SPEECH_URL (our API's
-URL, or https://api.elevenlabs.io) and SHORTS_SPEECH_KEY (sent as `xi-api-key`). The model is the video's: run.json's
-`narrator_model` ("omnivoice" on ours, "eleven_multilingual_v2" on ElevenLabs).
+Which one is run.json's `narrator`: "elevenlabs", with ELEVENLABS_API_KEY, or "modal", at SHORTS_SPEECH_URL with
+SHORTS_SPEECH_KEY (`python -m shorts deploy-voice` deploys it and sets both). The keys are the machine's, so they
+come from the environment. The model is the video's: run.json's `narrator_model`, or the API's own.
 
 Requests that fail on the way (a timeout, 429, a 5xx) are tried again, waiting longer each time. Needs httpx.
 """
@@ -16,6 +16,9 @@ from typing import Any
 
 import httpx
 
+from . import COMMAND
+
+ELEVENLABS = "https://api.elevenlabs.io"
 FORMAT = "mp3_44100_128"  # what both APIs send by default
 RETRIED = {408, 409, 425, 429, 500, 502, 503, 504}
 REDIRECTS = 5
@@ -47,11 +50,21 @@ class SpeechAPI:
         self.tries = tries
 
     @classmethod
-    def from_environment(cls) -> "SpeechAPI":
+    def from_environment(cls, narrator: str = "modal") -> "SpeechAPI":
+        """The API of run.json's `narrator`, "elevenlabs" or "modal", with its address and key from the environment."""
+        if narrator == "elevenlabs":
+            key = os.environ.get("ELEVENLABS_API_KEY", "")
+            if not key:
+                raise SpeechAPIError(
+                    "Set ELEVENLABS_API_KEY: an API key from ElevenLabs (elevenlabs.io: Developers, API keys), "
+                    f"in .env or the environment ({COMMAND} keys --open adds its line)"
+                )
+            return cls(ELEVENLABS, key)
         url, key = os.environ.get("SHORTS_SPEECH_URL", ""), os.environ.get("SHORTS_SPEECH_KEY", "")
         if not url or not key:
             raise SpeechAPIError(
-                "Set SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY: the voice API's URL and key (see services/voice/app.py)"
+                "Set SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY: your voice API's address and key, which "
+                f"`{COMMAND} deploy-voice` deploys to your Modal account and sets"
             )
         return cls(url, key)
 

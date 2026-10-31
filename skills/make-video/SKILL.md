@@ -21,8 +21,10 @@ The pipeline does everything mechanical.
 
 The finished video has three parts:
 
-1. **Intro:** the user's avatar (filmed from their photo by Gemini Omni, or HeyGen) says a hook to the camera.
-2. **The screen recording** of the product, narrated in the avatar's voice by the voice API.
+1. **Intro:** the user's avatar says a hook to the camera: filmed from their photo by Gemini Omni or HeyGen, or a
+   clip they film elsewhere and bring in.
+2. **The screen recording** of the product, narrated in the avatar's voice by ElevenLabs, or by the user's own voice
+   API on Modal.
 3. **Outro:** the avatar signs off.
 
 The intro and outro are used as they were filmed.
@@ -31,8 +33,8 @@ Run the pipeline with `makable-shorts …`: the plugin puts it on the Bash tool'
 update, a command sets up its Python environments first, which takes a few minutes: give it a Bash timeout of
 600000 ms. It needs uv and ffmpeg, and says how to install one that's missing: tell the user, and stop.
 
-Keys come from the environment, or from `.env` in SHORTS_HOME: `${CLAUDE_PLUGIN_ROOT}/.env.example` lists them, and
-where to get each. Never print their values, and never ask the user to paste one into the chat.
+Keys come from the environment, or from `.env` in SHORTS_HOME, which the user fills in themselves (step 1). Never
+print a key's value, never read the `.env`, and never ask the user to paste a key into the chat.
 
 **Interactive or not.** With `--yes` (GitHub Actions), never ask anything: decide, and say what you
 decided in the final report. Otherwise, ask only where this says to.
@@ -53,15 +55,49 @@ the new script changes is made again: the narration of each scene whose text cha
 Run `makable-shorts me`. It prints where the user's own things are kept (SHORTS_HOME), and:
 
 - `face`, `music`, `voice`: their photo, the music under their videos, a sample of their voice;
+- `filmer`, `narrator`: who films their avatar and who speaks the narration, as they chose (below);
 - `products`: the notes on each product, and where each is: the project's own (`.makable-shorts/products/` in
   this repo), or SHORTS_HOME's;
 - `signed in`: the sites they've signed in to, for recordings that need it;
 - `runs`: where this project's run folders go;
-- `keys`: which keys are set, for step 8. Filming needs the key of whoever films the user (step 3): for Omni, the
-  default, `GEMINI_API_KEY` (or `GOOGLE_CLOUD_PROJECT`, for Google Cloud); for HeyGen, `HEYGEN_API_KEY`; none for
-  clips the user brings in. The narration needs `SHORTS_SPEECH_URL` and `SHORTS_SPEECH_KEY`. If one this video needs
-  is missing, tell the user now which, and to add it to the `.env` that `me` names (copying
-  `${CLAUDE_PLUGIN_ROOT}/.env.example`), then go on. With `--yes`, stop.
+- `keys`: which of the keys their choices need are set, for step 8, and with Omni, whether Google Cloud's sign-in
+  is on this machine (`google`).
+
+**Who films the user, and who speaks.** If `me` shows `filmer` or `narrator` not chosen, ask once, in one message
+(interactive):
+
+- **Who films their intro and outro**, from their photo:
+  - **Gemini Omni** (`omni`), in their own Google Cloud project: about $1 a clip, from its billing or its credits.
+    It films a new shot of them in the setting the script describes, in a voice of its own.
+  - **HeyGen** (`heygen`), from their HeyGen API balance. It animates the photo as it is, background and all, in
+    one of HeyGen's voices, the same every video.
+  - **Their own clips** (`import`): for each video, they film the intro and the outro elsewhere (Higgsfield,
+    HeyGen's site, the Gemini app) and give you the files or links. No key, and nothing paid here.
+- **Who speaks the narration**, in the avatar's voice:
+  - **ElevenLabs** (`elevenlabs`): an API key, on a plan that can clone a voice. Nothing to set up.
+  - **Their own voice API on Modal** (`modal`): the open models that come with the plugin (OmniVoice), deployed
+    once to their Modal account, which pays for the GPU by the second while it speaks. The first scene after a
+    quiet spell waits a minute or two for the model to load.
+
+Keep the answers with `makable-shorts me --filmer omni|heygen|import --narrator elevenlabs|modal`. For HeyGen, pick
+its voice too: run `makable-shorts voices --gender male` (or `female`, for the person in the photo), offer two or
+three with their preview links, and keep the one they pick with `me --filmer-voice VOICE_ID`. With `--yes`, if
+either isn't chosen, stop and say so.
+
+**Their keys.** If `me` says a key their choices need isn't set, set it up with them now, then run `me` again and go
+on. With `--yes`, stop and say which.
+- Run `makable-shorts keys --open`. It adds a line for each missing key to the `.env` that `me` names, with where to
+  get it in a comment above, and opens the file in their text editor. Tell them which keys to paste in and where to
+  get each, to save the file, and to tell you when they have.
+- **Omni** needs the ID of their Google Cloud project in `GOOGLE_CLOUD_PROJECT`: a project with billing, and the
+  Vertex AI API on (`gcloud services enable aiplatform.googleapis.com --project PROJECT_ID`). And it needs Google
+  Cloud's sign-in on this machine: if `me` says `google  not signed in`, have them type
+  `! gcloud auth application-default login` in the prompt, which opens their browser. If they haven't gcloud, it's
+  at https://cloud.google.com/sdk/docs/install.
+- **Their own voice API** comes from `makable-shorts deploy-voice`, not from them. Run it in the background: the
+  first deploy builds the models' images, which takes several minutes. If Modal has no sign-in here, it opens their
+  browser to sign in or make an account, and waits: tell them so. It deploys the voice API that comes with the
+  plugin to their account, and writes its address and key into the `.env` itself.
 
 **The product.** Every video is about one product, and its notes say how to record it and how to talk about it
 ([references/product.md](references/product.md)). Read them before anything else.
@@ -78,7 +114,7 @@ Two things every video needs, and you never go on without:
   shoulders, looking at the camera, in good light. One with the background removed is best, since Omni films the
   setting the script describes. Keep it with `makable-shorts me --face PATH`. Ask about music at the same time,
   once: a file of their own (`me --music PATH`), or none. With `--yes` and no face, stop. Only clips the user
-  films elsewhere and brings in (step 3) need no photo.
+  films elsewhere and brings in (filmer `import`) need no photo.
 
 ## 2. What the video is about
 
@@ -120,17 +156,14 @@ If a prompt is too vague to pick one flow, ask (interactive), or pick the most d
 makable-shorts new <runs>/<yyyy-mm-dd>-<slug> [--tone hype] [--language hi] [--pronounce WORD=SAID ...]
 ```
 
-A new run takes the user's photo, music and voice from `me`. The defaults are this flow's: an outro, and
-narration in the avatar's voice through the voice API.
+A new run takes the user's photo, music and voice from `me`, and who films them and who speaks. The defaults are
+this flow's: an outro, and narration in the avatar's voice.
 
 - `--tone` and `--language` from the request (friendly and English by default).
 - `--pronounce` for each of the notes' `pronounce` words in the run's language.
-- **Who films the user** (`${CLAUDE_PLUGIN_ROOT}/README.md`'s Who films you): Omni by default. If the user asks for HeyGen, add
-  `--intro heygen --outro heygen --filmer-voice VOICE_ID`. HeyGen animates the photo as it is, background and
-  all. To pick the voice, run `makable-shorts voices --gender male` (or `female`, for the person
-  in the photo): offer two or three, with their preview links (interactive), or take the first (`--yes`).
-  If the user films the clips somewhere else (Higgsfield, HeyGen's site, the Gemini app), they come in at
-  step 8 instead, from a file or a link: `makable-shorts import RUN intro FILE_OR_LINK` (and `outro`).
+- **Another filmer, for this video only,** if the user asks for one: `--intro heygen --outro heygen
+  --filmer-voice VOICE_ID` (a voice from `makable-shorts voices`), `--intro omni --outro omni`, or `--intro import
+  --outro import` for clips they film elsewhere. Their keys are step 1's.
 
 ## 4. Record it
 
@@ -155,12 +188,6 @@ makable-shorts drive RUN stop --report "…"    # brings it in as the footage de
 The time you spend thinking between commands is cut out of the footage, and so are the still parts of
 the waits. The spotlight (`--spotlight` on a `click` or a `type`, blurring the rest of the page while it
 happens) is off: use it only when the user asks for it, and never on a button.
-
-**Or browser-use's agent**, if the user asks for it: write the task to `RUN/task.md`, following
-[references/task.md](references/task.md), and run
-`makable-shorts browse RUN --url <url> --name demo --task RUN/task.md [--signed-in] [--window …]` in
-the background. It needs a model's key: `SHORTS_BROWSE_MODEL` (default `google:gemini-3.6-flash`, with
-`GEMINI_API_KEY`), or `--model provider:model`.
 
 ## 5. Check the recording
 
@@ -194,8 +221,9 @@ Filming costs money, so show the user:
   the title and the description;
 - anything you left out of the recording, and why.
 
-Then ask: film it, change something, or stop. Filming costs about two dollars (the intro and the outro,
-about a dollar each).
+Then ask: film it, change something, or stop. Filming costs about two dollars with Omni (the intro and the outro,
+about a dollar each), or what HeyGen takes from their balance. With their own clips (`import`), ask them instead to
+film the intro line and the outro line (in the setting the script gives) and to give you the files or links.
 
 ## 8. Make it
 
@@ -204,9 +232,10 @@ makable-shorts run RUN --paid
 ```
 
 This takes a few minutes, so run it in the background. It does everything that's due, in order:
-1. films the intro and the outro (Omni or HeyGen, as `run.json` says);
+1. films the intro and the outro (Omni or HeyGen, as `run.json` says). The user's own clips come in first instead:
+   `makable-shorts import RUN intro FILE_OR_LINK` (and `outro`);
 2. takes the avatar's voice from the intro;
-3. has the voice API speak each scene in it (`SHORTS_SPEECH_URL` and `SHORTS_SPEECH_KEY`);
+3. has ElevenLabs, or the user's voice API, speak each scene in it (`run.json`'s `narrator`);
 4. assembles `RUN/final.mp4` with captions and music.
 
 If it stops, it says why and what's next. Fix that and run it again: only what's missing or out of date

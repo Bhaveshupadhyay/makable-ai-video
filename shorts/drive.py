@@ -1,4 +1,4 @@
-"""Footage recorded by driving Chrome a command at a time, as Claude Code does, instead of with browser-use's agent.
+"""Footage recorded by driving Chrome a command at a time, as Claude Code does.
 
     python -m shorts drive RUN start --url https://app.example.com [--name demo] [--signed-in] [--window 720x1280]
     python -m shorts drive RUN look                  the page: its tabs, its elements by number, a screenshot
@@ -14,16 +14,15 @@
     python -m shorts drive RUN act ACTION [JSON]     any other of browser-use's actions, such as go_back
     python -m shorts drive RUN stop --report "what it showed" [--failed]
 
-`start` opens Chrome on the page as `browse` does (`shorts.browse.open_browser`: recorded, with the pointer, and with
---signed-in, in the profile `python -m shorts signin` signed in to the site), in a process of its own that keeps
-running, and prints the page. Each command after it is a step, as
-one of the agent's is: it runs one of browser-use's actions in that Chrome, with the pointer gliding to what it
-clicks or types into, notes the step's goal, what it did and when, and prints the page as it is now, numbered the
-way the next command takes them. With --spotlight (it's off without), a click or a type blurs and dims the rest of
-the page first, so its element stands out, unless the element's a button (`shorts.browse.tools_with`). Afterwards,
-the time between commands (whoever drives it thinking) is cut out, as the agent's is, and so are the parts of the
-waits where nothing changes. `stop` ends the recording and brings it in as the footage, with its steps, as `browse`
-does.
+`start` opens Chrome on the page (`shorts.browse.open_browser`: recorded, with the pointer, and with --signed-in, in
+the profile `python -m shorts signin` signed in to the site), in a process of its own that keeps running, and prints
+the page. Each command after it is a step: it runs one of browser-use's actions in that Chrome, with the pointer
+gliding to what it clicks or types into, notes the step's goal, what it did and when, and prints the page as it is
+now, numbered the way the next command takes them. With --spotlight (it's off without), a click or a type blurs and
+dims the rest of the page first, so its element stands out, unless the element's a button
+(`shorts.browse.tools_with`). Afterwards, the time between commands (whoever drives it thinking) is cut out, and so
+are the parts of the waits where nothing changes. `stop` ends the recording and brings it in as the footage, with
+its steps.
 
 It needs no model and no key: whoever sends the commands is the model. Only the process that holds Chrome needs
 browser-use (SHORTS_BROWSE_PYTHON); the commands talk to it on a local port, with a token from
@@ -263,7 +262,7 @@ class Driver:
         return True, f"{did}\n\n{await self.look()}"
 
     async def stop(self, report: str, success: bool) -> str:
-        """Ends the recording, cuts the pauses out, and brings it in as the footage (as `browse` does)."""
+        """Ends the recording, cuts the pauses out, and brings it in as the footage."""
         from .browse import Step, close_browser, cut_pauses, save_steps
         from .stages.bring_in import bring_in
 

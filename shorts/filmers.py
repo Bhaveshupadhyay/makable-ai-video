@@ -1,9 +1,9 @@
 """Who films you saying the intro line and the outro line, from a photo of you: run.json's `intro` and `outro` name one.
 
     omni     Gemini Omni Flash (`shorts.intro`), about $1 a clip. It films the shot the script's setting describes,
-             with a voice of its own, a new one each clip. Through the Gemini API (GEMINI_API_KEY, from a prepaid
-             balance) or Agent Platform (GOOGLE_GENAI_USE_ENTERPRISE=true, GOOGLE_CLOUD_PROJECT and Google's sign-in,
-             from Google Cloud credits).
+             with a voice of its own, a new one each clip. On Agent Platform (Vertex AI), in your own Google Cloud
+             project (GOOGLE_CLOUD_PROJECT, signed in with `gcloud auth application-default login`), paid from
+             its billing account or its credits.
     heygen   HeyGen's photo to video (HEYGEN_API_KEY), from HeyGen's API balance. It animates the photo as it is,
              saying the line in one of HeyGen's voices (run.json's filmer_voice; `python -m shorts voices` lists
              them), the same voice every clip.
@@ -42,12 +42,33 @@ class Filmer:
     film: Callable[[str, str, Path, Path, Settings], Path]  # (line, setting, photo, out, settings) -> out
 
 
-def _omni_film(line: str, setting: str, face: Path, out: Path, settings: Settings) -> Path:
+def omni_client() -> Any:
+    """Gemini's client, on Agent Platform in your Google Cloud project (GOOGLE_CLOUD_PROJECT), at "global": where
+    Omni is, whatever region GOOGLE_CLOUD_LOCATION names for other things. `vertexai` is the flag every version of
+    google-genai takes (newer ones call it `enterprise` too)."""
     from google import genai
+
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project:
+        raise ValueError(
+            "Set GOOGLE_CLOUD_PROJECT: the ID of the Google Cloud project Omni films in (with billing, and the "
+            f"Vertex AI API on), in .env or the environment ({COMMAND} keys --open adds its line)"
+        )
+    return genai.Client(vertexai=True, project=project, location="global")
+
+
+def _omni_film(line: str, setting: str, face: Path, out: Path, settings: Settings) -> Path:
+    from google.auth.exceptions import DefaultCredentialsError
 
     from .intro import film
 
-    return film(genai.Client(), avatar_prompt(line, setting), face, out)
+    try:
+        return film(omni_client(), avatar_prompt(line, setting), face, out)
+    except DefaultCredentialsError as error:  # the client signs in when it first asks for something
+        raise ValueError(
+            "Sign in to Google Cloud once, for Omni: gcloud auth application-default login "
+            "(https://cloud.google.com/sdk/docs/install has gcloud)"
+        ) from error
 
 
 def _heygen_api(key: str | None = None) -> Any:
@@ -128,7 +149,7 @@ FILMERS: dict[str, Filmer] = {
     "omni": Filmer(
         "omni",
         ("google.genai",),
-        "pip install 'makable-shorts[gemini]', with GEMINI_API_KEY or a Google Cloud project (see the README)",
+        "pip install 'makable-shorts[gemini]', with GOOGLE_CLOUD_PROJECT and Google Cloud's sign-in (see the README)",
         lambda line, setting, settings: (avatar_prompt(line, setting),),
         _omni_film,
     ),

@@ -1,7 +1,7 @@
 # Makes a Short about your product in GitHub Actions. Copy it into your product's own repo (.github/workflows/):
 # Claude Code runs the makable-shorts plugin's make-video skill there, with the repo's code at hand, and --yes, so it
 # asks nothing. It records the change by driving Chrome, writes the script, films the intro and the outro with Gemini
-# Omni (about $2), has the voice API on Modal speak the narration, and uploads the video.
+# Omni (about $2) or HeyGen, has ElevenLabs or your own voice API on Modal speak the narration, and uploads the video.
 #
 # Run it from the Actions tab (Make a video, Run workflow) or: gh workflow run make-video.yml -f commits=3f2a9c1
 #
@@ -11,12 +11,22 @@
 # on the internet: a localhost one is the runner's own, where nothing is running. What a recording teaches the skill
 # goes in the notes' recording tips: the notes are uploaded with the video, for you to commit if they changed.
 #
+# Who films you and who speaks the narration are repository variables (Settings, Secrets and variables, Actions):
+#   SHORTS_FILMER              omni (the default) or heygen: clips you film yourself can't be brought in here
+#   SHORTS_FILMER_VOICE        with heygen: HeyGen's voice to film you in (makable-shorts voices lists them)
+#   SHORTS_NARRATOR            elevenlabs (the default), or modal: your own voice API (makable-shorts deploy-voice)
+#   GOOGLE_CLOUD_PROJECT       with omni: the Google Cloud project Omni films in (else the service account's)
+#   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT    with omni, to sign in to Google Cloud with Workload
+#                              Identity Federation, with no key file: or the secret GOOGLE_CREDENTIALS instead
+#
 # Repository secrets it needs:
 #   CLAUDE_CODE_OAUTH_TOKEN    claude setup-token (your Claude subscription)
-#   GEMINI_API_KEY             Omni (it needs a prepaid balance in AI Studio)
-#   HEYGEN_API_KEY             (optional) to film with HeyGen instead (run.json's intro and outro)
-#   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    the voice API (services/voice/app.py), or ElevenLabs'
-#   FACE_URL                   a link to your photo, for Omni (a secret holds at most 48 KB, too little for the photo)
+#   GOOGLE_CREDENTIALS         with omni, unless Workload Identity Federation signs in: a service account's JSON key,
+#                              with the Vertex AI User role in the project
+#   HEYGEN_API_KEY             with heygen
+#   ELEVENLABS_API_KEY         with elevenlabs
+#   SHORTS_SPEECH_URL, SHORTS_SPEECH_KEY    with modal: what deploy-voice wrote in your .env
+#   FACE_URL                   a link to your photo (a secret holds at most 48 KB, too little for the photo)
 #   MUSIC_URL                  (optional) a link to music to play under the video
 #   PRODUCT_REPO_TOKEN         (optional) a token that can read the rest of the product's code, if some is in another
 #                              private repo (a fine-grained one with Contents: read), for videos from its commits
@@ -46,6 +56,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # to sign in to Google Cloud with Workload Identity Federation, for Omni
 
 concurrency:
   group: make-video  # one at a time: they'd share the product's account
@@ -57,8 +68,8 @@ jobs:
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ secrets.PRODUCT_REPO_TOKEN || github.token }}  # gh api, for the commits
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       SHORTS_SPEECH_URL: ${{ secrets.SHORTS_SPEECH_URL }}
       SHORTS_SPEECH_KEY: ${{ secrets.SHORTS_SPEECH_KEY }}
       MAKABLE_SHORTS_REF: main  # the plugin's version: a branch or a tag of its repo
@@ -72,6 +83,32 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # every commit, for videos about older ones
+
+      # Google Cloud's sign-in, for Omni, one way or the other: given both, the action fails. Each sets
+      # GOOGLE_APPLICATION_CREDENTIALS and GOOGLE_CLOUD_PROJECT for the steps after it.
+      - name: Google Cloud's sign-in, with Workload Identity Federation
+        if: (vars.SHORTS_FILMER == '' || vars.SHORTS_FILMER == 'omni') && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Google Cloud's sign-in, with a service account's key
+        if: (vars.SHORTS_FILMER == '' || vars.SHORTS_FILMER == 'omni') && vars.GCP_WORKLOAD_IDENTITY_PROVIDER == ''
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+      - name: Keep the sign-in out of the checkout, where Claude reads the product's code
+        if: env.GOOGLE_APPLICATION_CREDENTIALS != ''
+        run: |
+          moved="$RUNNER_TEMP/$(basename "$GOOGLE_APPLICATION_CREDENTIALS")"
+          mv "$GOOGLE_APPLICATION_CREDENTIALS" "$moved"
+          for name in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do
+            echo "$name=$moved" >> "$GITHUB_ENV"
+          done
 
       - uses: astral-sh/setup-uv@v10
 
@@ -104,6 +141,13 @@ jobs:
           }
           fetch face "$FACE_URL"
           if [ -n "$MUSIC_URL" ]; then fetch music "$MUSIC_URL"; fi
+
+      - name: Who films you and who speaks
+        env:
+          FILMER: ${{ vars.SHORTS_FILMER || 'omni' }}
+          FILMER_VOICE: ${{ vars.SHORTS_FILMER_VOICE }}
+          NARRATOR: ${{ vars.SHORTS_NARRATOR || 'elevenlabs' }}
+        run: makable-shorts me --filmer "$FILMER" --narrator "$NARRATOR" ${FILMER_VOICE:+--filmer-voice "$FILMER_VOICE"}
 
       - name: Make the video (Claude Code, with the make-video skill)
         uses: anthropics/claude-code-action@v1
@@ -139,7 +183,6 @@ jobs:
             .makable-shorts/runs/*/metadata.json
             .makable-shorts/runs/*/script.json
             .makable-shorts/runs/*/changes.md
-            .makable-shorts/runs/*/task.md
             .makable-shorts/runs/*/footage/*.steps.json
             .makable-shorts/runs/*/recordings/*.browse.json
             .makable-shorts/runs/*/recordings/*.drive.log

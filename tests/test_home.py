@@ -12,9 +12,9 @@ import pytest
 
 from shorts import browse as recorder
 from shorts.__main__ import new
-from shorts.home import home, keep, mine, products, project, runs, signed_in_sites, site, site_profile
+from shorts.home import chosen, home, keep, mine, products, project, runs, signed_in_sites, site, site_profile
 from shorts.orchestrator import PACKAGE_ROOT
-from shorts.run import Run
+from shorts.run import Run, Settings
 from shorts.signin import forget, recording_profile
 
 
@@ -138,6 +138,75 @@ def test_me_keeps_and_shows_your_files(tmp_path: Path, kept: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError) as refused:
         me("--face", str(a_file(tmp_path / "photo")))
     assert "has no extension" in refused.value.stderr
+
+
+def test_me_keeps_who_films_you_and_who_speaks_and_says_the_keys_they_need(
+    tmp_path: Path, kept: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def me(*args: str) -> str:
+        return shorts("me", *args, cwd=tmp_path, home=kept)
+
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)  # no Google Cloud sign-in here
+    monkeypatch.setenv("CLOUDSDK_CONFIG", str(tmp_path / "gcloud"))
+
+    shown = me()
+    assert "filmer     (not chosen" in shown and "narrator   (not chosen" in shown
+    assert "keys       (they depend on who films you and who speaks" in shown
+    shown = me("--filmer", "omni", "--narrator", "elevenlabs")
+    assert "filmer     Gemini Omni, in your Google Cloud project" in shown and "narrator   ElevenLabs" in shown
+    assert "GOOGLE_CLOUD_PROJECT" in shown and "ELEVENLABS_API_KEY" in shown and "HEYGEN_API_KEY" not in shown
+    assert "google     not signed in: gcloud auth application-default login" in shown
+    a_file(tmp_path / "gcloud" / "application_default_credentials.json", b"{}")  # gcloud's, once you've signed in
+    assert "google     signed in" in me()
+    assert chosen() == {"filmer": "omni", "narrator": "elevenlabs"}
+
+    shown = me("--filmer", "heygen", "--narrator", "modal")
+    assert "pick its voice" in shown and "SHORTS_SPEECH_URL" in shown and "GOOGLE_CLOUD_PROJECT" not in shown
+    assert "in its voice v1" in me("--filmer-voice", "v1")
+    assert chosen() == {"filmer": "heygen", "filmer_voice": "v1", "narrator": "modal"}
+    me("--filmer-voice", "")
+    assert chosen() == {"filmer": "heygen", "narrator": "modal"}
+
+
+def test_a_new_run_takes_your_choices(tmp_path: Path, kept: Path) -> None:
+    shorts("me", "--filmer", "heygen", "--filmer-voice", "v1", "--narrator", "elevenlabs", cwd=tmp_path, home=kept)
+    run = Run(tmp_path / "runs" / "first")
+    new(run, options())
+    settings = run.settings()
+    assert (settings.intro, settings.outro, settings.filmer_voice) == ("heygen", "heygen", "v1")
+    assert (settings.narrator, settings.narration_model) == ("elevenlabs", "eleven_multilingual_v2")
+
+    shorts("me", "--filmer", "import", cwd=tmp_path, home=kept)  # clips you bring in, for the next run
+    later = Run(tmp_path / "runs" / "second")
+    new(later, options(outro="none"))  # what it's given wins
+    assert (later.settings().intro, later.settings().outro) == ("import", "none")
+    assert run.settings().intro == "heygen"  # a run that's there keeps what it has
+
+
+def test_another_narrator_for_a_run_speaks_with_its_own_model(tmp_path: Path, kept: Path) -> None:
+    run = Run(tmp_path / "runs" / "first")
+    run.save_settings(Settings(narrator="modal", narrator_model="omnivoice"))  # as a run.json from before wrote it
+    new(run, options(narrator="elevenlabs"))
+    assert (run.settings().narrator_model, run.settings().narration_model) == (None, "eleven_multilingual_v2")
+    new(run, options(narrator="modal", narrator_model="chatterbox"))  # one it's given is kept
+    assert run.settings().narration_model == "chatterbox"
+    new(run, options(tone="hype"))  # the narrator as it was: so is its model
+    assert run.settings().narration_model == "chatterbox"
+
+
+def test_keys_adds_the_lines_your_choices_need(tmp_path: Path, kept: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def keys(*args: str) -> str:
+        return shorts("keys", *args, cwd=tmp_path, home=kept)
+
+    with pytest.raises(subprocess.CalledProcessError) as refused:
+        keys()
+    assert "choose who films you and who speaks the narration first" in refused.value.stderr
+    shorts("me", "--filmer", "import", "--narrator", "modal", cwd=tmp_path, home=kept)
+    for key in ("SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY"):
+        monkeypatch.delenv(key, raising=False)  # the environment's would win over the file's
+    shown = keys()
+    assert f"{kept / '.env'}" in shown and "SHORTS_SPEECH_URL      empty" in shown and "deploy-voice" in shown
+    assert "SHORTS_SPEECH_KEY=" in (kept / ".env").read_text()
 
 
 def test_the_products_repo_has_its_own_notes_and_runs(

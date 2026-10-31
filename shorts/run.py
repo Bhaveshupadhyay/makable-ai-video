@@ -36,7 +36,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, model_validator
 
-from .home import MINE, home, mine
+from .home import MINE, chosen, home, mine
 from .script import Script
 
 SETTINGS = "run.json"
@@ -65,22 +65,26 @@ def narration_file(index: int) -> str:
     return f"narration/{index + 1:02d}.wav"
 
 
+# The model each narrator's API speaks with, unless run.json's narrator_model names another.
+NARRATOR_MODELS = {"modal": "omnivoice", "elevenlabs": "eleven_multilingual_v2"}
+
+
 class Settings(BaseModel):
     """What a video is made from (run.json). Paths are relative to the run folder, or absolute."""
 
     language: str = "en"  # what the script is written and spoken in: one of script.LANGUAGES
     tone: str = "friendly"  # how the script sounds: one of script.TONES
-    footage: dict[str, str] = {}  # each recording, by name: a file to copy in (browse brings its recordings in)
+    footage: dict[str, str] = {}  # each recording, by name: a file to copy in (drive brings its recordings in)
     # intro/filmed.mp4: who films it (shorts.filmers: Gemini Omni, HeyGen; about $1 a clip), or you bring it in
     intro: Literal["omni", "heygen", "import"] = "omni"
     outro: Literal["omni", "heygen", "import", "none"] = "omni"  # outro/filmed.mp4: the same, or no outro
     filmer_voice: str | None = None  # the voice the filmer gives you, for one that takes one: HeyGen's voice_id
-    # Who speaks narration/*.wav: a text-to-speech API (shorts.speech_api: the voice API on Modal, or ElevenLabs),
-    # or you bring it in. It's in the voice of the person in Omni's intro (voice/avatar.wav), or of the `voice`
-    # sample, with narration_voice "sample".
-    narrator: Literal["api", "import"] = "api"
+    # Who speaks narration/*.wav: a text-to-speech API (shorts.speech_api: ElevenLabs, or the voice API on your own
+    # Modal account), or you bring it in. It's in the voice of the person in the intro (voice/avatar.wav), or of
+    # the `voice` sample, with narration_voice "sample".
+    narrator: Literal["modal", "elevenlabs", "import"] = "modal"
     narration_voice: Literal["intro", "sample"] = "intro"
-    narrator_model: str = "omnivoice"  # the API's model: "omnivoice" or "chatterbox" on ours, ElevenLabs' own on theirs
+    narrator_model: str | None = None  # the API's model (None: its own, NARRATOR_MODELS'): "chatterbox", say
     narrator_options: dict[str, float | bool | str] = {}  # the API's voice_settings: OmniVoice's speed, say
     pronounce: dict[str, str] | None = None  # words the narrator says wrong, respelled: the product's name, say
     reference_text: str | None = None  # what's said in the voice sample, for OmniVoice (None: Whisper hears it)
@@ -91,13 +95,21 @@ class Settings(BaseModel):
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
     captions: bool = True
 
+    @property
+    def narration_model(self) -> str:
+        """The model the narrator speaks with: narrator_model, or its API's own."""
+        return self.narrator_model or NARRATOR_MODELS.get(self.narrator, "")
+
     @model_validator(mode="before")
     @classmethod
     def _engine_narrators(cls, data: Any) -> Any:
         """A run.json from before the voice API, whose narrator named its engine ("chatterbox", "omnivoice"): that
-        engine is now the API's model. It wins over narrator_model, which those files wrote out unused."""
+        engine is now the API's model. It wins over narrator_model, which those files wrote out unused. And one
+        from before ElevenLabs was a choice, whose narrator was "api": the voice API at SHORTS_SPEECH_URL."""
         if isinstance(data, dict) and data.get("narrator") in ("chatterbox", "omnivoice"):
-            data = {**data, "narrator": "api", "narrator_model": data["narrator"]}
+            data = {**data, "narrator": "modal", "narrator_model": data["narrator"]}
+        if isinstance(data, dict) and data.get("narrator") == "api":
+            data = {**data, "narrator": "modal"}
         return data
 
 
@@ -177,12 +189,18 @@ class Run:
         return os.path.relpath(Path(path).expanduser().resolve(), self.folder.resolve())
 
     def settings(self) -> Settings:
-        """run.json's settings. A run without one yet has your own photo, music and voice (`me`'s, shorts.home),
-        whichever command makes it: `new`, or a recording brought in first."""
+        """run.json's settings. A run without one yet has your own photo, music and voice, and who you chose to
+        film you and speak the narration (`me`'s, shorts.home), whichever command makes it: `new`, or a recording
+        brought in first."""
         file = self.path(SETTINGS)
         if file.exists():
             return Settings.model_validate_json(file.read_text())
-        return Settings(**{kind: str(path) for kind, path in mine().items()})
+        yours: dict[str, Any] = {kind: str(path) for kind, path in mine().items()}
+        choices = chosen()
+        if "filmer" in choices:
+            yours |= {"intro": choices["filmer"], "outro": choices["filmer"]}
+        yours |= {name: choices[name] for name in ("filmer_voice", "narrator") if name in choices}
+        return Settings(**yours)
 
     def save_settings(self, settings: Settings) -> None:
         """Writes run.json, with a copy of any of your own files (`me`'s) it names: so the run keeps them as they

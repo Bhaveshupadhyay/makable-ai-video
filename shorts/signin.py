@@ -4,9 +4,8 @@
 
 opens Chrome on the page, in a profile of the site's own (`home.site_profile`). You sign in there the way the site
 signs people in (a password, Google, GitHub, a code by email), then close the window. The profile keeps what the site
-saved (its cookies, local storage, IndexedDB), and `drive start --signed-in` and `browse --signed-in` record in it,
-headless. A site that refreshes its session as it's used saves the new one there too, so it stays signed in from one
-recording to the next. Sign in again when a site's session runs out; `--forget` deletes the profile.
+saved (its cookies, local storage, IndexedDB), and `drive start --signed-in` records in it, headless. A site that
+refreshes its session as it's used saves the new one there too, so it stays signed in from one recording to the next. Sign in again when a site's session runs out; `--forget` deletes the profile.
 
 It's the Chrome that browser-use records with, so the profile suits it, and it's not run through browser-use, which
 opens a new tab when the last one closes: closing the window is how you say you're done.

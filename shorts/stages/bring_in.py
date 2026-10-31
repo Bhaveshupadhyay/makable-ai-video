@@ -118,7 +118,7 @@ def footage_lengths(run: Run) -> tuple[dict[str, float | None], set[str]]:
         video, steps = run.path(footage_file(name)), run.path(steps_file(name))
         if not video.exists():
             video = run.resolve(source)
-            steps = video.with_suffix(".steps.json")  # where browse.record_task saves them
+            steps = video.with_suffix(".steps.json")  # where drive saves them
         if steps.exists():
             timed.add(name)
         if video.exists():

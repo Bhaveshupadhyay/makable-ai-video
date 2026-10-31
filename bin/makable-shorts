@@ -50,7 +50,7 @@ environment() {
 environment pipeline gemini,assemble,speech,heygen
 if [ -z "${SHORTS_BROWSE_PYTHON:-}" ]; then # unless you've your own environment with browser-use
   case "${1:-}" in
-  drive | browse | signin) environment browser browse ;;
+  drive | signin) environment browser browse ;;
   esac
   export SHORTS_BROWSE_PYTHON="$envs/browser/bin/python"
 fi

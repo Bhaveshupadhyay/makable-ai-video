@@ -15,7 +15,7 @@ may still be loading, or show only the top of a page. Say only what's visible du
 
 ## The video's three parts
 
-1. **Intro**, about 10 s. The avatar (Gemini Omni) talks to the camera.
+1. **Intro**, about 10 s. The avatar (Gemini Omni, HeyGen, or a clip the user films) talks to the camera.
    - `intro_line`: one hook of 14 to 20 words. Make people want to see the payoff, the thing the recording
      ends on. Make it concrete ("a bakery website from one sentence") rather than generic ("the future of
      web design").

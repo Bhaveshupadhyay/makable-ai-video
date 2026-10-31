@@ -1,7 +1,7 @@
 """The narrator's voice: a text-to-speech API speaks each scene (`ApiVoice`), in a voice cloned from a sample.
 
-The API is the voice API on Modal (services/voice, with OmniVoice and Chatterbox on GPUs), or ElevenLabs
-(`speech_api`), so nothing here needs a GPU. The sample is the avatar's voice, taken from Omni's intro
+The API is ElevenLabs, or the voice API on your own Modal account (services/voice, with OmniVoice and Chatterbox
+on GPUs: `speech_api`), so nothing here needs a GPU. The sample is the avatar's voice, taken from the intro
 (`voice_sample`), or a recording of you.
 """
 
@@ -45,6 +45,7 @@ class ApiVoice:
         transcript: str | None = None,
         pronounce: dict[str, str] | None = None,
         api=None,
+        narrator: str = "modal",
         **settings: float | bool | str,
     ) -> None:
         """
@@ -56,7 +57,9 @@ class ApiVoice:
             transcript: What's said in the sample, for OmniVoice (None: Whisper hears it, on the API's side).
             pronounce: Words the model says wrong, spelled the way they're said, such as a product's name:
                 {"nginx": "engine x"}. Only what it reads changes, not the captions.
-            api: A `speech_api.SpeechAPI`; `SpeechAPI.from_environment()` when the first scene is spoken, by default.
+            api: A `speech_api.SpeechAPI`; by default, the narrator's (`SpeechAPI.from_environment`), when the first
+                scene is spoken.
+            narrator: Whose API it is, by default: "elevenlabs", or "modal" (yours).
             settings: The API's `voice_settings`, as it takes them: OmniVoice's `speed`, ElevenLabs' `stability`.
         """
         self.reference = Path(reference)
@@ -66,6 +69,7 @@ class ApiVoice:
         self.pronounce = pronounce or {}
         self.tts_options = settings
         self.api = api
+        self.narrator = narrator
         self.voice_id: str | None = None
 
     @property
@@ -89,7 +93,7 @@ class ApiVoice:
         if self.api is None:
             from .speech_api import SpeechAPI
 
-            self.api = SpeechAPI.from_environment()
+            self.api = SpeechAPI.from_environment(self.narrator)
         if self.voice_id is None:
             name = f"makable-shorts {self.reference.stem}"
             self.voice_id = self.api.add_voice(name, self.reference, self.transcript, self.language)

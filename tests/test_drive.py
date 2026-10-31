@@ -19,7 +19,6 @@ from shorts.browse import save_steps
 from shorts.orchestrator import PACKAGE_ROOT
 from shorts.run import Run, footage_file, steps_file
 from shorts.stages.base import NotReady
-from shorts.stages.browse import outcome
 
 from .conftest import needs_ffmpeg, video
 
@@ -181,7 +180,10 @@ def test_stop_brings_the_recording_in_with_its_steps(run: Run, monkeypatch: pyte
         ("Wait for it", 3.0, 33.0, []),
     ]
     assert run.path(footage_file("demo")).exists()
-    assert outcome([SimpleNamespace(**step) for step in steps]) == (True, "It showed the site.")
+    assert (steps[-1]["actions"], steps[-1]["did"]) == (
+        [{"done": {"text": "It showed the site.", "success": True}}],
+        ["It showed the site."],
+    )
     record = json.loads(run.path("recordings/demo.browse.json").read_text())
     assert (record["driver"], record["signed_in"]) == ("python -m shorts drive", True)
 
