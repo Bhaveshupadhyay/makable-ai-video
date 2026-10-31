@@ -8,5 +8,6 @@
   },
   "homepage": "https://github.com/Bhaveshupadhyay/makable-ai-video",
   "repository": "https://github.com/Bhaveshupadhyay/makable-ai-video",
+  "license": "MIT",
   "keywords": ["video", "youtube-shorts", "instagram-reels", "product-demo", "ai-avatar", "screen-recording"]
 }

@@ -1,51 +1,86 @@
 # makable Shorts
 
-Makes a 1-minute vertical video (YouTube Shorts, Instagram Reels) showing something your web product can do: a demo of a feature, with captions and music. You choose the kind of video ([Kinds of video](#kinds-of-video)):
+A Claude Code plugin that makes 1-minute vertical videos of your web product, for YouTube Shorts and Instagram Reels.
 
-- **An AI avatar video:** a 10-second intro of you, filmed from your photo by Gemini Omni Flash or HeyGen ([Who films you](#who-films-you)); the screen recording, narrated in the voice of the avatar in that intro; and an outro, filmed the same way.
-- **A narrated product demo,** with no avatar: a title card with the hook, the screen recording, narrated by Kokoro (free, on your own machine) or in your own voice, and an end card.
-- **A silent product demo:** the cards and the recording, with each scene's words as captions, and music. Free, with no keys.
+## Demos
 
-## Kinds of video
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <a href="https://www.youtube.com/shorts/VWhdMEDQJ30"><img src="https://i.ytimg.com/vi/VWhdMEDQJ30/hqdefault.jpg" alt="Demo: the best free AI website builder" width="320"></a>
+      <br><sub>▶ <a href="https://www.youtube.com/shorts/VWhdMEDQJ30">The best free AI website builder</a></sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="https://www.youtube.com/shorts/NhtTbSJjj_c"><img src="https://i.ytimg.com/vi/NhtTbSJjj_c/hqdefault.jpg" alt="Demo: a free business website in 3 minutes" width="320"></a>
+      <br><sub>▶ <a href="https://www.youtube.com/shorts/NhtTbSJjj_c">A free business website in 3 minutes</a></sub>
+    </td>
+  </tr>
+</table>
 
-| | AI avatar video | Narrated demo | Silent demo |
-|---|---|---|---|
-| Opens on | your avatar saying the hook | a title card: the hook over a blurred still of the recording | the same |
-| The recording | narrated in your avatar's voice | narrated by Kokoro, or in your voice from a sample | each scene's text as a caption, at its own speed |
-| Ends on | your avatar signing off | an end card with the sign-off | the same |
-| Needs | your photo, and keys for whoever films and speaks | nothing (Kokoro), or a sample of your voice and a key | nothing |
-| Costs | about $2 (Omni), plus the narration | nothing (Kokoro) | nothing |
-| `makable-shorts me` | `--filmer omni\|heygen\|import --narrator elevenlabs\|modal` | `--filmer none --narrator kokoro\|elevenlabs\|modal` | `--filmer none --narrator none` |
+## Install
 
-In run.json, a demo's `intro` and `outro` are `card`, and a silent one's `narrator` is `none` (`makable-shorts new RUN --intro card --outro card --narrator none`, for one video). The cards are drawn by `assemble` (`shorts/cards.py`). The narrator says their lines too (`narration/intro.wav`, `outro.wav`), so a narrated demo's cards stay up while they're said, and a silent one's for as long as they take to read. `metadata.json`'s `containsSyntheticMedia`, for YouTube's "altered or synthetic content", is true for an avatar or a cloned voice, and false for Kokoro's voice or no voice.
-
-## Installing it, as a Claude Code plugin
+In Claude Code:
 
 ```
 /plugin install makable-shorts --marketplace Bhaveshupadhyay/makable-ai-video
 ```
 
-Or, on Claude Code before 2.1.275: `/plugin marketplace add Bhaveshupadhyay/makable-ai-video`, then `/plugin install makable-shorts@makable-shorts`.
-
-It needs [uv](https://docs.astral.sh/uv) and ffmpeg on your machine (`brew install uv ffmpeg` on a Mac), and Chrome, or browser-use downloads Chromium. The plugin's command is `makable-shorts` (`bin/makable-shorts`). The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
-
-**Your choices, and your keys.** The first time, the skill asks which kind of video you want, then who films your avatar (Gemini Omni in your own Google Cloud project, HeyGen, clips you film yourself, or no one, for a demo) and who speaks the narration (ElevenLabs, your own voice API on Modal, Kokoro, or no one), and keeps your answers (`makable-shorts me --filmer … --narrator …`). A demo narrated by Kokoro, or a silent one, needs no keys at all. Then `makable-shorts keys --open` writes the keys those need into `~/.config/makable-shorts/.env`, each with where to get it, and opens the file in your text editor: you paste the keys in there, never into the chat. Your own voice API needs none from you: `makable-shorts deploy-voice` deploys it to your Modal account and writes its address and key there itself. See [Who films you](#who-films-you) and [Who speaks the narration](#who-speaks-the-narration).
-
-## With Claude Code: `/make-video`
-
-The usual way to make one. Run Claude Code in your product's own repo, so Claude has its code at hand, and with the plugin installed, ask for a video, or:
+On Claude Code before 2.1.275, add the marketplace first:
 
 ```
-/make-video 3f2a9c1 7be04d2                 # what these commits (in your product's code) changed
+/plugin marketplace add Bhaveshupadhyay/makable-ai-video
+/plugin install makable-shorts@makable-shorts
+```
+
+It also needs [uv](https://docs.astral.sh/uv), ffmpeg and Chrome on your machine (`brew install uv ffmpeg` on a Mac; without Chrome, browser-use downloads Chromium). The first video takes a few minutes longer, while it sets up its own Python environments.
+
+### Turn on auto-update
+
+Claude Code doesn't update plugins from a marketplace like this one by itself until you turn it on, once:
+
+1. Run `/plugin` and open the **Marketplaces** tab.
+2. Select **makable-shorts**, then **Enable auto-update**.
+
+A new version then downloads in the background a few minutes into a session, and loads with `/reload-plugins` or the next time you start Claude Code. To update by hand instead: `claude plugin update makable-shorts@makable-shorts`.
+
+## Make a video
+
+Start Claude Code in your product's repo, so Claude can read its code, and ask for a video. Or:
+
+```
 /make-video "show how to share a note with a teammate"
+/make-video 3f2a9c1 7be04d2                    # what these commits changed
 /make-video acme-api@91c0e4a --tone hype --language hi
 ```
 
-**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, and who films you and who speaks (above), which are kept outside the repo, for every video after. Every video needs the product's address, and an avatar video your photo, unless you bring in clips you film yourself (`--filmer import`): the skill doesn't go on without them. A demo needs no photo, and one in your own voice needs a sample of it instead (`me --voice`). `makable-shorts me` shows what's kept, and where.
+**The first time,** it asks for your product's address (and whether it needs you signed in), the [kind of video](#kinds-of-video) you want, your photo for an avatar video, and music if you'd like some. Then it opens a file for the keys your choices need: paste them there, never into the chat. A demo narrated by Kokoro, or a silent one, needs no keys.
 
-Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and keeps itself out of git (a `.gitignore` of its own), since its recordings and clips are big.
+**Then, for each video:**
 
-The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what needs judgment, and the pipeline below does the rest:
+1. Claude works out what to show, from the commits or your description, by reading your product's code.
+2. Claude records it, driving Chrome itself.
+3. Claude writes the script from the recording, and you approve it.
+4. The pipeline films the intro and outro, speaks the narration, adds captions and music, and writes `final.mp4`.
+
+Each video is in `.makable-shorts/runs/` in your product's repo, kept out of git. It can make videos from GitHub Actions too: see [From GitHub Actions](#from-github-actions).
+
+## Kinds of video
+
+| | AI avatar video | Narrated demo | Silent demo |
+|---|---|---|---|
+| Opens on | you, as an AI avatar, saying the hook | a title card: the hook over a blurred still of the recording | the same |
+| The recording | narrated in your avatar's voice | narrated by Kokoro (free, on your machine), or in your own voice | each scene's words as captions |
+| Ends on | your avatar signing off | an end card with the sign-off | the same |
+| Needs | your photo, and keys for whoever films and speaks | nothing (Kokoro), or a sample of your voice and a key | nothing |
+| Costs | about $2 (Omni), plus the narration | nothing (Kokoro) | nothing |
+
+You choose who films your avatar and who speaks the narration: see [Who films you](#who-films-you) and [Who speaks the narration](#who-speaks-the-narration).
+
+---
+
+## How `/make-video` works
+
+The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what needs judgment, and the pipeline does the rest:
 
 1. **What to show.** Claude reads the commits, or looks up the functionality you describe in your product's code, or on the product itself. From the code, it learns the flow before recording: the page's route, the labels as the code writes them, what shows while something slow runs. It writes `changes.md`: what a user can do, where it is, and the labels on the page.
 2. **The recording.** Claude drives Chrome itself with `makable-shorts drive`, a command at a time, signed in if your product needs it, while the pipeline records the screen. It needs no model or key of its own: Claude is the model. Claude looks at the recording's steps and frames. If the recording doesn't show the change, Claude records it again.
@@ -56,15 +91,29 @@ The skill (`skills/make-video/`, `/makable-shorts:make-video` in full) does what
    - has ElevenLabs, or your own voice API, speak the narration in that voice, or Kokoro in its own, in a demo;
    - assembles `final.mp4`.
 
-With `--yes`, the skill asks nothing, for GitHub Actions. Copy `.github/workflows/make-video.yml` into your product's repo: it runs the skill there from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription and the notes committed in the repo, and uploads the video. Its header lists the secrets and variables it needs: who films you and who speaks are repository variables there, and Omni signs in to Google Cloud with `google-github-actions/auth`.
+**Your product's notes.** The first time, the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. Every video needs the product's address, and an avatar video your photo, unless you bring in clips you film yourself (`--filmer import`): the skill doesn't go on without them. A demo needs no photo, and one in your own voice needs a sample of it instead (`me --voice`). `makable-shorts me` shows what's kept, and where.
 
-To run it locally, it needs:
+Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and keeps itself out of git (a `.gitignore` of its own), since its recordings and clips are big.
 
-- **Your photo**, for an avatar video, and music if you want it: `makable-shorts me --face PHOTO [--music FILE]`, or the skill asks for them. A photo with its background removed works best with Omni, which films the setting the script describes.
-- **Who films you and who speaks:** `makable-shorts me --filmer omni|heygen|import|none --narrator elevenlabs|modal|kokoro|none`, or the skill asks ([Kinds of video](#kinds-of-video)).
-- **The keys** those need: `makable-shorts keys --open` adds their lines to `~/.config/makable-shorts/.env` and opens it for you to fill in (`.env.example` lists them all). The environment wins over the files.
+**Your choices, and your keys.** The first time, the skill asks which kind of video you want, then who films your avatar (Gemini Omni in your own Google Cloud project, HeyGen, clips you film yourself, or no one, for a demo) and who speaks the narration (ElevenLabs, your own voice API on Modal, Kokoro, or no one), and keeps your answers:
+
+| | `makable-shorts me` |
+|---|---|
+| AI avatar video | `--filmer omni\|heygen\|import --narrator elevenlabs\|modal` |
+| Narrated demo | `--filmer none --narrator kokoro\|elevenlabs\|modal` |
+| Silent demo | `--filmer none --narrator none` |
+
+Then `makable-shorts keys --open` writes the keys those need into `~/.config/makable-shorts/.env`, each with where to get it, and opens the file in your text editor: you paste the keys in there, never into the chat (`.env.example` lists them all; the environment wins over the files). Your own voice API needs none from you: `makable-shorts deploy-voice` deploys it to your Modal account and writes its address and key there itself. Your photo and music are `makable-shorts me --face PHOTO [--music FILE]`. A photo with its background removed works best with Omni, which films the setting the script describes.
 
 **Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), who films you and who speaks (`choices.json`), the sites you've signed in to (`sites/`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), and your choices, unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
+
+**Kinds, in run.json.** A demo's `intro` and `outro` are `card`, and a silent one's `narrator` is `none` (`makable-shorts new RUN --intro card --outro card --narrator none`, for one video). The cards are drawn by `assemble` (`shorts/cards.py`). The narrator says their lines too (`narration/intro.wav`, `outro.wav`), so a narrated demo's cards stay up while they're said, and a silent one's for as long as they take to read. `metadata.json`'s `containsSyntheticMedia`, for YouTube's "altered or synthetic content", is true for an avatar or a cloned voice, and false for Kokoro's voice or no voice.
+
+**The `makable-shorts` command** is `bin/makable-shorts`. The plugin puts it on Claude's PATH, not your shell's: in your own terminal, use it from a checkout of the repo (`export PATH="$PWD/bin:$PATH"` there), or ask Claude to run it. The first time it runs, it sets up its own Python environments with uv, in `~/.cache/makable-shorts/envs`, which takes a few minutes; it does again after an update changes its packages.
+
+### From GitHub Actions
+
+With `--yes`, the skill asks nothing, for GitHub Actions. Copy `.github/workflows/make-video.yml` into your product's repo: it runs the skill there from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription and the notes committed in the repo, and uploads the video. Its header lists the secrets and variables it needs: who films you and who speaks are repository variables there, and Omni signs in to Google Cloud with `google-github-actions/auth`.
 
 ## How it's built: stages that share a folder
 
@@ -258,3 +307,7 @@ The tests make small videos with ffmpeg and run the stages, the orchestrator and
 uv run --isolated --no-project --python 3.12 --with pydantic --with pillow --with pytest --with numpy --with soundfile \
   --with fastapi --with python-multipart --with httpx python -m pytest   # without the last three, the API's tests are skipped
 ```
+
+## License
+
+[MIT](LICENSE)
