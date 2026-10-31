@@ -1,7 +1,8 @@
 # Writing the script
 
-The script is `script.json`: what the avatar says at the start and the end, and what the narrator says over
-each stretch of the screen recording. You write it from three things:
+The script is `script.json`: what the avatar says at the start and the end (or the title card and the end card
+show, in a video without one), and what the narrator says over each stretch of the screen recording (or the
+captions show, in a video without a voice). You write it from three things:
 
 - **The steps:** `footage/<name>.steps.json` in the run, what browser-use did and when (seconds into the video).
 - **The frames:** `makable-shorts frames RUN <name>` makes contact sheets of what's on screen when, in
@@ -34,6 +35,32 @@ may still be loading, or show only the top of a page. Say only what's visible du
    - `outro_setting`: leave it empty, so the outro is filmed in the intro's setting.
 
 Also write a YouTube `title` (under 70 characters) and a `description` of 2 or 3 sentences.
+
+## A product demo, with no avatar
+
+When `run.json`'s `intro` and `outro` are `card`, there's no avatar. The video opens on a **title card** and ends on
+an **end card**: the line in big letters over a blurred still of the recording, where the first scene starts and
+where the last one ends.
+
+- `intro_line`: the hook, **12 words at most**, read at a glance: "A whole clothing store website from one sentence."
+  The narrator says it over the card, and the card stays up while it does. With no voice, the card stays up for as
+  long as it takes to read.
+- `outro_line`: the sign-off, 12 words at most: "Try Acme Notes free at acme.com."
+- `intro_setting` and `outro_setting`: `""`, since nothing is filmed.
+
+Write the scenes as above. The narrator is Kokoro, or the user's own voice from a sample (`narrator`): either way,
+not an avatar, so don't say "I" as if someone were on camera unless it's the user's own voice.
+
+## A silent demo, with no voice
+
+When `run.json`'s `narrator` is `none`, nothing is heard but music. The cards are as above, and each scene's `text`
+is a caption, shown whole for as long as its stretch is on screen:
+
+- **Write it to be read, not said:** a short phrase, 3 to 8 words, that says what's happening or why it matters:
+  "Describe your store in one line", "It writes every file to your GitHub". No "I", no "now", no "just".
+- **The stretch plays at its own speed,** so pick it for what it shows, not for how long the text is. It's slowed
+  down only if its words take longer to read (2.5 words a second): `check-script` shows each one's speed.
+- **About 50 s of scenes** in all, as for a narrated video.
 
 ## Reading the steps
 

@@ -43,6 +43,10 @@ class Stage:
         """The products it reads, with these settings."""
         return self.needs
 
+    def extra_for(self, settings: Settings) -> str:
+        """Its packages' extra, with these settings: speak's is Kokoro's, for a run Kokoro narrates."""
+        return self.extra
+
     def packages(self, settings: Settings) -> list[str]:
         """The modules it imports, to check whether a Python can run it."""
         return []

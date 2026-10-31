@@ -1,7 +1,8 @@
 """The command line: set a video up, see where it is, and make it, a stage at a time or all that's left.
 
     python -m shorts me [--face PHOTO] [--music FILE] [--voice FILE]   your own files, kept for every video
-                [--filmer omni|heygen|import] [--filmer-voice ID] [--narrator elevenlabs|modal]   and your choices
+                [--filmer omni|heygen|import|none] [--filmer-voice ID]   and your choices: who films you (none: no
+                [--narrator elevenlabs|modal|kokoro|none] [--kokoro-voice VOICE]   avatar), and who speaks (none: no voice)
                                                (in SHORTS_HOME, ~/.config/makable-shorts: see shorts/home.py),
                                                the products' notes, where run folders go, and the keys you need
     python -m shorts keys [--open]             a line in SHORTS_HOME's .env for each key your choices need, for
@@ -26,7 +27,8 @@ Keys and settings come from the environment, or from a .env file (KEY=value line
 set: the one in SHORTS_HOME, or one next to shorts/. Which keys depends on who films you and who speaks the narration
 (`shorts.keys`): GOOGLE_CLOUD_PROJECT for Omni, signed in with `gcloud auth application-default login` (or, in
 GitHub Actions, google-github-actions/auth), HEYGEN_API_KEY for HeyGen, and ELEVENLABS_API_KEY, or SHORTS_SPEECH_URL
-and SHORTS_SPEECH_KEY for your own voice API (see .env.example).
+and SHORTS_SPEECH_KEY for your own voice API (see .env.example). A video without an avatar, narrated by Kokoro or
+with no voice, needs none.
 """
 
 import argparse
@@ -42,12 +44,13 @@ from . import COMMAND
 from .filmers import FILMERS, heygen_voices
 from .home import MINE, choose, chosen, home, keep, mine, products, runs, signed_in_sites, site
 from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
-from .orchestrator import PACKAGE_ROOT, advice, run_all, run_stage, status
+from .orchestrator import PACKAGE_ROOT, advice, elsewhere, run_all, run_stage, shorts_in, status
 from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import LANGUAGES, TONES, Script, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
+from .voice import KOKORO_VOICES
 
 WINDOW = "the browser's window, WIDTHxHEIGHT: 720x1280 gets a site's phone layout, 1280x800 its desktop one"
 
@@ -93,12 +96,19 @@ def new(run: Run, args: argparse.Namespace) -> None:
     for item in args.footage_items or []:
         name, _, source = item.partition("=")
         settings.footage[name] = run.relative(Path(source))
-    if args.narrator_option:
-        updates["narrator_options"] = {**settings.narrator_options, **dict(args.narrator_option)}
+    another = updates.get("narrator", settings.narrator) != settings.narrator
+    if another and "narrator_model" not in updates:
+        updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
+    if another or args.narrator_option:  # another narrator's options are its own: Kokoro takes none of an API's
+        updates["narrator_options"] = {
+            **({} if another else settings.narrator_options),
+            **dict(args.narrator_option or []),
+        }
     if args.respellings:
         updates["pronounce"] = {**(settings.pronounce or {}), **dict(args.respellings)}
-    if updates.get("narrator", settings.narrator) != settings.narrator and "narrator_model" not in updates:
-        updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
+    changed = settings.model_copy(update=updates)
+    if changed.intro == "card" and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
+        updates["narration_voice"] = "sample"  # no avatar to take a voice from: an API speaks in yours
     run.save_settings(settings.model_copy(update=updates))
     print(run.path(SETTINGS).read_text())
 
@@ -108,8 +118,14 @@ FILMED_BY = {
     "omni": "Gemini Omni, in your Google Cloud project (about $1 a clip)",
     "heygen": "HeyGen, from your HeyGen API balance",
     "import": "clips you film elsewhere and bring in",
+    "none": "no one: no avatar, the video opens on a title card",
 }
-NARRATED_BY = {"elevenlabs": "ElevenLabs", "modal": "your own voice API, on Modal"}
+NARRATED_BY = {
+    "elevenlabs": "ElevenLabs",
+    "modal": "your own voice API, on Modal",
+    "kokoro": "Kokoro, on this machine, for nothing",
+    "none": "no one: no voice, the captions say it",
+}
 CHOOSE = f"{COMMAND} me --filmer {'|'.join(FILMED_BY)} --narrator {'|'.join(NARRATED_BY)}"
 UNASKED = ("SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY")  # the keys deploy-voice sets, not you
 
@@ -126,7 +142,12 @@ def show_me(args: argparse.Namespace) -> None:
                 keep(kind, Path(file) if file else None)
         except ValueError as problem:
             sys.exit(f"me: {problem}")
-    given = {"filmer": args.filmer, "filmer_voice": args.filmer_voice, "narrator": args.narrator}
+    given = {
+        "filmer": args.filmer,
+        "filmer_voice": args.filmer_voice,
+        "narrator": args.narrator,
+        "kokoro_voice": args.kokoro_voice,
+    }
     choices = choose(**given) if any(value is not None for value in given.values()) else chosen()
     kept = mine()
     print(home())
@@ -140,6 +161,11 @@ def show_me(args: argparse.Namespace) -> None:
             f", in its voice {voice}" if voice else f": pick its voice ({COMMAND} voices, then me --filmer-voice ID)"
         )
     narrated = NARRATED_BY[narrator] if narrator else f"(not chosen: {COMMAND} me --narrator {'|'.join(NARRATED_BY)})"
+    if narrator == "kokoro":
+        voice = choices.get("kokoro_voice")
+        narrated += f", in its voice {voice}" if voice else ", in its own voice for the video's language"
+    elif narrator in ("elevenlabs", "modal"):
+        narrated += ", in your voice sample's" if filmer == "none" else ", in your avatar's voice"
     print(f"  {'filmer':10} {filmed}")
     print(f"  {'narrator':10} {narrated}")
     notes = products() or {"(none)": ""}  # each product's notes, with where they are: in SHORTS_HOME or the project
@@ -213,13 +239,18 @@ def show_check(run: Run, file: Path | None) -> bool:
     """Prints what each scene says over which stretch, and how fast it'll play, then what's wrong with the
     script (run.json's, or `file`). Returns whether the video can be made from it."""
     script = Script.model_validate_json((file or run.path(SCRIPT)).read_text())
-    print(f"Intro, {words(script.intro_line)} words: {script.intro_line}")
+    settings = run.settings()
+    intro, outro = (
+        ("Title card" if settings.intro == "card" else "Intro"),
+        ("End card" if settings.outro == "card" else "Outro"),
+    )
+    print(f"{intro}, {words(script.intro_line)} words: {script.intro_line}")
     for number, scene in enumerate(script.scenes, 1):
-        rate = speed(scene)
+        rate = speed(scene, silent=settings.narrator == "none")
         where = f"{scene.start:5.1f}-{scene.end:5.1f} s at {rate:.1f}x" if rate is not None else "(no stretch)"
         print(f"Scene {number}: {scene.footage} {where}, {words(scene.text)} words: {scene.text}")
     if script.outro_line:
-        print(f"Outro, {words(script.outro_line)} words: {script.outro_line}")
+        print(f"{outro}, {words(script.outro_line)} words: {script.outro_line}")
     errors, warnings = check_script(run, script)
     for warning in warnings:
         print(f"Warning: {warning}")
@@ -322,11 +353,14 @@ def main() -> None:
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
     setup.add_argument("--language", choices=LANGUAGES)
     setup.add_argument("--tone", choices=TONES)
-    setup.add_argument("--intro", choices=[*FILMERS, "import"], help="who films the intro (shorts/filmers.py)")
-    setup.add_argument("--outro", choices=[*FILMERS, "import", "none"], help="who films the outro, or none")
+    setup.add_argument("--intro", choices=[*FILMERS, "import", "card"], help="who films the intro, or a title card")
+    setup.add_argument(
+        "--outro", choices=[*FILMERS, "import", "card", "none"], help="who films the outro, a card, or none"
+    )
     setup.add_argument("--filmer-voice", help=f"the filmer's voice, for HeyGen: a voice_id ({COMMAND} voices)")
-    setup.add_argument("--narrator", choices=[*NARRATOR_MODELS, "import"], help="who speaks the narration")
+    setup.add_argument("--narrator", choices=[*NARRATOR_MODELS, "kokoro", "import", "none"], help="who speaks, or none")
     setup.add_argument("--narration-voice", choices=["intro", "sample"], help="the intro's voice, or --voice's")
+    setup.add_argument("--kokoro-voice", help=f"Kokoro's voice: {', '.join(KOKORO_VOICES.values())}, am_michael, ...")
     models = ", ".join(f"{model!r} on {narrator}" for narrator, model in NARRATOR_MODELS.items())
     setup.add_argument("--narrator-model", help=f"the voice API's model, if not its own ({models})")
     setup.add_argument("--narrator-option", type=option, action="append", metavar="KEY=VALUE")
@@ -344,7 +378,8 @@ def main() -> None:
         me.add_argument(f"--{kind}", metavar="FILE", help=f'{what} ("" to forget it)')
     me.add_argument("--filmer", choices=FILMED_BY, help="who films your intro and outro, from your photo")
     me.add_argument("--filmer-voice", metavar="ID", help=f"HeyGen's voice to film you in ({COMMAND} voices)")
-    me.add_argument("--narrator", choices=NARRATED_BY, help="who speaks the narration, in your avatar's voice")
+    me.add_argument("--narrator", choices=NARRATED_BY, help="who speaks the narration, or none")
+    me.add_argument("--kokoro-voice", metavar="VOICE", help='Kokoro\'s voice, such as am_michael ("" for its own)')
 
     keyed = commands.add_parser("keys", help="add the keys your choices need to your .env, for you to fill in")
     keyed.add_argument("--open", action="store_true", help="open it in your text editor, if there's a key to fill in")
@@ -487,6 +522,8 @@ def main() -> None:
             show_frames(run, args.name, args.at, args.every, args.width)
         elif args.command == "drive":
             drive(run, args)
+        elif python := elsewhere(run, args.command):  # in the Python with its packages
+            sys.exit(shorts_in(python, *sys.argv[1:]))
         else:
             run_stage(run, args.command, force=args.force)
     except (NotReady, ValueError, FileNotFoundError) as problem:

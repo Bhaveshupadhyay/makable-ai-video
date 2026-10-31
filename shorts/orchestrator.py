@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import COMMAND
-from .run import FINAL, PRODUCTS, Run
+from .run import FINAL, PRODUCTS, Run, Settings
 from .stages import STAGES, Import, NotReady, Stage, execute, producer, states
 from .stages.base import MISSING, TO_MAKE
 
@@ -91,9 +91,10 @@ def advice(run: Run, entry: Status) -> str:
     return f"{command} ({entry.stage.cost}; or run --paid)" if entry.stage.cost else command
 
 
-def python_for(stage: Stage) -> str:
+def python_for(stage: Stage, settings: Settings) -> str:
     """The Python that runs a stage: SHORTS_<EXTRA>_PYTHON if it's set, or this one."""
-    return (stage.extra and os.environ.get(f"SHORTS_{stage.extra.upper()}_PYTHON", "")) or sys.executable
+    extra = stage.extra_for(settings)
+    return (extra and os.environ.get(f"SHORTS_{extra.upper()}_PYTHON", "")) or sys.executable
 
 
 def missing_packages(python: str, packages: list[str]) -> list[str]:
@@ -124,19 +125,34 @@ def run_all(run: Run, *, paid: bool = False) -> bool:
         if stage.name in tried:
             print(f"{stage.name} ran, but the {entry.product} is still {entry.summary()}")
             return False
-        python = python_for(stage)
+        python = python_for(stage, run.settings())
         missing = missing_packages(python, stage.packages(run.settings()))
         if missing:
             print(f"The {entry.product}: {entry.summary()}. Next: {advice(run, entry)}")
             print(f"  It needs {', '.join(missing)}, which {python} doesn't have: {stage.where}")
             return False
         print(f"== {stage.name}: the {entry.product}, {entry.summary()}", flush=True)
-        paths = [str(PACKAGE_ROOT), *filter(None, [os.environ.get("PYTHONPATH")])]
-        environment = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
-        if subprocess.run([python, "-m", "shorts", stage.name, str(run.folder)], env=environment).returncode:
+        if shorts_in(python, stage.name, str(run.folder)):
             print(f"{stage.name} failed")
             return False
         tried.add(stage.name)
+
+
+def shorts_in(python: str, *args: str) -> int:
+    """Runs `python -m shorts ARGS` in another Python, with this package on its path. Returns its exit code."""
+    paths = [str(PACKAGE_ROOT), *filter(None, [os.environ.get("PYTHONPATH")])]
+    environment = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
+    return subprocess.run([python, "-m", "shorts", *args], env=environment).returncode
+
+
+def elsewhere(run: Run, name: str) -> str | None:
+    """The Python to run a stage in, when it's not this one: SHORTS_<EXTRA>_PYTHON's, if this one hasn't the
+    stage's packages (speak, for a run Kokoro narrates). None: here."""
+    stage, settings = STAGES[name], run.settings()
+    python = python_for(stage, settings)
+    if python == sys.executable or not missing_packages(sys.executable, stage.packages(settings)):
+        return None
+    return python
 
 
 def run_stage(run: Run, name: str, *, force: bool = False) -> list[str]:
@@ -146,6 +162,9 @@ def run_stage(run: Run, name: str, *, force: bool = False) -> list[str]:
         print(f"The {stage.product} is yours, brought in (run.json says so): {name} leaves it as it is")
         return []
     entries = {entry.product: entry for entry in status(run)}
+    if not entries[stage.product].needed:  # a card in place of a clip, say
+        print(f"The video isn't made from the {stage.product}, with run.json's settings: {name} has nothing to make")
+        return []
     for need in stage.requires(run.settings()):
         entry = entries[need]
         if (entry.waiting and not entry.files) or MISSING in entry.files.values():

@@ -14,6 +14,13 @@ gemini = ["google-genai>=2.33"]                            # film-intro, film-ou
 heygen = ["httpx"]                                         # film-intro, film-outro with HeyGen
 assemble = ["pillow"]                                      # assemble: the captions
 speech = ["httpx"]                                         # speak (ElevenLabs, or your voice API on Modal), deploy-voice
+# speak with Kokoro, on this machine: in an environment of its own (torch). Its English needs spaCy's small model,
+# which isn't on PyPI.
+kokoro = [
+    "kokoro>=0.9.4",
+    "soundfile",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+]
 dev = ["pytest", "ruff", "fastapi", "python-multipart", "httpx"]  # and services/voice's API, for its tests
 
 [project.scripts]

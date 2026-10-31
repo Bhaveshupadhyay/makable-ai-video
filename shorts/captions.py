@@ -64,17 +64,23 @@ def load_font(cache: Path, size: int = 88) -> ImageFont.FreeTypeFont:
     return font
 
 
+def wrap(pen: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
+    """`text` in lines no wider than `width`, but for a word that's wider by itself."""
+    lines: list[str] = []
+    for word in text.split():
+        if lines and pen.textlength(f"{lines[-1]} {word}", font=font) <= width:
+            lines[-1] = f"{lines[-1]} {word}"
+        else:
+            lines.append(word)
+    return lines
+
+
 def draw(text: str, font: ImageFont.FreeTypeFont, size: tuple[int, int] = SIZE) -> Image.Image:
     """One caption: white with a black outline, wrapped to the frame, on a transparent frame."""
     width, height = size
     image = Image.new("RGBA", size)
     pen = ImageDraw.Draw(image)
-    lines: list[str] = []
-    for word in text.split():
-        if lines and pen.textlength(f"{lines[-1]} {word}", font=font) <= width - 160:
-            lines[-1] = f"{lines[-1]} {word}"
-        else:
-            lines.append(word)
+    lines = wrap(pen, text, font, width - 160)
     pen.multiline_text(
         (width / 2, height * CENTER_Y),
         "\n".join(lines),

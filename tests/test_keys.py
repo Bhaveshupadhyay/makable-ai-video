@@ -37,6 +37,7 @@ def test_each_choice_needs_its_own_keys() -> None:
         "SHORTS_SPEECH_KEY",
     ]
     assert needed({"filmer": "import", "narrator": "elevenlabs"}) == ["ELEVENLABS_API_KEY"]
+    assert needed({"filmer": "none", "narrator": "kokoro"}) == needed({"filmer": "none", "narrator": "none"}) == []
     assert needed({}) == []
 
 

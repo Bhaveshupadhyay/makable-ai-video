@@ -4,7 +4,8 @@
     python -m shorts import RUN script drafts/script.json                 the script Claude wrote
     python -m shorts import RUN intro gemini_generated_video.mp4          a clip filmed elsewhere (the Gemini app,
     python -m shorts import RUN outro https://.../outro.mp4               HeyGen, Higgsfield): a file, or a link to one
-    python -m shorts import RUN narration download*.wav                   one audio file per scene
+    python -m shorts import RUN narration download*.wav                   one audio file per scene (and per card,
+                                                                          first and last, in a video with cards)
 
 The script is always brought in. Bringing in another product sets run.json so that it's yours from then on
 (`narrator: "import"`, say), and the pipeline asks for it again instead of making it. Imported narration is out of date when its scene's text
@@ -32,6 +33,7 @@ from urllib.parse import urlsplit
 from .. import COMMAND
 from ..media import duration, ffmpeg
 from ..run import (
+    CARD_NARRATION,
     FILMED_INTRO,
     FILMED_OUTRO,
     SCRIPT,
@@ -39,7 +41,7 @@ from ..run import (
     Settings,
     fingerprint,
     footage_file,
-    narration_file,
+    narrated,
     steps_file,
     writing,
 )
@@ -88,10 +90,7 @@ class Import(Stage):
 
     def plan(self, run: Run) -> dict[str, str]:
         if self.product == "narration":
-            return {
-                narration_file(index): fingerprint("import", scene.text)
-                for index, scene in enumerate(read_script(run).scenes)
-            }
+            return {path: fingerprint("import", text) for path, text in narrated(read_script(run), run.settings())}
         return {SINGLE[self.product]: fingerprint("import")}
 
     def make(self, run: Run, paths: list[str]) -> None:
@@ -130,7 +129,10 @@ def footage_lengths(run: Run) -> tuple[dict[str, float | None], set[str]]:
 
 def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     """`script.check` against the run's footage: errors (the video can't be made from it) and warnings."""
-    return check(script, *footage_lengths(run), outro=run.settings().outro != "none")
+    settings = run.settings()
+    cards = [part for part in ("intro", "outro") if getattr(settings, part) == "card"]
+    silent = settings.narrator == "none"
+    return check(script, *footage_lengths(run), outro=settings.outro != "none", cards=cards, silent=silent)
 
 
 def fetched(run: Run, file: str | Path) -> Path:
@@ -170,11 +172,17 @@ def bring_in(
         return
     if product == "narration":
         files = without_copies(files if as_given else in_order(files))
-        scenes = read_script(run).scenes
-        if len(files) != len(scenes):
-            raise ValueError(f"The script has {len(scenes)} scenes, but there are {len(files)} audio files")
-        for index, (scene, file) in enumerate(zip(scenes, files, strict=True), 1):
-            print(f"Scene {index}: {file.name}: {scene.text}")
+        script = read_script(run)
+        lines = narrated(script, settings)
+        if len(files) != len(lines):
+            spoken = {path for path, _ in lines}
+            has = [f"{len(script.scenes)} scenes"]
+            has[:0] = ["a title card"] if CARD_NARRATION["intro"] in spoken else []
+            has += ["an end card"] if CARD_NARRATION["outro"] in spoken else []
+            said = f"{', '.join(has[:-1])} and {has[-1]}" if len(has) > 1 else has[0]
+            raise ValueError(f"The script has {said}, but there are {len(files)} audio files")
+        for (path, text), file in zip(lines, files, strict=True):
+            print(f"{path}: {file.name}: {text}")
     elif len(files) != 1:
         raise ValueError(f"Bring in one file as the {product}")
     if product == "script":  # checked before it replaces the one there
