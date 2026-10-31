@@ -31,10 +31,11 @@ def voices(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def tone(monkeypatch: pytest.MonkeyPatch, voices: Path) -> Tone:
-    """The API, with a stand-in model for each narrator's, as the environment's: `tone.narrators` are those asked
-    for."""
+    """The API, with a stand-in for each narrator's model (ElevenLabs' is `tone.eleven`), as the environment's:
+    `tone.narrators` are those asked for."""
     tone = Tone()
-    speakers = {"omnivoice": tone, "eleven_multilingual_v2": tone}
+    tone.eleven = Tone()
+    speakers = {"omnivoice": tone, "eleven_multilingual_v2": tone.eleven}
     server = TestClient(create_app(FolderVoices(voices), speakers, key=KEY), base_url="http://voice")
 
     def from_environment(cls, narrator: str = "modal") -> SpeechAPI:
@@ -76,7 +77,7 @@ def test_the_narration_is_spoken_in_the_avatars_voice(avatar_run: Run, tone: Ton
     assert duration(run.path(narration_file(0))) == pytest.approx(0.4, abs=0.06)
     assert duration(run.path(narration_file(1))) == pytest.approx(0.8, abs=0.06)
     assert [asked[3:] for asked in tone.asked] == [("en", {"speed": 1.1})] * 2
-    assert tone.narrators == ["modal"]
+    assert tone.narrators == ["modal"] and tone.eleven.asked == []
     assert list(voices.iterdir()) == []  # the voice is deleted once the scenes are spoken
 
     # Editing a scene's text speaks only it again.
@@ -126,6 +127,7 @@ def test_elevenlabs_speaks_with_its_own_model(avatar_run: Run, tone: Tone) -> No
     run_stage(avatar_run, "take-voice")
     assert run_stage(avatar_run, "speak") == [narration_file(0), narration_file(1)]
     assert tone.narrators == ["elevenlabs"]
+    assert (len(tone.eleven.asked), tone.asked) == (2, [])  # each scene, by ElevenLabs' model
     assert avatar_run.record("narration").files[narration_file(0)].by == "speak (eleven_multilingual_v2)"
 
 

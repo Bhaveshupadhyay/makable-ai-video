@@ -43,8 +43,9 @@ class Filmer:
 
 
 def omni_client() -> Any:
-    """Gemini's client, on Agent Platform in your Google Cloud project: GOOGLE_CLOUD_PROJECT, and
-    GOOGLE_CLOUD_LOCATION ("global" unless that's set)."""
+    """Gemini's client, on Agent Platform in your Google Cloud project (GOOGLE_CLOUD_PROJECT), at "global": where
+    Omni is, whatever region GOOGLE_CLOUD_LOCATION names for other things. `vertexai` is the flag every version of
+    google-genai takes (newer ones call it `enterprise` too)."""
     from google import genai
 
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
@@ -53,7 +54,7 @@ def omni_client() -> Any:
             "Set GOOGLE_CLOUD_PROJECT: the ID of the Google Cloud project Omni films in (with billing, and the "
             f"Vertex AI API on), in .env or the environment ({COMMAND} keys --open adds its line)"
         )
-    return genai.Client(enterprise=True, project=project, location=os.environ.get("GOOGLE_CLOUD_LOCATION") or "global")
+    return genai.Client(vertexai=True, project=project, location="global")
 
 
 def _omni_film(line: str, setting: str, face: Path, out: Path, settings: Settings) -> Path:

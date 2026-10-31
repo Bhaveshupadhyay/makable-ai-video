@@ -28,7 +28,7 @@ The usual way to make one. Run Claude Code in your product's own repo, so Claude
 /make-video acme-api@91c0e4a --tone hype --language hi
 ```
 
-**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, and who films you and who speaks (above), which are kept outside the repo, for every video after. Every video needs the product's address and your photo: the skill doesn't go on without them. `makable-shorts me` shows what's kept, and where.
+**The first time,** the skill asks about your product and keeps notes on it (`references/product.md`): its address, whether recordings need you signed in, where its code is (for videos from commits), and what the outro asks viewers to do. In the product's repo, they're kept in it, `.makable-shorts/products/<name>.md`, for you to commit, so your teammates and the GitHub workflow use them too. It asks for your photo too, and music if you want some, and who films you and who speaks (above), which are kept outside the repo, for every video after. Every video needs the product's address, and your photo unless you bring in clips you film yourself (`--filmer import`): the skill doesn't go on without them. `makable-shorts me` shows what's kept, and where.
 
 Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and keeps itself out of git (a `.gitignore` of its own), since its recordings and clips are big.
 
@@ -212,7 +212,7 @@ gcloud auth application-default login       # GitHub Actions uses google-github-
 gcloud services enable aiplatform.googleapis.com --project <project>
 ```
 
-and `GOOGLE_CLOUD_PROJECT=<project>` in the `.env` (`GOOGLE_CLOUD_LOCATION` is `global` unless it's set). Without Claude Code, a video is made like this, in a checkout of the repo:
+and `GOOGLE_CLOUD_PROJECT=<project>` in the `.env` (Omni is at the `global` location, whatever `GOOGLE_CLOUD_LOCATION` says). Without Claude Code, a video is made like this, in a checkout of the repo:
 
 ```sh
 export PATH="$PWD/bin:$PATH"     # makable-shorts, in this shell: the plugin puts it only on Claude's PATH

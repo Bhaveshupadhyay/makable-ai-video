@@ -109,12 +109,12 @@ def test_omni_films_in_your_google_cloud_project(tmp_path: Path, monkeypatch: py
     made: dict = {}
     monkeypatch.setattr(genai, "Client", lambda **options: made.update(options) or "a client")
     monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
-    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")  # a region, for other things: Omni is at global
     with pytest.raises(ValueError, match="Set GOOGLE_CLOUD_PROJECT"):
         omni_client()
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
     assert omni_client() == "a client"
-    assert made == {"enterprise": True, "project": "my-project", "location": "global"}
+    assert made == {"vertexai": True, "project": "my-project", "location": "global"}
 
     def unsigned(client, prompt, face, out):  # the client signs in when it first asks for something
         raise DefaultCredentialsError("Your default credentials were not found")

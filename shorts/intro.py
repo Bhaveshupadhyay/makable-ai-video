@@ -39,7 +39,7 @@ def film(client: Any, prompt: str, face: Path, out: Path, *, model: str = VIDEO_
 
     Args:
         client: A `google.genai.Client` on Agent Platform, in a project with billing (Omni has no free tier):
-            `genai.Client(enterprise=True, project=..., location="global")` (`filmers.omni_client`).
+            `genai.Client(vertexai=True, project=..., location="global")` (`filmers.omni_client`).
         prompt: What to film: `intro_prompt(script)` or `outro_prompt(script)`.
         face: A photo of you, face clearly visible.
         out: Where to save the MP4.

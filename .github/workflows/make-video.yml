@@ -84,14 +84,31 @@ jobs:
         with:
           fetch-depth: 0  # every commit, for videos about older ones
 
-      - name: Google Cloud's sign-in, for Omni
-        if: vars.SHORTS_FILMER == '' || vars.SHORTS_FILMER == 'omni'
-        uses: google-github-actions/auth@v2  # sets GOOGLE_APPLICATION_CREDENTIALS and GOOGLE_CLOUD_PROJECT
+      # Google Cloud's sign-in, for Omni, one way or the other: given both, the action fails. Each sets
+      # GOOGLE_APPLICATION_CREDENTIALS and GOOGLE_CLOUD_PROJECT for the steps after it.
+      - name: Google Cloud's sign-in, with Workload Identity Federation
+        if: (vars.SHORTS_FILMER == '' || vars.SHORTS_FILMER == 'omni') && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v2
         with:
           project_id: ${{ vars.GOOGLE_CLOUD_PROJECT }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Google Cloud's sign-in, with a service account's key
+        if: (vars.SHORTS_FILMER == '' || vars.SHORTS_FILMER == 'omni') && vars.GCP_WORKLOAD_IDENTITY_PROVIDER == ''
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GOOGLE_CLOUD_PROJECT }}
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+      - name: Keep the sign-in out of the checkout, where Claude reads the product's code
+        if: env.GOOGLE_APPLICATION_CREDENTIALS != ''
+        run: |
+          moved="$RUNNER_TEMP/$(basename "$GOOGLE_APPLICATION_CREDENTIALS")"
+          mv "$GOOGLE_APPLICATION_CREDENTIALS" "$moved"
+          for name in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do
+            echo "$name=$moved" >> "$GITHUB_ENV"
+          done
 
       - uses: astral-sh/setup-uv@v10
 

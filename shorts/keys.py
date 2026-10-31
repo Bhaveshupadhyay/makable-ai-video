@@ -13,6 +13,7 @@ The commands take the keys from the environment, or from this file for what the 
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from . import COMMAND
@@ -72,18 +73,22 @@ def load(file: Path) -> None:
 
 
 def _write(file: Path, text: str) -> None:
-    """Writes the .env all at once, so a failed write loses nothing, readable by you alone."""
+    """Writes the .env all at once, so a failed write loses nothing, readable by you alone. Each write goes through
+    a file of its own (mkstemp's, made readable by you alone), so two at once never clash."""
     file.parent.mkdir(parents=True, exist_ok=True)
-    part = file.with_name(f".{file.name}.part")
-    part.unlink(missing_ok=True)
-    with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as out:
-        out.write(text)
-    part.replace(file)
+    handle, part = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}.", suffix=".part")
+    try:
+        with os.fdopen(handle, "w") as out:
+            out.write(text)
+        os.replace(part, file)
+    finally:
+        Path(part).unlink(missing_ok=True)
 
 
 def add(keys: list[str], file: Path) -> list[str]:
     """Adds a line to the .env for each of `keys` that neither it nor the environment has, with what the key is for
-    above it, making the file if it isn't there. Returns the keys that are still empty."""
+    above it, making the file if it isn't there, and makes it readable by you alone. Returns the keys that are still
+    empty."""
     there = read(file)
     lines = [
         line
@@ -94,6 +99,8 @@ def add(keys: list[str], file: Path) -> list[str]:
     if lines or not file.exists():
         text = file.read_text().rstrip("\n") if file.exists() else HEADER
         _write(file, "\n".join([text, *lines]) + "\n")
+    else:  # one you made yourself, from .env.example, say
+        file.chmod(0o600)
     there = read(file)
     return [key for key in keys if not (os.environ.get(key) or there.get(key))]
 

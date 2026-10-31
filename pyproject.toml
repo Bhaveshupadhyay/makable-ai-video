@@ -10,7 +10,7 @@ dependencies = ["pydantic>=2"]
 
 [project.optional-dependencies]
 browse = ["browser-use==0.13.11", "pillow"]                # drive and signin's Chrome: in an environment of its own
-gemini = ["google-genai"]                                  # film-intro, film-outro (Gemini Omni, on Google Cloud)
+gemini = ["google-genai>=2.33"]                            # film-intro, film-outro (Gemini Omni, on Google Cloud)
 heygen = ["httpx"]                                         # film-intro, film-outro with HeyGen
 assemble = ["pillow"]                                      # assemble: the captions
 speech = ["httpx"]                                         # speak (ElevenLabs, or your voice API on Modal), deploy-voice

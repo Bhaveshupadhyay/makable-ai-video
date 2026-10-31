@@ -58,6 +58,14 @@ def test_each_key_gets_a_line_in_a_file_only_you_can_read(tmp_path: Path, monkey
     assert add(["HEYGEN_API_KEY"], env) == [] and "HEYGEN_API_KEY" not in env.read_text()
 
 
+def test_a_env_you_made_yourself_is_made_readable_by_you_alone(tmp_path: Path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("ELEVENLABS_API_KEY=sk-1\n")  # copied from .env.example and filled in: nothing to add
+    env.chmod(0o644)
+    assert add(["ELEVENLABS_API_KEY"], env) == []
+    assert stat.S_IMODE(env.stat().st_mode) == 0o600 and env.read_text() == "ELEVENLABS_API_KEY=sk-1\n"
+
+
 def test_setting_keys_changes_their_lines_and_keeps_the_rest(tmp_path: Path) -> None:
     env = tmp_path / ".env"
     env.write_text("# mine\nSHORTS_SPEECH_URL=\nOTHER=1\nexport SHORTS_SPEECH_URL=old\n")
@@ -88,7 +96,7 @@ class Modal:
         self.secret = ""
         self.fails = fails  # the command that fails
 
-    def __call__(self, *args: str, keep: bool = True) -> subprocess.CompletedProcess:
+    def __call__(self, *args: str, keep: bool = True, timeout: float | None = None) -> subprocess.CompletedProcess:
         self.asked.append(args)
         if args[:2] == ("secret", "create"):
             self.secret = Path(args[args.index("--from-dotenv") + 1]).read_text()
@@ -124,12 +132,14 @@ def test_deploy_voice_keeps_the_address_and_its_key_in_the_env(
     monkeypatch.setenv("SHORTS_SPEECH_KEY", kept["SHORTS_SPEECH_KEY"])
     deploy.deploy_voice(env)
     assert read(env)["SHORTS_SPEECH_KEY"] == kept["SHORTS_SPEECH_KEY"]
+    assert kept["SHORTS_SPEECH_KEY"] not in capsys.readouterr().out
 
     # A key that isn't a voice API on Modal's (ElevenLabs', as SHORTS_SPEECH_URL once took it) isn't sent to Modal.
     monkeypatch.setenv("SHORTS_SPEECH_URL", "https://api.elevenlabs.io")
     monkeypatch.setenv("SHORTS_SPEECH_KEY", "sk-elevenlabs")
     deploy.deploy_voice(env)
     assert "sk-elevenlabs" not in modal.secret and read(env)["SHORTS_SPEECH_KEY"] != "sk-elevenlabs"
+    assert read(env)["SHORTS_SPEECH_KEY"] not in capsys.readouterr().out
 
 
 def test_deploy_voice_signs_in_to_modal_first_and_says_what_went_wrong(
@@ -137,8 +147,25 @@ def test_deploy_voice_signs_in_to_modal_first_and_says_what_went_wrong(
 ) -> None:
     monkeypatch.setattr(deploy, "signed_in", lambda: False)
     modal.fails = "deploy"
+    env = tmp_path / ".env"
     with pytest.raises(RuntimeError, match="Modal failed deploying the voice API") as failed:
-        deploy.deploy_voice(tmp_path / ".env")
+        deploy.deploy_voice(env)
     assert modal.asked[0] == ("setup",)
-    assert modal.secret.partition("=")[2].strip() not in str(failed.value)  # what Modal said, without the key
-    assert not (tmp_path / ".env").exists()
+    key = modal.secret.partition("=")[2].strip()
+    assert key not in str(failed.value)  # what Modal said, without the key
+
+    # The .env has the key Modal has, from before Modal had it: running it again finishes with the same key.
+    assert read(env) == {"SHORTS_SPEECH_KEY": key}
+    monkeypatch.setenv("SHORTS_SPEECH_KEY", key)  # as the command loads the .env
+    modal.fails = ""
+    deploy.deploy_voice(env)
+    assert read(env) == {"SHORTS_SPEECH_KEY": key, "SHORTS_SPEECH_URL": ADDRESS}
+
+
+def test_a_modal_command_that_stalls_is_given_up_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    def stalls(command: list[str], **options) -> None:
+        raise subprocess.TimeoutExpired(command, options["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", stalls)
+    with pytest.raises(RuntimeError, match="`modal deploy` hadn't finished after 30 minutes"):
+        deploy.modal("deploy", "-m", "services.voice.app", timeout=deploy.DEPLOY_WAIT)

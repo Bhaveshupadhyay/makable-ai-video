@@ -97,6 +97,8 @@ def new(run: Run, args: argparse.Namespace) -> None:
         updates["narrator_options"] = {**settings.narrator_options, **dict(args.narrator_option)}
     if args.respellings:
         updates["pronounce"] = {**(settings.pronounce or {}), **dict(args.respellings)}
+    if updates.get("narrator", settings.narrator) != settings.narrator and "narrator_model" not in updates:
+        updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
     run.save_settings(settings.model_copy(update=updates))
     print(run.path(SETTINGS).read_text())
 

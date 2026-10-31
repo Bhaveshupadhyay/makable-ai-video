@@ -14,7 +14,7 @@ from shorts import browse as recorder
 from shorts.__main__ import new
 from shorts.home import chosen, home, keep, mine, products, project, runs, signed_in_sites, site, site_profile
 from shorts.orchestrator import PACKAGE_ROOT
-from shorts.run import Run
+from shorts.run import Run, Settings
 from shorts.signin import forget, recording_profile
 
 
@@ -140,9 +140,14 @@ def test_me_keeps_and_shows_your_files(tmp_path: Path, kept: Path) -> None:
     assert "has no extension" in refused.value.stderr
 
 
-def test_me_keeps_who_films_you_and_who_speaks_and_says_the_keys_they_need(tmp_path: Path, kept: Path) -> None:
+def test_me_keeps_who_films_you_and_who_speaks_and_says_the_keys_they_need(
+    tmp_path: Path, kept: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     def me(*args: str) -> str:
         return shorts("me", *args, cwd=tmp_path, home=kept)
+
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)  # no Google Cloud sign-in here
+    monkeypatch.setenv("CLOUDSDK_CONFIG", str(tmp_path / "gcloud"))
 
     shown = me()
     assert "filmer     (not chosen" in shown and "narrator   (not chosen" in shown
@@ -150,7 +155,9 @@ def test_me_keeps_who_films_you_and_who_speaks_and_says_the_keys_they_need(tmp_p
     shown = me("--filmer", "omni", "--narrator", "elevenlabs")
     assert "filmer     Gemini Omni, in your Google Cloud project" in shown and "narrator   ElevenLabs" in shown
     assert "GOOGLE_CLOUD_PROJECT" in shown and "ELEVENLABS_API_KEY" in shown and "HEYGEN_API_KEY" not in shown
-    assert "google     " in shown  # whether Omni can sign in to Google Cloud here
+    assert "google     not signed in: gcloud auth application-default login" in shown
+    a_file(tmp_path / "gcloud" / "application_default_credentials.json", b"{}")  # gcloud's, once you've signed in
+    assert "google     signed in" in me()
     assert chosen() == {"filmer": "omni", "narrator": "elevenlabs"}
 
     shown = me("--filmer", "heygen", "--narrator", "modal")
@@ -174,6 +181,17 @@ def test_a_new_run_takes_your_choices(tmp_path: Path, kept: Path) -> None:
     new(later, options(outro="none"))  # what it's given wins
     assert (later.settings().intro, later.settings().outro) == ("import", "none")
     assert run.settings().intro == "heygen"  # a run that's there keeps what it has
+
+
+def test_another_narrator_for_a_run_speaks_with_its_own_model(tmp_path: Path, kept: Path) -> None:
+    run = Run(tmp_path / "runs" / "first")
+    run.save_settings(Settings(narrator="modal", narrator_model="omnivoice"))  # as a run.json from before wrote it
+    new(run, options(narrator="elevenlabs"))
+    assert (run.settings().narrator_model, run.settings().narration_model) == (None, "eleven_multilingual_v2")
+    new(run, options(narrator="modal", narrator_model="chatterbox"))  # one it's given is kept
+    assert run.settings().narration_model == "chatterbox"
+    new(run, options(tone="hype"))  # the narrator as it was: so is its model
+    assert run.settings().narration_model == "chatterbox"
 
 
 def test_keys_adds_the_lines_your_choices_need(tmp_path: Path, kept: Path, monkeypatch: pytest.MonkeyPatch) -> None:
