@@ -501,8 +501,12 @@ async def open_browser(
     from .signin import automation_chrome
 
     width, height = size
+    executable = automation_chrome()
     chrome = BrowserProfile(
-        executable_path=automation_chrome(),  # None: the one browser-use finds
+        executable_path=executable,  # None: the one browser-use finds
+        # Signed in, look like the headed Chrome `signin` used: a site can tie its session to the user agent, and
+        # headless Chrome's says "HeadlessChrome".
+        user_agent=_headed_user_agent(executable) if profile else None,
         headless=True,
         viewport={"width": width, "height": height},
         chromium_sandbox=os.geteuid() != 0,  # Chrome's sandbox doesn't run as root (in a container, say)
@@ -516,6 +520,11 @@ async def open_browser(
         shutil.rmtree(chrome.user_data_dir, ignore_errors=True)
         chrome.user_data_dir = profile
     session = BrowserSession(browser_profile=chrome)
+    if profile and not _uses(session.browser_profile, profile):
+        # The session rebuilds the profile's settings, which copies it again when the executable's path says "chrome"
+        # (Playwright's Chrome for Testing): point it back at the profile itself.
+        shutil.rmtree(session.browser_profile.user_data_dir, ignore_errors=True)
+        session.browser_profile.user_data_dir = profile
     await session.start()
     try:
         if profile and not _uses(session.browser_profile, profile):  # it fell back to an empty one
@@ -532,6 +541,28 @@ async def open_browser(
         await session.kill()
         raise
     return Browser(session, screencast, pointer)
+
+
+def _headed_user_agent(executable: str | None) -> str | None:
+    """The user agent `executable` sends with a window (Chrome's reduced one), or None if its version can't be told."""
+    import platform
+    import re
+    import subprocess
+
+    if not executable:
+        return None
+    try:
+        said = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    version = re.search(r"(\d+)\.\d+\.\d+\.\d+", said)
+    if not version:
+        return None
+    system = {
+        "Darwin": "Macintosh; Intel Mac OS X 10_15_7",
+        "Windows": "Windows NT 10.0; Win64; x64",
+    }.get(platform.system(), "X11; Linux x86_64")
+    return f"Mozilla/5.0 ({system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version[1]}.0.0.0 Safari/537.36"
 
 
 def _uses(chrome: Any, profile: Path) -> bool:
