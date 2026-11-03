@@ -11,7 +11,8 @@
     python -m shorts drive RUN hold SECONDS          stay on the result: unlike a wait's, its still parts are kept
     python -m shorts drive RUN tab TAB
     python -m shorts drive RUN open URL [--new-tab]
-    python -m shorts drive RUN act ACTION [JSON]     any other of browser-use's actions, such as go_back
+    python -m shorts drive RUN act ACTION [JSON]     any other of browser-use's actions, such as go_back, or
+                                                     upload_file '{"index": N, "path": "/abs/file.mov"}'
     python -m shorts drive RUN stop --report "what it showed" [--failed]
 
 `start` opens Chrome on the page (`shorts.browse.open_browser`: recorded, with the pointer, and with --signed-in, in
@@ -38,6 +39,7 @@ import secrets
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -157,6 +159,19 @@ class Note:
     end: float
 
 
+def _uploading(name: str, params: dict[str, Any], scratch: str) -> dict[str, Any]:
+    """What browser-use's upload_file needs besides its parameters: the file it may upload (only the one the command
+    names) and a file system of its own (a scratch folder), which it asks for though a local file doesn't use it."""
+    if name != "upload_file" or not params.get("path"):
+        return {}
+    from browser_use.filesystem.file_system import FileSystem
+
+    return {
+        "available_file_paths": [str(params["path"])],
+        "file_system": FileSystem(scratch, create_default_files=False),
+    }
+
+
 class Driver:
     """Chrome, recording, and the commands it takes (see the module's docstring)."""
 
@@ -218,7 +233,10 @@ class Driver:
         except Exception as error:  # an action browser-use hasn't, or the wrong parameters for it
             return False, f"No action {name} with {json.dumps(params)}: {error}"
         page, start = await self.browser.session.get_current_page_url(), time.time()
-        result = await self.tools.act(action, browser_session=self.browser.session, spotlight=spotlight)
+        with tempfile.TemporaryDirectory() as scratch:
+            result = await self.tools.act(
+                action, browser_session=self.browser.session, spotlight=spotlight, **_uploading(name, params, scratch)
+            )
         await asyncio.sleep(SETTLE)
         did = result.error or result.extracted_content or result.long_term_memory or ""
         self.notes.append(Note(goal or did, [{name: params}], [did], page, start, time.time()))

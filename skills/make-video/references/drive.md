@@ -40,6 +40,7 @@ makable-shorts drive RUN wait-for "Ready" --timeout 240 --goal "Wait for the bui
 makable-shorts drive RUN tab 4666 --goal "Switch to the live site"
 makable-shorts drive RUN open https://… [--new-tab]
 makable-shorts drive RUN act go_back              # any other of browser-use's actions, its parameters as JSON
+makable-shorts drive RUN act upload_file '{"index": 31, "path": "/Users/me/clip.mov"}' --goal "Attach the recording"
 makable-shorts drive RUN stop --report "…" [--failed]
 ```
 
@@ -47,6 +48,9 @@ makable-shorts drive RUN stop --report "…" [--failed]
   page is, and its elements, each with a number in brackets: `[12]<button>New site</button>`. Use the
   numbers from the latest output: they change when the page does. The output ends with a screenshot's
   path: Read it when the elements don't say enough, say, to see what a preview shows.
+- **Uploading a file** from this machine: `act upload_file` with the number of the page's file input (or of the
+  element next to it, such as the drop zone) and the file's absolute path. It sets the file without opening a file
+  picker, so don't click the upload button first.
 - **`--goal`:** what the step is for, in a few words. The script is written from the goals, so make them
   say what a viewer would see ("Pick GitHub Pages"), not the mechanics ("Click 31").
 - **`--spotlight`** (`click` and `type`): the rest of the page blurs and dims, and the element stands out
