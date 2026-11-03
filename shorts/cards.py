@@ -54,6 +54,9 @@ def card(text: str, still: Path, out: Path, cache: Path, size: tuple[int, int]) 
     picture = ImageOps.fit(Image.open(still).convert("RGB"), size)
     picture = picture.filter(ImageFilter.GaussianBlur(BLUR * scale))
     picture = ImageEnhance.Brightness(picture).enhance(DARKER).convert("RGBA")
+    if not text.strip():  # the still alone: the line is shown elsewhere (in the captions)
+        picture.convert("RGB").save(out)
+        return out
     font, lines = fitted(ImageDraw.Draw(picture), text, cache, size)
     where = (width / 2, height * CENTER_Y)
     words = {"font": font, "anchor": "mm", "align": "center", "spacing": font.size // 4}

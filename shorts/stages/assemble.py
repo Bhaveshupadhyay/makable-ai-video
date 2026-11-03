@@ -2,10 +2,11 @@
 narration plays (sped up or slowed down to fit it), then the outro as filmed, if run.json wants one, with captions
 and music, at -14 LUFS.
 
-A video without an avatar opens on a title card instead (intro "card"): the intro line in big letters over a still
-of the recording (`shorts.cards`), while the narrator says it. It ends on an end card with the outro line. A video
-without a voice (narrator "none") plays each scene's stretch at its own speed, or slower if its words take longer to
-read, while the captions say them, and holds each card for as long as it takes to read.
+A video without an avatar opens on a title card instead (intro "card"): a blurred still of the recording
+(`shorts.cards`), while the narrator says the intro line, which the captions show as it's said. It ends on an end
+card with the outro line. With captions off, the card shows the line itself, in big letters. A video without a voice
+(narrator "none") shows the line on the card, plays each scene's stretch at its own speed, or slower if its words take
+longer to read, while the captions say them, and holds each card for as long as it takes to read.
 
 A scene without a stretch plays its recording on from where the scene before on it stopped. Needs only ffmpeg, and
 Pillow for the captions and the cards.
@@ -105,11 +106,15 @@ class Assemble(Stage):
         video without a voice, for as long as it takes to read."""
         from ..cards import card
 
-        picture = card(text, still(footage, at, out.with_suffix(".still.png")), out, FONT_CACHE, even(settings.size))
+        frame = still(footage, at, out.with_suffix(".still.png"))
         if settings.narrator == "none":
+            picture = card(text, frame, out, FONT_CACHE, even(settings.size))
             return Part(picture, whole_frames(max(CARD_SHORTEST, words(text) / WORDS_PER_SECOND + GAP)))
+        # Narrated: the card is the blurred still alone, and the line comes in the captions, a few words at a time
+        # as it's said, rather than all of it at once on the card.
+        picture = card("" if settings.captions else text, frame, out, FONT_CACHE, even(settings.size))
         speech = run.path(said)
-        return Part(picture, whole_frames(duration(speech) + GAP), speech, "", speech_span(speech))
+        return Part(picture, whole_frames(duration(speech) + GAP), speech, text, speech_span(speech))
 
     def parts(self, run: Run, settings: Settings, script: Script, work: Path) -> list[Part]:
         """The video's parts, in order. Cards are drawn into `work`."""

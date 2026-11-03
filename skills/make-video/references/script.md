@@ -39,8 +39,8 @@ Also write a YouTube `title` (under 70 characters) and a `description` of 2 or 3
 ## A product demo, with no avatar
 
 When `run.json`'s `intro` and `outro` are `card`, there's no avatar. The video opens on a **title card** and ends on
-an **end card**: the line in big letters over a blurred still of the recording, where the first scene starts and
-where the last one ends.
+an **end card**: a blurred still of the recording, where the first scene starts and where the last one ends. While
+the narrator says the line, the captions show it as it's said; with no voice, the card shows it in big letters.
 
 - `intro_line`: the hook, **12 words at most**, read at a glance: "A whole clothing store website from one sentence."
   The narrator says it over the card, and the card stays up while it does. With no voice, the card stays up for as
