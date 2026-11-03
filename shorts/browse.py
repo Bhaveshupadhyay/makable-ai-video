@@ -498,8 +498,11 @@ async def open_browser(
     """
     from browser_use import BrowserProfile, BrowserSession
 
+    from .signin import automation_chrome
+
     width, height = size
     chrome = BrowserProfile(
+        executable_path=automation_chrome(),  # None: the one browser-use finds
         headless=True,
         viewport={"width": width, "height": height},
         chromium_sandbox=os.geteuid() != 0,  # Chrome's sandbox doesn't run as root (in a container, say)

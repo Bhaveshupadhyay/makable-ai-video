@@ -305,9 +305,38 @@ def test_a_chrome_missing_a_system_library_says_which(
         signin.sign_in("https://app.example.com")
 
 
-def test_with_no_chrome_sign_in_downloads_chromium_or_says_why_it_couldnt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sign_in_and_recordings_use_playwrights_newest_chrome_for_testing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from shorts import signin
 
+    def browser(revision: int, executable: bool = True) -> Path:
+        app = tmp_path / f"chromium-{revision}" / "chrome-mac-arm64" / "Google Chrome for Testing.app"
+        path = a_file(app / "Contents" / "MacOS" / "Google Chrome for Testing")
+        path.chmod(0o755 if executable else 0o644)
+        return path
+
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+    monkeypatch.setattr("platform.system", lambda: "Darwin")
+    assert signin.automation_chrome() is None  # none installed: browser-use's own lookup decides
+
+    browser(1234)
+    newest = browser(1248)
+    browser(1300, executable=False)  # half unpacked
+    assert signin.automation_chrome() == str(newest)
+
+    everyday = SimpleNamespace(_find_installed_browser_path=lambda: "/Applications/Google Chrome.app")
+    watchdog = SimpleNamespace(LocalBrowserWatchdog=everyday)
+    monkeypatch.setitem(sys.modules, "browser_use.browser.watchdogs.local_browser_watchdog", watchdog)
+    assert signin._chrome() == str(newest)  # not the everyday Google Chrome, which browser-use finds first
+
+
+def test_with_no_chrome_sign_in_downloads_chromium_or_says_why_it_couldnt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shorts import signin
+
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))  # none of playwright's own
     found: list[str | None] = []  # what each look for a browser finds, in turn
     watchdog = SimpleNamespace(LocalBrowserWatchdog=SimpleNamespace(_find_installed_browser_path=lambda: found.pop(0)))
     monkeypatch.setitem(sys.modules, "browser_use.browser.watchdogs.local_browser_watchdog", watchdog)

@@ -53,10 +53,38 @@ def forget(url: str) -> bool:
     return True
 
 
+def automation_chrome() -> str | None:
+    """Playwright's own Chrome for Testing (or Chromium), the newest one installed, or None.
+
+    Preferred over the everyday Google Chrome, which browser-use finds first on a Mac: that one brings its Gemini
+    panel and Google's new tab page along even headless, and loaded pages about three times slower. Signing in and
+    recording must use the same browser, since each encrypts a profile's cookies with its own key."""
+    import glob
+    import os
+    import platform
+
+    root = os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or (
+        "~/Library/Caches/ms-playwright" if platform.system() == "Darwin" else "~/.cache/ms-playwright"
+    )
+    patterns = {
+        "Darwin": "chromium-*/chrome-mac*/*.app/Contents/MacOS/*",
+        "Linux": "chromium-*/chrome-linux*/chrome",
+    }.get(platform.system())
+    if not patterns:
+        return None
+    found = [path for path in glob.glob(str(Path(root).expanduser() / patterns)) if os.access(path, os.X_OK)]
+
+    def revision(path: str) -> int:
+        match = re.search(r"chromium-(\d+)", path)
+        return int(match.group(1)) if match else 0
+
+    return max(found, key=revision) if found else None
+
+
 def _chrome() -> str:
     from browser_use.browser.watchdogs.local_browser_watchdog import LocalBrowserWatchdog
 
-    chrome = LocalBrowserWatchdog._find_installed_browser_path()
+    chrome = automation_chrome() or LocalBrowserWatchdog._find_installed_browser_path()
     failed = ""
     if not chrome:  # Chromium, got the way browser-use gets it for a recording: playwright's, through uv
         print("No Chrome here: downloading Chromium (the first time only, a minute or two)", file=sys.stderr)
@@ -67,7 +95,7 @@ def _chrome() -> str:
             failed = result.stderr.strip() if result.returncode else ""
         except (OSError, subprocess.TimeoutExpired) as error:  # no uv (an environment of your own), or it stalled
             failed = str(error)
-        chrome = LocalBrowserWatchdog._find_installed_browser_path()
+        chrome = automation_chrome() or LocalBrowserWatchdog._find_installed_browser_path()
     if not chrome:
         raise RuntimeError(
             "No Chrome or Chromium to sign in with: install Chrome, or `uvx playwright install chromium`"
