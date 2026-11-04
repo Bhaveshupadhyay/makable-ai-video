@@ -709,7 +709,7 @@ footer small{color:var(--dim);font-size:13px}
     <div class="yt-app">
       <div class="yt-vid">
         <div class="yt-stage"><div class="yt-player"></div></div>
-        <div class="yt-feed" tabindex="0" role="region"></div>
+        <div class="yt-feed" tabindex="0" role="region" data-ga="Video"></div>
         <div class="yt-top">
           <button class="yt-sound" type="button" data-act="sound" data-ga="Unmute" aria-label="Unmute"><span class="ic"></span><span class="tx">Tap to unmute</span></button>
           <button class="yt-more" type="button" data-act="more" data-ga="More" aria-label="More" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
@@ -1103,10 +1103,14 @@ document.querySelectorAll('[data-install]').forEach(box => {
   }));
   const btn = box.querySelector('.copy');
   btn.addEventListener('click', async () => {
-    track('copy_install_command', {command: code.textContent});
+    let ok = true;
     try { await navigator.clipboard.writeText(code.textContent); } catch (e) {
-      const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges();
+      const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      s.removeAllRanges();
     }
+    if (!ok) return;
+    track('copy_install_command', {command: code.textContent});
     btn.classList.add('done');
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>';
     setTimeout(() => { btn.classList.remove('done'); btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'; }, 1600);
@@ -1237,7 +1241,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('a[href], button, summary, [role="tab"], [data-ga], .screen[data-yt]');
   if (!el) return;
   const area = el.closest('section, header, footer');
-  const phone = phones.get(el.closest('.device'));
+  const phone = phones.get(el.closest('.device'));   // a tap on the video itself is the feed's data-ga
   const link = el.matches('a[href]') ? el : null;
   track('ui_click', {
     element_label: labelOf(el),
@@ -1245,7 +1249,7 @@ document.addEventListener('click', e => {
     section: area ? area.id || area.classList[0] || area.tagName.toLowerCase() : 'page',
     link_url: link?.href,
     outbound: link ? String(link.host !== location.host) : undefined,
-    ...(phone ? phone.context(el.closest('.yt-slide')?.dataset.id) : {}),
+    ...(phone ? phone.context(e.target.closest('.yt-slide')?.dataset.id) : {}),
   });
 }, true);
 
@@ -1267,13 +1271,18 @@ const ICON = {
 };
 // Likes are kept in this browser only: 1 liked, -1 disliked.
 const RATED = 'shorts-rated';
-let rated = {};
-try { rated = JSON.parse(localStorage.getItem(RATED)) || {}; } catch (e) {}
+const readRated = () => { try { return JSON.parse(localStorage.getItem(RATED)) || {}; } catch (e) { return {}; } };
+let rated = readRated();
 const saveRated = () => { try { localStorage.setItem(RATED, JSON.stringify(rated)); } catch (e) {} };
+// true if the text was copied
 async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); } catch (e) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {
     const t = Object.assign(document.createElement('textarea'), {value: text});
-    document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+    document.body.appendChild(t); t.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e2) {}
+    t.remove();
+    return ok;
   }
 }
 
@@ -1285,9 +1294,8 @@ const loadYT = () => ytApi ||= new Promise((resolve, reject) => {
   window.onYouTubeIframeAPIReady = () => { before?.(); resolve(window.YT); };
   const s = document.createElement('script');
   s.src = 'https://www.youtube.com/iframe_api';
-  s.onerror = reject;
+  s.onerror = () => { ytApi = null; s.remove(); reject(new Error('blocked')); };
   document.head.appendChild(s);
-  setTimeout(() => reject(new Error('timeout')), 15000);
 });
 
 const phones = new Map();   // .device → Phone
@@ -1370,15 +1378,14 @@ class Phone {
     f.addEventListener('click', e => {
       if (e.target.closest('a, button')) return;
       if (this.dragged) { this.dragged = false; return; }
-      const now = performance.now();
-      if (now - this.lastTap < 300) {
-        clearTimeout(this.tapT); this.lastTap = 0;
+      if (this.failed) return this.toggle('tap');   // in the tap itself, so the new tab isn't blocked
+      if (this.tapT) {   // the second tap of a double tap: like, and leave playback alone
+        clearTimeout(this.tapT); this.tapT = null;
         this.burst(e);
         this.rate(e.target.closest('.yt-slide')?.dataset.id || this.cur.id, 1, 'double_tap', true);
         return;
       }
-      this.lastTap = now;
-      this.tapT = setTimeout(() => this.toggle('tap'), 280);
+      this.tapT = setTimeout(() => { this.tapT = null; this.toggle('tap'); }, 280);
     });
 
     // with a mouse, drag it up or down like a finger
@@ -1409,7 +1416,10 @@ class Phone {
       const k = e.key;
       if (k === 'ArrowDown' || k === 'PageDown') this.go(this.idx + 1, 'key');
       else if (k === 'ArrowUp' || k === 'PageUp') this.go(this.idx - 1, 'key');
-      else if (k === ' ' || k === 'k' || k === 'Enter') this.toggle('key');
+      else if (k === ' ' || k === 'k' || k === 'Enter') {
+        if (e.target !== f && e.target.closest('a, button')) return;   // let the control handle its own key
+        this.toggle('key');
+      }
       else if (k === 'm') this.setSound(this.muted, 'key');
       else return;
       e.preventDefault();
@@ -1428,7 +1438,7 @@ class Phone {
         case 'more': this.menu(true); break;
         case 'close': this.menu(false); break;
         case 'watch': this.menu(false); break;
-        case 'copy': this.menu(false); copyText(shortUrl(id)).then(() => this.toast('Link copied')); break;
+        case 'copy': this.menu(false); copyText(shortUrl(id)).then(ok => this.toast(ok ? 'Link copied' : "Couldn't copy the link")); break;
         case 'top': this.go(0, 'nav'); break;
       }
     });
@@ -1462,6 +1472,7 @@ class Phone {
     this.setBar(0, true);
     this.userPaused = false;
     this.counted = false;
+    this.changedAt = performance.now();
     this.showCenter(this.started ? null : 'play', true);
     if (how === 'auto') this.ev('short_auto_next', {from_position: from + 1});
     else this.ev('short_swipe', {method: how, direction: i > from ? 'next' : 'previous'});
@@ -1473,6 +1484,7 @@ class Phone {
 
   /* the player */
   createPlayer(YT) {
+    if (this.player) return;
     this.loaded = this.cur.id;
     this.player = new YT.Player(this.host, {
       host: 'https://www.youtube-nocookie.com',
@@ -1485,17 +1497,24 @@ class Phone {
           const frame = this.player.getIframe();
           frame.tabIndex = -1;
           frame.setAttribute('aria-hidden', 'true');
-          if (!this.muted) this.player.unMute();
           this.setVisible(this.visible);
+          if (!this.muted) this.setSound(true);
         },
         onStateChange: e => this.onState(e.data),
         onError: e => {
+          if (this.sinceChange() < 150) return;   // the one before's, arriving late
           this.ev('short_error', {error_code: e.data});
-          // skip to the next one, unless none of them will play here
+          // skip to the next one; if none of them will play here, a tap opens YouTube
           if (++this.errors < this.items.length) this.go(this.idx + 1, 'auto');
+          else { this.failed = true; this.toast("These Shorts won't play here.", shortUrl(this.cur.id)); }
         },
       },
     });
+  }
+  sinceChange() { return this.changedAt ? performance.now() - this.changedAt : Infinity; }
+  watchOnYouTube(how) {
+    open(shortUrl(this.cur.id), '_blank', 'noopener');
+    this.ev('short_open_youtube', {method: how});
   }
   playNow() {
     if (!this.ready) return;
@@ -1520,6 +1539,7 @@ class Phone {
       this.errors = 0;
       if (!this.counted) { this.counted = true; this.ev('short_play', {sound: this.muted ? 'off' : 'on'}); }
     } else if (s === S.ENDED) {
+      if (this.sinceChange() < 1500) return;   // the one before ended as the feed moved: this one has only just started
       this.slides[this.idx].classList.remove('live');   // its thumbnail, not YouTube's end screen
       this.setBar(1);
       this.ev('short_complete');
@@ -1536,9 +1556,16 @@ class Phone {
     else b.style.width = (Math.min(1, f) * 100).toFixed(2) + '%';
   }
   toggle(how) {
+    if (this.failed) return this.watchOnYouTube(how);
     if (!this.ready) {
-      // the player didn't load (blocked, or offline): watch it on YouTube instead
-      if (this.failed) open(shortUrl(this.cur.id), '_blank', 'noopener');
+      // the player is still loading: remember what the tap asked for
+      if (!this.started || this.userPaused) {
+        this.started = true; this.userPaused = false; this.showCenter(null);
+        this.ev('short_resume', {method: how});
+      } else {
+        this.userPaused = true; this.showCenter('play', true);
+        this.ev('short_pause', {method: how});
+      }
       return;
     }
     const S = YT.PlayerState, st = this.player.getPlayerState();
@@ -1558,6 +1585,7 @@ class Phone {
 
   /* sound: one phone at a time */
   setSound(on, how) {
+    if (on && this.failed) return this.watchOnYouTube(how || 'button');
     if (on) phones.forEach(p => { if (p !== this && !p.muted) p.setSound(false); });
     this.muted = !on;
     this.paintSound();
@@ -1591,6 +1619,7 @@ class Phone {
 
   /* likes, shared by both phones */
   rate(id, v, how, keep) {
+    rated = readRated();   // another tab may have rated since
     const was = rated[id] || 0, now = keep ? v : (was === v ? 0 : v);
     if (now === was) return;
     if (now) rated[id] = now; else delete rated[id];
@@ -1624,9 +1653,9 @@ class Phone {
       try { await navigator.share({title: this.items.find(s => s.id === id)?.title, url}); this.ev('short_share', {method: 'share_sheet'}, id); } catch (e) {}
       return;
     }
-    await copyText(url);
-    this.toast('Link copied');
-    this.ev('short_share', {method: 'copy_link'}, id);
+    const ok = await copyText(url);
+    this.toast(ok ? 'Link copied' : "Couldn't copy the link");
+    if (ok) this.ev('short_share', {method: 'copy_link'}, id);
   }
   menu(open) {
     if (open === this.app.classList.contains('menu')) return;
@@ -1668,8 +1697,17 @@ devices.forEach(d => seen.observe(d.querySelector('.display')));
 new IntersectionObserver(([e], o) => {
   if (!e.isIntersecting) return;
   o.disconnect();
-  loadYT().then(YT => phones.forEach(p => p.createPlayer(YT))).catch(() => phones.forEach(p => { p.failed = true; }));
+  // While the player is slow or blocked, a tap opens the Short on YouTube. If it comes late, the phones still get it.
+  const slow = setTimeout(() => phones.forEach(p => { if (!p.ready) p.failed = true; }), 15000);
+  loadYT()
+    .then(YT => { clearTimeout(slow); phones.forEach(p => { p.failed = false; p.createPlayer(YT); }); })
+    .catch(() => { clearTimeout(slow); phones.forEach(p => { p.failed = true; }); });
 }, {rootMargin: '700px 0px'}).observe(document.getElementById('duo'));
+addEventListener('storage', e => {
+  if (e.key !== RATED) return;
+  rated = readRated();
+  phones.forEach(p => p.items.forEach(s => p.paintRating(s.id)));
+});
 document.addEventListener('visibilitychange', () => phones.forEach(p => {
   if (document.hidden) { if (p.ready) p.player.pauseVideo(); } else p.setVisible(p.visible);
 }));
