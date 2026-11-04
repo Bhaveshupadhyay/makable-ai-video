@@ -260,6 +260,16 @@ section{position:relative}
 .yt-burst{position:absolute;z-index:4;width:24cqw;height:24cqw;margin:-12cqw 0 0 -12cqw;color:#fff;pointer-events:none;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));animation:burst .8s ease-out forwards}
 .yt-burst svg{width:100%;height:100%}
 @keyframes burst{0%{opacity:0;transform:scale(.4) rotate(-14deg)}22%{opacity:1;transform:scale(1.15) rotate(-8deg)}45%{transform:scale(1) rotate(-10deg)}100%{opacity:0;transform:translateY(-14cqw) scale(1.05) rotate(-10deg)}}
+/* the first time: a finger swipes up and the next Short peeks in, as in the app */
+.yt-hint{position:absolute;z-index:5;inset:0;display:grid;place-items:center;align-content:center;gap:9cqw;background:rgba(0,0,0,.4);opacity:0;visibility:hidden;transition:opacity .35s,visibility 0s .35s;pointer-events:none}
+.yt-vid.hint .yt-hint{opacity:1;visibility:visible;transition-delay:0s}
+.yt-hint .hand{display:grid;width:17cqw;height:17cqw;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
+.yt-hint .hand svg{width:100%;height:100%}
+.yt-hint b{font:500 4.3cqw/1.2 var(--yt);text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.yt-vid.hint .hand{animation:hint-hand 2s ease-in-out 2}
+.yt-vid.hint .yt-slide,.yt-vid.hint .yt-stage{animation:hint-peek 2s cubic-bezier(.3,0,.3,1) 2}
+@keyframes hint-hand{0%{opacity:0;transform:translateY(6cqw)}15%{opacity:1;transform:translateY(6cqw)}55%{opacity:1;transform:translateY(-26cqw)}75%,100%{opacity:0;transform:translateY(-26cqw)}}
+@keyframes hint-peek{0%,18%{transform:none}55%{transform:translateY(-14%)}78%,100%{transform:none}}
 .yt-prog{position:absolute;z-index:3;left:0;right:0;bottom:0;height:max(2px,.7cqw);background:rgba(255,255,255,.25);pointer-events:none}
 .yt-prog i{display:block;width:0;height:100%;background:#f03;transition:width .25s linear}
 .yt-toast{position:absolute;z-index:5;left:4cqw;right:4cqw;bottom:5cqw;padding:3.4cqw 4.4cqw;border-radius:2.4cqw;background:#f1f1f1;color:#0f0f0f;font:400 3.5cqw/1.35 var(--yt);opacity:0;transform:translateY(3cqw);transition:opacity .2s,transform .2s;pointer-events:none}
@@ -633,7 +643,7 @@ footer small{color:var(--dim);font-size:13px}
     <div class="section-head center">
       <span class="eyebrow rv">Demos</span>
       <h2 class="rv d1">Made with <span class="serif grad-text">makable Shorts</span></h2>
-      <p class="lede rv d2">Real products, in English and Hindi. Swipe for the next one, and tap the speaker for sound.</p>
+      <p class="lede rv d2">Real products, in English and Hindi. The plugin recorded each one's screen and narrated it, all on its own.</p>
     </div>
 
     <!-- The Shorts in the phone are listed in SHORTS, in the script at the end of the page. -->
@@ -676,6 +686,7 @@ footer small{color:var(--dim);font-size:13px}
           <button class="yt-more" type="button" data-act="more" data-ga="More" aria-label="More" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
         </div>
         <div class="yt-center" aria-hidden="true"></div>
+        <div class="yt-hint" aria-hidden="true"><span class="hand"><svg viewBox="0 0 24 24" fill="#fff"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/></svg></span><b>Swipe up for more</b></div>
         <div class="yt-prog" aria-hidden="true"><i></i></div>
         <div class="yt-toast" role="status" aria-live="polite"></div>
       </div>
@@ -1236,6 +1247,11 @@ const readRated = () => { try { return JSON.parse(localStorage.getItem(RATED)) |
 let rated = readRated();
 const saveRated = () => { try { localStorage.setItem(RATED, JSON.stringify(rated)); } catch (e) {} };
 // true if the text was copied
+// The swipe hint is shown once per visitor.
+const HINT = 'shorts-hint-seen';
+let hintSeen = false;
+const seenHint = () => { if (hintSeen) return true; try { return !!localStorage.getItem(HINT); } catch (e) { return false; } };
+const markHint = () => { hintSeen = true; try { localStorage.setItem(HINT, '1'); } catch (e) {} };
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) {
     const t = Object.assign(document.createElement('textarea'), {value: text});
@@ -1288,6 +1304,7 @@ class Phone {
       el.setAttribute('aria-label', `${i + 1} of ${this.items.length}: ${s.title}`);
       const thumb = `https://i.ytimg.com/vi/${s.id}/oar2.jpg`;
       el.querySelector('.yt-thumb').src = thumb;
+      if (i === 1) el.querySelector('.yt-thumb').loading = 'eager';   // it peeks in with the swipe hint
       el.querySelector('.yt-disc').src = thumb;
       el.querySelector('.yt-title').textContent = s.title;
       el.querySelector('.yt-note span').textContent = `${s.product} · ${s.lang}`;
@@ -1334,6 +1351,9 @@ class Phone {
       }
       if (w.own !== false) e.preventDefault();
     }, {passive: false});
+
+    // anything done in the phone ends the swipe hint, or stops it from showing
+    for (const t of ['pointerdown', 'wheel', 'keydown']) this.vid.addEventListener(t, () => this.endHint(true), {passive: true});
 
     // a tap plays or pauses, a double tap likes
     f.addEventListener('click', e => {
@@ -1434,6 +1454,7 @@ class Phone {
     this.userPaused = false;
     this.counted = false;
     this.changedAt = performance.now();
+    this.endHint(true);
     this.showCenter(this.started ? null : 'play', true);
     if (how === 'auto') this.ev('short_auto_next', {from_position: from + 1});
     else this.ev('short_swipe', {method: how, direction: i > from ? 'next' : 'previous'});
@@ -1472,6 +1493,25 @@ class Phone {
       },
     });
   }
+  /* the first time it plays: a finger swipes up and the next Short peeks in, twice, as in the app */
+  maybeHint() {
+    if (this.hintPlanned) return;
+    this.hintPlanned = true;
+    if (reduce || seenHint()) return;
+    this.hintT = setTimeout(() => {
+      if (this.touched || !this.visible) return;
+      markHint();
+      this.vid.querySelector('.yt-hint b').textContent = matchMedia('(pointer: coarse)').matches ? 'Swipe up for more' : 'Scroll or swipe up for more';
+      this.vid.classList.add('hint');
+      this.ev('short_hint_shown');
+      this.hintT = setTimeout(() => this.endHint(), 4100);
+    }, 1500);
+  }
+  endHint(touched) {
+    if (touched) this.touched = true;
+    clearTimeout(this.hintT);
+    this.vid.classList.remove('hint');
+  }
   sinceChange() { return this.changedAt ? performance.now() - this.changedAt : Infinity; }
   watchOnYouTube(how) {
     open(shortUrl(this.cur.id), '_blank', 'noopener');
@@ -1498,6 +1538,7 @@ class Phone {
       this.liveT = setTimeout(() => this.slides[this.idx].classList.add('live'), 120);
       this.tickT = setInterval(() => this.tick(), 250);
       this.errors = 0;
+      this.maybeHint();
       if (!this.counted) { this.counted = true; this.ev('short_play', {sound: this.muted ? 'off' : 'on'}); }
     } else if (s === S.ENDED) {
       if (this.sinceChange() < 1500) return;   // the one before ended as the feed moved: this one has only just started
