@@ -182,33 +182,20 @@ section{position:relative}
 .marquee span::after{content:"";width:5px;height:5px;border-radius:50%;background:var(--dim)}
 @keyframes marquee{to{transform:translateX(-50%)}}
 
-/* ---------- demos: the Shorts, on an iPhone and an Android phone ---------- */
-/* --pw is a phone's width: as big as fits the window's height, up to 336px */
-.duo{--pw:clamp(250px,calc((100vh - 230px) * .462 + 22px),336px);position:relative;display:flex;justify-content:center;align-items:flex-start;gap:clamp(32px,8vw,120px)}
-.duo::before{content:"";position:absolute;inset:14% 22% 4%;background:var(--grad);filter:blur(90px);opacity:.17;border-radius:50%;z-index:-1;pointer-events:none}
-/* on a phone, the two sit in a row you swipe sideways */
-@media (max-width:759px){
-  .duo{--pw:min(78vw,320px,max(240px,calc((100vh - 190px) * .462 + 22px)));justify-content:flex-start;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 calc(-1 * var(--gutter));padding:4px calc((100vw - var(--pw)) / 2) 10px}
-  .duo::-webkit-scrollbar{display:none}
-  .duo::before{display:none}
-}
-.device{margin:0;flex:none;display:grid;justify-items:center;gap:18px;scroll-snap-align:center}
-.os{display:inline-flex;align-items:center;gap:9px;height:40px;font:700 18px/1 var(--display);letter-spacing:-.01em;padding:0 17px 0 14px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.04)}
-.os svg{flex:none;width:19px;height:19px}
-.ios .os svg{margin-top:-3px}
-.android .os svg{width:21px;height:21px;color:#3ddc84}
+/* ---------- demos: the Shorts, on an iPhone ---------- */
+/* --pw is the phone's width: as wide as fits the window's height, up to 400px */
+.showcase{--pw:clamp(280px,calc((100vh - 120px) * .4615 + 20px),400px);position:relative;display:flex;justify-content:center}
+.showcase::before{content:"";position:absolute;left:50%;top:10%;bottom:4%;width:min(620px,100%);transform:translateX(-50%);background:var(--grad);filter:blur(90px);opacity:.17;border-radius:50%;z-index:-1;pointer-events:none}
+@media (max-width:759px){.showcase{--pw:min(calc(100vw - 2 * var(--gutter)),400px,max(250px,calc((100vh - 100px) * .4615 + 20px)))}}
+.device{margin:0;flex:none}
 
 .ios{--hr:calc(var(--pw) * .165);--bz:7px;--band:linear-gradient(140deg,#cbc6bf,#76726c 20%,#d8d3cc 46%,#5d5954 73%,#aca7a1);--btn:#8f8a84;
   --sb:13.6cqw;--home:8cqw;--sys:-apple-system,"SF Pro Text",system-ui,var(--body)}
-.android{--hr:calc(var(--pw) * .12);--bz:8px;--band:linear-gradient(140deg,#5c5c63,#222226 26%,#626269 50%,#1c1c20 78%,#47474d);--btn:#3b3b41;
-  --sb:8.6cqw;--home:5.4cqw;--sys:Roboto,system-ui,var(--body)}
 .handset{position:relative;width:var(--pw);padding:3px;border-radius:var(--hr);background:var(--band);box-shadow:0 60px 110px -40px rgba(0,0,0,.95),0 0 0 1px rgba(0,0,0,.7);-webkit-user-select:none;user-select:none}
 .bezel{padding:var(--bz);border-radius:calc(var(--hr) - 3px);background:#000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
 .display{--yt:Roboto,"Helvetica Neue",Arial,sans-serif;position:relative;aspect-ratio:9/19.5;border-radius:calc(var(--hr) - 3px - var(--bz));overflow:hidden;background:#000;color:#fff;container-type:inline-size;isolation:isolate;font-family:var(--yt);-webkit-tap-highlight-color:transparent}
-.android .display{aspect-ratio:9/20}
 .hw{position:absolute;z-index:-1;width:4px;border-radius:2px;background:var(--btn)}
 .ios .hw-act{left:-3px;top:17%;height:4.5%}.ios .hw-up{left:-3px;top:24.5%;height:8%}.ios .hw-down{left:-3px;top:34.5%;height:8%}.ios .hw-side{right:-3px;top:27%;height:13%}
-.android .hw-side{right:-3px;top:20%;height:7%}.android .hw-up{right:-3px;top:30%;height:14%}
 
 /* status bar */
 .sbar{position:absolute;z-index:8;top:0;left:0;right:0;height:var(--sb);display:flex;align-items:center;justify-content:space-between;background:#000;font:600 4.2cqw/1 var(--sys);letter-spacing:-.01em;pointer-events:none}
@@ -218,15 +205,9 @@ section{position:relative}
 .ios .sicons{justify-self:center;gap:1.4cqw;padding-right:2cqw}
 .ios .sig{width:4.6cqw}.ios .wifi{width:4.2cqw}.ios .bat{width:6.6cqw}
 .di{position:absolute;left:50%;top:2.9cqw;width:31cqw;height:9.4cqw;transform:translateX(-50%);border-radius:99px;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
-.di::after,.punch::after{content:"";position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 35%,#2d3a5a,#0b0e16 60%)}
+.di::after{content:"";position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 35%,#2d3a5a,#0b0e16 60%)}
 .di::after{right:3.2cqw;top:50%;width:3cqw;height:3cqw;transform:translateY(-50%)}
-.android .sbar{padding:0 5cqw 0 6cqw;font:500 3.6cqw/1 var(--sys);letter-spacing:0}
-.android .sicons{gap:1cqw}
-.android .sicons svg{width:3.9cqw;height:3.9cqw}
-.punch{position:absolute;left:50%;top:1.3cqw;width:6cqw;height:6cqw;transform:translateX(-50%);border-radius:50%;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
-.punch::after{inset:1.4cqw}
 .home-ind{position:absolute;z-index:9;left:50%;bottom:2cqw;width:35cqw;height:1.35cqw;border-radius:99px;background:#fff;transform:translateX(-50%);pointer-events:none}
-.android .home-ind{width:27cqw;height:1.1cqw;bottom:1.8cqw;background:rgba(255,255,255,.85)}
 
 /* the YouTube app */
 .yt-app{position:absolute;top:var(--sb);left:0;right:0;bottom:0;display:flex;flex-direction:column;background:#000}
@@ -581,7 +562,7 @@ footer small{color:var(--dim);font-size:13px}
     <div>
       <span class="pill rv"><b>Plugin</b> For Claude Code · open source</span>
       <h1 class="rv d1">Your product,<br>cut into <span class="serif grad-text">Shorts.</span></h1>
-      <p class="lede rv d2">Just ask Claude for a video of a feature, in your own words. It reads your product's code, records the feature in Chrome, writes the script and edits a 1-minute vertical video, with captions, music and you as an AI avatar. Ready for YouTube Shorts and Instagram Reels.</p>
+      <p class="lede rv d2">Ask Claude for a video of a feature. It reads your code, records the feature in Chrome, writes the script and edits a 1-minute vertical video for YouTube Shorts and Instagram Reels, with captions, music and your AI avatar.</p>
 
       <div class="install rv d3" data-install>
         <div class="tabs" role="tablist" aria-label="Where to install">
@@ -652,13 +633,12 @@ footer small{color:var(--dim);font-size:13px}
     <div class="section-head center">
       <span class="eyebrow rv">Demos</span>
       <h2 class="rv d1">Made with <span class="serif grad-text">makable Shorts</span></h2>
-      <p class="lede rv d2">Different products, in English and Hindi. Each one was recorded by Claude driving Chrome, scripted from what's on screen, and edited by the pipeline. They play here as they would in the YouTube app: swipe or scroll for the next one, double-tap to like, tap the speaker for sound.</p>
+      <p class="lede rv d2">Real products, in English and Hindi. Swipe for the next one, and tap the speaker for sound.</p>
     </div>
 
-    <!-- The Shorts in the two phones are listed in SHORTS, in the script at the end of the page. -->
-    <div class="duo rv" id="duo">
+    <!-- The Shorts in the phone are listed in SHORTS, in the script at the end of the page. -->
+    <div class="showcase rv" id="showcase">
       <figure class="device ios" data-os="ios">
-        <figcaption class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>iOS</figcaption>
         <div class="handset">
           <span class="hw hw-act"></span><span class="hw hw-up"></span><span class="hw hw-down"></span><span class="hw hw-side"></span>
           <div class="bezel"><div class="display">
@@ -669,25 +649,6 @@ footer small{color:var(--dim);font-size:13px}
                 <svg class="sig" viewBox="0 0 18 12" fill="currentColor"><rect y="8" width="3" height="4" rx=".8"/><rect x="5" y="5.5" width="3" height="6.5" rx=".8"/><rect x="10" y="3" width="3" height="9" rx=".8"/><rect x="15" width="3" height="12" rx=".8"/></svg>
                 <svg class="wifi" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M1.4 4.6a9.4 9.4 0 0 1 13.2 0"/><path d="M4.1 7.4a5.6 5.6 0 0 1 7.8 0"/><path d="M6.8 10.1a1.8 1.8 0 0 1 2.4 0" stroke-width="2.4"/></svg>
                 <svg class="bat" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.6" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="20" height="9" rx="2.2" fill="currentColor"/><path d="M25 4.5v4c.8-.3 1.4-1.1 1.4-2s-.6-1.7-1.4-2Z" fill="currentColor" opacity=".45"/></svg>
-              </span>
-            </div>
-            <span class="home-ind" aria-hidden="true"></span>
-          </div></div>
-        </div>
-      </figure>
-
-      <figure class="device android" data-os="android">
-        <figcaption class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.4 10.2 5.3 6.6M16.6 10.2l2.1-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path fill-rule="evenodd" d="M1.5 19.5a10.5 10.5 0 0 1 21 0Zm6-5.7a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Zm9 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"/></svg>Android</figcaption>
-        <div class="handset">
-          <span class="hw hw-side"></span><span class="hw hw-up"></span>
-          <div class="bezel"><div class="display">
-            <div class="sbar" aria-hidden="true">
-              <span class="clock">9:41</span>
-              <span class="punch"></span>
-              <span class="sicons">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21 23.6 7.2A17.4 17.4 0 0 0 12 2.8 17.4 17.4 0 0 0 .4 7.2Z"/></svg>
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20V2z"/></svg>
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.34C7 21.4 7.6 22 8.33 22h7.34c.73 0 1.33-.6 1.33-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
               </span>
             </div>
             <span class="home-ind" aria-hidden="true"></span>
@@ -1253,7 +1214,7 @@ document.addEventListener('click', e => {
   });
 }, true);
 
-/* ---------- the demos: Shorts on an iPhone and an Android phone ---------- */
+/* ---------- the demos: Shorts on an iPhone ---------- */
 /* To add a Short, add a line. The thumbnail is YouTube's vertical one (oar2.jpg). */
 const SHORTS = [
   {id: 'VWhdMEDQJ30', title: 'The best free AI website builder', product: 'makable', lang: 'English'},
@@ -1319,7 +1280,7 @@ class Phone {
     const $ = s => this.app.querySelector(s);
     this.vid = $('.yt-vid'); this.feed = $('.yt-feed'); this.stage = $('.yt-stage'); this.host = $('.yt-player');
     this.bar = $('.yt-prog i'); this.center = $('.yt-center'); this.toastEl = $('.yt-toast'); this.soundBtn = $('.yt-sound');
-    this.feed.setAttribute('aria-label', `Shorts on the ${this.os === 'ios' ? 'iOS' : 'Android'} phone. Scroll, swipe or use the arrow keys for the next one.`);
+    this.feed.setAttribute('aria-label', 'Shorts. Scroll, swipe or use the arrow keys for the next one.');
     const tpl = document.getElementById('tpl-slide').content.firstElementChild;
     this.slides = this.items.map((s, i) => {
       const el = tpl.cloneNode(true);
@@ -1617,7 +1578,7 @@ class Phone {
     b.querySelector('.ic').innerHTML = on ? ICON.sound : ICON.muted;
   }
 
-  /* likes, shared by both phones */
+  /* likes, shared by every phone on the page */
   rate(id, v, how, keep) {
     rated = readRated();   // another tab may have rated since
     const was = rated[id] || 0, now = keep ? v : (was === v ? 0 : v);
@@ -1686,8 +1647,8 @@ class Phone {
 }
 
 const devices = [...document.querySelectorAll('.device')];
-devices.forEach((d, i) => new Phone(d, i));   // the Android phone starts one Short further on
-// A phone plays while most of it is on screen (in the sideways row on a phone, that's the one in the middle).
+devices.forEach((d, i) => new Phone(d, i));   // a second phone would start one Short further on
+// A phone plays while most of it is on screen.
 const seen = new IntersectionObserver(es => es.forEach(e => {
   const r = e.intersectionRect, b = e.boundingClientRect;
   const v = e.isIntersecting && (e.intersectionRatio >= .5 || (r.height >= innerHeight * .6 && r.width >= b.width * .8));
@@ -1702,7 +1663,7 @@ new IntersectionObserver(([e], o) => {
   loadYT()
     .then(YT => { clearTimeout(slow); phones.forEach(p => { p.failed = false; p.createPlayer(YT); }); })
     .catch(() => { clearTimeout(slow); phones.forEach(p => { p.failed = true; }); });
-}, {rootMargin: '700px 0px'}).observe(document.getElementById('duo'));
+}, {rootMargin: '700px 0px'}).observe(document.getElementById('showcase'));
 addEventListener('storage', e => {
   if (e.key !== RATED) return;
   rated = readRated();
