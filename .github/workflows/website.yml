@@ -1,0 +1,57 @@
+# Publishes website/ to GitHub Pages (shorts.makable.tech) on every push to main.
+#
+# An empty commit is enough to publish it again:
+#   git commit --allow-empty -m "Publish the website" && git push
+# Or from the Actions tab, or: gh workflow run website.yml
+#
+# Pages has to be set to deploy from GitHub Actions (Settings, Pages, Source),
+# and the custom domain is set there too: a CNAME file isn't used with Actions.
+name: Website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push waits for the one in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every file the page links to is there
+        run: |
+          python3 - <<'EOF'
+          import pathlib, re, sys
+          site = pathlib.Path("website")
+          html = (site / "index.html").read_text()
+          refs = sorted(set(re.findall(r'(?:src|href|poster)="(?!https?:|#|mailto:|data:)([^"]+)"', html)))
+          missing = [r for r in refs if not (site / r).is_file()]
+          print("Local files:", ", ".join(refs) or "none")
+          if missing:
+              sys.exit("Missing from website/: " + ", ".join(missing))
+          EOF
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: website
+      - id: deployment
+        uses: actions/deploy-pages@v5
