@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google Analytics. Add ?ga_debug to the address to see the events in GA's DebugView. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-Q0E4QCE9SW"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-Q0E4QCE9SW', /[?&]ga_debug\b/.test(location.search) ? {debug_mode: true} : {});
+</script>
 <title>makable Shorts: your product, cut into Shorts</title>
 <meta name="description" content="A Claude Code plugin that reads your product's code, records the feature in Chrome, writes the script and edits a 1-minute vertical video for YouTube Shorts and Instagram Reels.">
 <meta property="og:title" content="makable Shorts: your product, cut into Shorts">
@@ -12,7 +20,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='2' width='18' height='28' rx='5' fill='%2307070a' stroke='%23ff7a5c' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='4.5' fill='%23ff3b3b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#07070a; --bg-2:#0c0c11; --panel:#111118; --panel-2:#171720;
@@ -50,7 +58,7 @@ section{position:relative}
 .section{padding:clamp(80px,12vw,150px) 0}
 .section-head{display:grid;gap:18px;margin-bottom:clamp(40px,6vw,64px)}
 .section-head.center{text-align:center;justify-items:center}
-.hero-grid>*,.ins-grid>*,.faq-grid>*,.bento>*,.steps>*,.kinds>*,.demos-grid>*,.section-head>*{min-width:0}
+.hero-grid>*,.ins-grid>*,.faq-grid>*,.bento>*,.steps>*,.kinds>*,.section-head>*{min-width:0}
 
 /* ---------- buttons ---------- */
 .btn{display:inline-flex;align-items:center;gap:10px;height:48px;padding:0 22px;border-radius:999px;font:600 15px/1 var(--body);border:1px solid var(--line-2);background:rgba(255,255,255,.04);color:var(--text);cursor:pointer;transition:transform .2s,background .2s,border-color .2s}
@@ -174,28 +182,130 @@ section{position:relative}
 .marquee span::after{content:"";width:5px;height:5px;border-radius:50%;background:var(--dim)}
 @keyframes marquee{to{transform:translateX(-50%)}}
 
-/* ---------- demos ---------- */
-.demos-grid{display:grid;gap:32px 14px;grid-template-columns:repeat(2,1fr);justify-items:center}
-@media (max-width:759px){.demo.next{grid-column:1/-1;max-width:none}.demo.next .screen{aspect-ratio:auto;min-height:230px}.demo.next .phone{border-radius:28px}}
-@media (min-width:760px){.demos-grid{grid-template-columns:repeat(3,1fr);gap:40px 22px}}
-@media (min-width:1100px){.demos-grid{grid-template-columns:repeat(5,1fr)}}
-.demo{width:100%;max-width:300px;display:grid;gap:18px;align-content:start}
-.demo .phone{--w:100%;border-radius:40px;padding:8px;transition:transform .35s cubic-bezier(.2,.7,.2,1)}
-.demo .screen{border-radius:33px}
-.demo:hover .phone{transform:translateY(-6px) rotate(-.6deg)}
-.demo-info{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:0 6px}
-.demo-info h3{font-size:17px;text-wrap:balance}
-@media (max-width:600px){.demo .phone{padding:6px;border-radius:30px}.demo .screen{border-radius:25px}.demo-info{padding:0 2px;gap:8px}.demo-info h3{font-size:14.5px}.demo-info .tag{font-size:10px}.demo .ext{width:30px;height:30px}.demo .play{width:52px;height:52px}.demo .island{height:16px;top:8px}.next-inner{padding:14px;gap:10px}.next-inner .plus{width:42px;height:42px;font-size:22px}.next-inner p{font-size:12.5px}.next-inner code{font-size:10.5px;padding:6px 7px}}
-.demo-info .tag{font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-top:8px;display:block}
-.ext{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);color:var(--muted);transition:all .2s}
-.ext:hover{color:var(--text);border-color:rgba(255,255,255,.3)}
-.ext svg{width:15px;height:15px}
-.demo.next .phone{background:none;box-shadow:none;border:1.5px dashed rgba(255,255,255,.18)}
-.demo.next .screen{background:radial-gradient(120% 80% at 50% 0%,rgba(164,123,255,.16),transparent 60%),var(--bg-2);display:grid;place-items:center;text-align:center}
-.next-inner{position:relative;z-index:2;display:grid;gap:16px;padding:26px;justify-items:center}
-.next-inner .plus{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--grad);color:#140b10;font:700 28px/1 var(--display)}
-.next-inner p{color:var(--muted);font-size:14px}
-.next-inner code{font-size:12px;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--line);padding:8px 10px;border-radius:8px;display:block}
+/* ---------- demos: the Shorts, on an iPhone and an Android phone ---------- */
+/* --pw is a phone's width: as big as fits the window's height, up to 336px */
+.duo{--pw:clamp(250px,calc((100vh - 230px) * .462 + 22px),336px);position:relative;display:flex;justify-content:center;align-items:flex-start;gap:clamp(32px,8vw,120px)}
+.duo::before{content:"";position:absolute;inset:14% 22% 4%;background:var(--grad);filter:blur(90px);opacity:.17;border-radius:50%;z-index:-1;pointer-events:none}
+/* on a phone, the two sit in a row you swipe sideways */
+@media (max-width:759px){
+  .duo{--pw:min(78vw,320px,max(240px,calc((100vh - 190px) * .462 + 22px)));justify-content:flex-start;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 calc(-1 * var(--gutter));padding:4px calc((100vw - var(--pw)) / 2) 10px}
+  .duo::-webkit-scrollbar{display:none}
+  .duo::before{display:none}
+}
+.device{margin:0;flex:none;display:grid;justify-items:center;gap:18px;scroll-snap-align:center}
+.os{display:inline-flex;align-items:center;gap:9px;font:700 18px/1 var(--display);letter-spacing:-.01em;padding:10px 16px 10px 13px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.04)}
+.os i{width:8px;height:8px;border-radius:50%;background:var(--dim);transition:background .3s,box-shadow .3s}
+.device.on .os i{background:var(--rec);box-shadow:0 0 10px var(--rec)}
+
+.ios{--hr:calc(var(--pw) * .165);--bz:7px;--band:linear-gradient(140deg,#cbc6bf,#76726c 20%,#d8d3cc 46%,#5d5954 73%,#aca7a1);--btn:#8f8a84;
+  --sb:13.6cqw;--home:8cqw;--sys:-apple-system,"SF Pro Text",system-ui,var(--body)}
+.android{--hr:calc(var(--pw) * .12);--bz:8px;--band:linear-gradient(140deg,#5c5c63,#222226 26%,#626269 50%,#1c1c20 78%,#47474d);--btn:#3b3b41;
+  --sb:8.6cqw;--home:5.4cqw;--sys:Roboto,system-ui,var(--body)}
+.handset{position:relative;width:var(--pw);padding:3px;border-radius:var(--hr);background:var(--band);box-shadow:0 60px 110px -40px rgba(0,0,0,.95),0 0 0 1px rgba(0,0,0,.7);-webkit-user-select:none;user-select:none}
+.bezel{padding:var(--bz);border-radius:calc(var(--hr) - 3px);background:#000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.display{--yt:Roboto,"Helvetica Neue",Arial,sans-serif;position:relative;aspect-ratio:9/19.5;border-radius:calc(var(--hr) - 3px - var(--bz));overflow:hidden;background:#000;color:#fff;container-type:inline-size;isolation:isolate;font-family:var(--yt);-webkit-tap-highlight-color:transparent}
+.android .display{aspect-ratio:9/20}
+.hw{position:absolute;z-index:-1;width:4px;border-radius:2px;background:var(--btn)}
+.ios .hw-act{left:-3px;top:17%;height:4.5%}.ios .hw-up{left:-3px;top:24.5%;height:8%}.ios .hw-down{left:-3px;top:34.5%;height:8%}.ios .hw-side{right:-3px;top:27%;height:13%}
+.android .hw-side{right:-3px;top:20%;height:7%}.android .hw-up{right:-3px;top:30%;height:14%}
+
+/* status bar */
+.sbar{position:absolute;z-index:8;top:0;left:0;right:0;height:var(--sb);display:flex;align-items:center;justify-content:space-between;background:#000;font:600 4.2cqw/1 var(--sys);letter-spacing:-.01em;pointer-events:none}
+.sicons{display:flex;align-items:center}
+.ios .sbar{display:grid;grid-template-columns:1fr 34cqw 1fr;padding-top:1.4cqw}
+.ios .clock{justify-self:center;padding-left:3cqw}
+.ios .sicons{justify-self:center;gap:1.4cqw;padding-right:2cqw}
+.ios .sig{width:4.6cqw}.ios .wifi{width:4.2cqw}.ios .bat{width:6.6cqw}
+.di{position:absolute;left:50%;top:2.9cqw;width:31cqw;height:9.4cqw;transform:translateX(-50%);border-radius:99px;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+.di::after,.punch::after{content:"";position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 35%,#2d3a5a,#0b0e16 60%)}
+.di::after{right:3.2cqw;top:50%;width:3cqw;height:3cqw;transform:translateY(-50%)}
+.android .sbar{padding:0 5cqw 0 6cqw;font:500 3.6cqw/1 var(--sys);letter-spacing:0}
+.android .sicons{gap:1cqw}
+.android .sicons svg{width:3.9cqw;height:3.9cqw}
+.punch{position:absolute;left:50%;top:1.3cqw;width:6cqw;height:6cqw;transform:translateX(-50%);border-radius:50%;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+.punch::after{inset:1.4cqw}
+.home-ind{position:absolute;z-index:9;left:50%;bottom:2cqw;width:35cqw;height:1.35cqw;border-radius:99px;background:#fff;transform:translateX(-50%);pointer-events:none}
+.android .home-ind{width:27cqw;height:1.1cqw;bottom:1.8cqw;background:rgba(255,255,255,.85)}
+
+/* the YouTube app */
+.yt-app{position:absolute;top:var(--sb);left:0;right:0;bottom:0;display:flex;flex-direction:column;background:#000}
+.yt-vid{position:relative;flex:1;min-height:0;overflow:hidden;background:#000}
+.yt-stage{position:absolute;inset:0;container-type:size;will-change:transform}
+/* the player is cut to cover the screen; it's taller than its video, so YouTube's own title and logo sit in the black bars that are cut off */
+.yt-stage iframe{position:absolute;left:50%;top:50%;width:max(100cqw,56.25cqh);height:calc(max(100cqw,56.25cqh) * 16 / 9 + 160px);transform:translate(-50%,-50%);border:0;pointer-events:none}
+.yt-feed{position:absolute;inset:0;z-index:1;overflow-x:hidden;overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none;outline:none;touch-action:pan-x pan-y;cursor:pointer}
+.yt-feed::-webkit-scrollbar{display:none}
+.yt-feed:focus-visible{box-shadow:inset 0 0 0 2px var(--orange)}
+.yt-slide{position:relative;height:100%;overflow:hidden;scroll-snap-align:start;scroll-snap-stop:always}
+.yt-thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .3s}
+.yt-slide.live .yt-thumb{opacity:0}
+.yt-shade{position:absolute;left:0;right:0;bottom:0;height:45%;background:linear-gradient(transparent,rgba(0,0,0,.62));pointer-events:none}
+
+.yt-rail{position:absolute;z-index:2;right:1.6cqw;bottom:4.4cqw;display:flex;flex-direction:column;align-items:center;gap:4cqw}
+.yt-act{display:grid;justify-items:center;gap:1.1cqw;min-width:12cqw;padding:0;border:0;background:none;color:#fff;font:500 3cqw/1 var(--yt);cursor:pointer;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.yt-act svg{width:7.4cqw;height:7.4cqw;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));transition:transform .2s}
+.yt-act:hover svg{transform:scale(1.08)}
+.yt-act .f,.yt-act[aria-pressed="true"] .o{display:none}
+.yt-act[aria-pressed="true"] .f{display:inline}
+.yt-act.pop svg{animation:pop .4s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{40%{transform:scale(1.35) rotate(-8deg)}}
+.yt-disc{width:9cqw;height:9cqw;margin-top:1cqw;border-radius:2.2cqw;border:.6cqw solid #fff;object-fit:cover;pointer-events:none}
+
+.yt-meta{position:absolute;z-index:2;left:3.4cqw;right:17cqw;bottom:4.4cqw;display:grid;gap:2.4cqw;text-shadow:0 1px 3px rgba(0,0,0,.55)}
+.yt-ch{display:flex;align-items:center;gap:2.4cqw;min-width:0}
+.yt-av{flex:none;width:8.4cqw;height:8.4cqw;border-radius:50%;object-fit:cover;object-position:50% 22%;pointer-events:none}
+.yt-handle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 3.7cqw/1.2 var(--yt)}
+.yt-sub{flex:none;padding:2cqw 3.3cqw;border-radius:99px;background:#fff;color:#0f0f0f;font:500 3.3cqw/1 var(--yt);text-shadow:none;transition:background .2s}
+.yt-sub:hover{background:#d9d9d9}
+.yt-title{font:400 3.7cqw/1.32 var(--yt);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.yt-note{display:flex;align-items:center;gap:1.4cqw;font:400 3.2cqw/1.2 var(--yt);color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden}
+.yt-note svg{flex:none;width:3.8cqw;height:3.8cqw}
+
+.yt-top{position:absolute;z-index:4;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:2.6cqw 2cqw 7cqw 2.6cqw;background:linear-gradient(rgba(0,0,0,.42),transparent);pointer-events:none}
+.yt-top>*{pointer-events:auto}
+.yt-sound{display:inline-flex;align-items:center;gap:1.8cqw;height:8.6cqw;padding:0 3.4cqw 0 2.4cqw;border-radius:99px;border:0;background:rgba(0,0,0,.6);color:#fff;font:500 3.3cqw/1 var(--yt);cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.yt-sound .ic{display:grid}
+.yt-sound svg{width:5.4cqw;height:5.4cqw}
+.yt-sound.on{width:8.6cqw;padding:0;justify-content:center}
+.yt-sound.on .tx{display:none}
+.yt-more{display:grid;place-items:center;width:8.6cqw;height:8.6cqw;border:0;border-radius:50%;background:none;color:#fff;cursor:pointer}
+.yt-more svg{width:5.8cqw;height:5.8cqw;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.yt-sound:hover,.yt-more:hover{background:rgba(40,40,40,.75)}
+
+.yt-center{position:absolute;z-index:3;left:50%;top:50%;width:16cqw;height:16cqw;margin:-8cqw 0 0 -8cqw;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.45);opacity:0;transform:scale(.8);transition:opacity .2s,transform .2s;pointer-events:none}
+.yt-center svg{width:8cqw;height:8cqw}
+.yt-center.on{opacity:1;transform:none}
+.yt-burst{position:absolute;z-index:4;width:24cqw;height:24cqw;margin:-12cqw 0 0 -12cqw;color:#fff;pointer-events:none;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));animation:burst .8s ease-out forwards}
+.yt-burst svg{width:100%;height:100%}
+@keyframes burst{0%{opacity:0;transform:scale(.4) rotate(-14deg)}22%{opacity:1;transform:scale(1.15) rotate(-8deg)}45%{transform:scale(1) rotate(-10deg)}100%{opacity:0;transform:translateY(-14cqw) scale(1.05) rotate(-10deg)}}
+.yt-prog{position:absolute;z-index:3;left:0;right:0;bottom:0;height:max(2px,.7cqw);background:rgba(255,255,255,.25);pointer-events:none}
+.yt-prog i{display:block;width:0;height:100%;background:#f03;transition:width .25s linear}
+.yt-toast{position:absolute;z-index:5;left:4cqw;right:4cqw;bottom:5cqw;padding:3.4cqw 4.4cqw;border-radius:2.4cqw;background:#f1f1f1;color:#0f0f0f;font:400 3.5cqw/1.35 var(--yt);opacity:0;transform:translateY(3cqw);transition:opacity .2s,transform .2s;pointer-events:none}
+.yt-toast.on{opacity:1;transform:none;pointer-events:auto}
+.yt-toast a{color:#065fd4;font-weight:500;white-space:nowrap}
+
+.yt-nav{flex:none;display:grid;grid-template-columns:repeat(5,1fr);padding:1.8cqw 1cqw var(--home);background:#0f0f0f;border-top:1px solid rgba(255,255,255,.06)}
+.yt-nav>*{display:grid;justify-items:center;align-content:start;gap:.9cqw;min-width:0;height:10.4cqw;padding:0;border:0;background:none;color:#f1f1f1;font:400 2.5cqw/1 var(--yt);cursor:pointer}
+.yt-nav svg{width:6.2cqw;height:6.2cqw}
+.yt-nav img{width:6.2cqw;height:6.2cqw;border-radius:50%;object-fit:cover;object-position:50% 22%}
+.yt-nav .yt-create{align-content:center}
+.yt-nav .yt-create svg{width:9.6cqw;height:9.6cqw}
+
+.yt-scrim{position:absolute;z-index:6;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .2s}
+.yt-sheet{position:absolute;z-index:7;left:2cqw;right:2cqw;bottom:2cqw;padding:2.4cqw 0;border-radius:4.5cqw;background:#282828;visibility:hidden;transform:translateY(calc(100% + 4cqw));transition:transform .28s cubic-bezier(.2,.7,.2,1),visibility 0s .28s}
+.yt-app.menu .yt-scrim{opacity:1;pointer-events:auto}
+.yt-app.menu .yt-sheet{visibility:visible;transform:none;transition-delay:0s}
+.yt-sheet>*{display:flex;align-items:center;gap:4.5cqw;width:100%;padding:3.6cqw 5.5cqw;border:0;background:none;color:#f1f1f1;font:400 3.8cqw/1.2 var(--yt);text-align:left;cursor:pointer}
+.yt-sheet>*:hover,.yt-sheet>*:focus-visible{background:rgba(255,255,255,.1);outline:none}
+.yt-sheet svg{flex:none;width:6cqw;height:6cqw}
+
+/* under the phones: make one of your own */
+.make-next{margin:clamp(44px,6vw,72px) auto 0;max-width:880px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px 24px;padding:24px 26px;border-radius:24px;border:1.5px dashed rgba(255,255,255,.16);background:radial-gradient(120% 140% at 0% 0%,rgba(164,123,255,.13),transparent 60%),var(--bg-2)}
+.make-next .plus{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--grad);color:#140b10;font:700 26px/1 var(--display)}
+.make-next h3{font-size:20px}
+.make-next p{color:var(--muted);font-size:14.5px;margin-top:4px}
+.make-next code{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--line);padding:7px 10px;border-radius:8px}
+@media (max-width:640px){.make-next{grid-template-columns:auto 1fr;padding:20px}.make-next .btn{grid-column:1/-1;justify-content:center}.make-next .plus{width:42px;height:42px;font-size:22px;align-self:start}}
 
 /* ---------- how ---------- */
 .steps{display:grid;gap:14px;grid-template-columns:1fr;margin-bottom:28px}
@@ -541,91 +651,111 @@ footer small{color:var(--dim);font-size:13px}
     <div class="section-head center">
       <span class="eyebrow rv">Demos</span>
       <h2 class="rv d1">Made with <span class="serif grad-text">makable Shorts</span></h2>
-      <p class="lede rv d2">Different products, in English and Hindi. Each one was recorded by Claude driving Chrome, scripted from what's on screen, and edited by the pipeline. Tap to play.</p>
+      <p class="lede rv d2">Different products, in English and Hindi. Each one was recorded by Claude driving Chrome, scripted from what's on screen, and edited by the pipeline. They play here as they would in the YouTube app: swipe or scroll for the next one, double-tap to like, tap the speaker for sound.</p>
     </div>
 
-    <div class="demos-grid">
-      <!-- To add a demo: copy one <article class="demo"> block and change the YouTube id (in data-yt, the img and the link), the title, the product and the language.
-           The thumbnail is YouTube's vertical one (oar2.jpg); a video uploaded in the last day or so may only have frame0.jpg yet. -->
-      <article class="demo rv">
-        <div class="phone">
-          <div class="screen" data-yt="VWhdMEDQJ30" data-title="The best free AI website builder">
-            <div class="island"></div>
-            <img src="https://i.ytimg.com/vi/VWhdMEDQJ30/oar2.jpg" alt="" width="1080" height="1920" loading="lazy">
-            <div class="shade"></div>
-            <span class="lang">English</span>
-            <button class="play" type="button" aria-label="Play “The best free AI website builder”"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.53.85l11.4-7.2a1 1 0 0 0 0-1.7L8.53 3.95A1 1 0 0 0 7 4.8Z"/></svg></button>
-          </div>
-        </div>
-        <div class="demo-info">
-          <div><h3>The best free AI website builder</h3><span class="tag">makable · English</span></div>
-          <a class="ext" href="https://www.youtube.com/shorts/VWhdMEDQJ30" target="_blank" rel="noopener" aria-label="Watch on YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
-        </div>
-      </article>
-      <article class="demo rv d1">
-        <div class="phone">
-          <div class="screen" data-yt="MHD4T2nnJWk" data-title="Compress a PDF on iLovePDF">
-            <div class="island"></div>
-            <img src="https://i.ytimg.com/vi/MHD4T2nnJWk/oar2.jpg" alt="" width="1080" height="1920" loading="lazy">
-            <div class="shade"></div>
-            <span class="lang">हिन्दी</span>
-            <button class="play" type="button" aria-label="Play “Compress a PDF on iLovePDF”"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.53.85l11.4-7.2a1 1 0 0 0 0-1.7L8.53 3.95A1 1 0 0 0 7 4.8Z"/></svg></button>
-          </div>
-        </div>
-        <div class="demo-info">
-          <div><h3>Compress a PDF on iLovePDF</h3><span class="tag">iLovePDF · हिन्दी</span></div>
-          <a class="ext" href="https://www.youtube.com/shorts/MHD4T2nnJWk" target="_blank" rel="noopener" aria-label="Watch on YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
-        </div>
-      </article>
-      <article class="demo rv d2">
-        <div class="phone">
-          <div class="screen" data-yt="p_XqcGQzU0Q" data-title="Clueso product demo">
-            <div class="island"></div>
-            <img src="https://i.ytimg.com/vi/p_XqcGQzU0Q/frame0.jpg" alt="" width="1080" height="1920" loading="lazy">
-            <div class="shade"></div>
-            <span class="lang">English</span>
-            <button class="play" type="button" aria-label="Play “Clueso product demo”"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.53.85l11.4-7.2a1 1 0 0 0 0-1.7L8.53 3.95A1 1 0 0 0 7 4.8Z"/></svg></button>
-          </div>
-        </div>
-        <div class="demo-info">
-          <div><h3>Clueso product demo</h3><span class="tag">Clueso · English</span></div>
-          <a class="ext" href="https://www.youtube.com/shorts/p_XqcGQzU0Q" target="_blank" rel="noopener" aria-label="Watch on YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
-        </div>
-      </article>
-      <article class="demo rv d3">
-        <div class="phone">
-          <div class="screen" data-yt="NhtTbSJjj_c" data-title="A free business website in 3 minutes">
-            <div class="island"></div>
-            <img src="https://i.ytimg.com/vi/NhtTbSJjj_c/oar2.jpg" alt="" width="1080" height="1920" loading="lazy">
-            <div class="shade"></div>
-            <span class="lang">English</span>
-            <button class="play" type="button" aria-label="Play “A free business website in 3 minutes”"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.53.85l11.4-7.2a1 1 0 0 0 0-1.7L8.53 3.95A1 1 0 0 0 7 4.8Z"/></svg></button>
-          </div>
-        </div>
-        <div class="demo-info">
-          <div><h3>A free business website in 3 minutes</h3><span class="tag">makable · English</span></div>
-          <a class="ext" href="https://www.youtube.com/shorts/NhtTbSJjj_c" target="_blank" rel="noopener" aria-label="Watch on YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
-        </div>
-      </article>
-
-      <article class="demo next rv">
-        <div class="phone">
-          <div class="screen">
-            <div class="next-inner">
-              <span class="plus" aria-hidden="true">+</span>
-              <h3>Your feature, next</h3>
-              <p>Open Claude Code in your product's repo and ask for one.</p>
-              <code>make a video of the new share button</code>
+    <!-- The Shorts in the two phones are listed in SHORTS, in the script at the end of the page. -->
+    <div class="duo rv" id="duo">
+      <figure class="device ios" data-os="ios">
+        <figcaption class="os"><i aria-hidden="true"></i>iOS</figcaption>
+        <div class="handset">
+          <span class="hw hw-act"></span><span class="hw hw-up"></span><span class="hw hw-down"></span><span class="hw hw-side"></span>
+          <div class="bezel"><div class="display">
+            <div class="sbar" aria-hidden="true">
+              <span class="clock">9:41</span>
+              <span class="di"></span>
+              <span class="sicons">
+                <svg class="sig" viewBox="0 0 18 12" fill="currentColor"><rect y="8" width="3" height="4" rx=".8"/><rect x="5" y="5.5" width="3" height="6.5" rx=".8"/><rect x="10" y="3" width="3" height="9" rx=".8"/><rect x="15" width="3" height="12" rx=".8"/></svg>
+                <svg class="wifi" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M1.4 4.6a9.4 9.4 0 0 1 13.2 0"/><path d="M4.1 7.4a5.6 5.6 0 0 1 7.8 0"/><path d="M6.8 10.1a1.8 1.8 0 0 1 2.4 0" stroke-width="2.4"/></svg>
+                <svg class="bat" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.6" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="20" height="9" rx="2.2" fill="currentColor"/><path d="M25 4.5v4c.8-.3 1.4-1.1 1.4-2s-.6-1.7-1.4-2Z" fill="currentColor" opacity=".45"/></svg>
+              </span>
             </div>
-          </div>
+            <span class="home-ind" aria-hidden="true"></span>
+          </div></div>
         </div>
-        <div class="demo-info">
-          <div><h3>Make one of your own</h3><span class="tag">Takes a few minutes</span></div>
-          <a class="ext" href="#install" aria-label="Install"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg></a>
+      </figure>
+
+      <figure class="device android" data-os="android">
+        <figcaption class="os"><i aria-hidden="true"></i>Android</figcaption>
+        <div class="handset">
+          <span class="hw hw-side"></span><span class="hw hw-up"></span>
+          <div class="bezel"><div class="display">
+            <div class="sbar" aria-hidden="true">
+              <span class="clock">9:41</span>
+              <span class="punch"></span>
+              <span class="sicons">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21 23.6 7.2A17.4 17.4 0 0 0 12 2.8 17.4 17.4 0 0 0 .4 7.2Z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20V2z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.34C7 21.4 7.6 22 8.33 22h7.34c.73 0 1.33-.6 1.33-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+              </span>
+            </div>
+            <span class="home-ind" aria-hidden="true"></span>
+          </div></div>
         </div>
-      </article>
+      </figure>
+    </div>
+    <noscript><p class="lede" style="margin:28px auto 0;text-align:center">Watch them on YouTube: <a href="https://www.youtube.com/shorts/VWhdMEDQJ30">the best free AI website builder</a>, <a href="https://www.youtube.com/shorts/MHD4T2nnJWk">compress a PDF on iLovePDF</a>, <a href="https://www.youtube.com/shorts/p_XqcGQzU0Q">Clueso</a> and <a href="https://www.youtube.com/shorts/NhtTbSJjj_c">a free business website in 3 minutes</a>.</p></noscript>
+
+    <div class="make-next rv">
+      <span class="plus" aria-hidden="true">+</span>
+      <div><h3>Your feature, next</h3><p>Open Claude Code in your product's repo and ask for one. It takes a few minutes.</p><code>make a video of the new share button</code></div>
+      <a class="btn btn-primary" href="#install">Install</a>
     </div>
   </div>
+
+  <!-- The YouTube app, put in each phone by the script -->
+  <template id="tpl-app">
+    <div class="yt-app">
+      <div class="yt-vid">
+        <div class="yt-stage"><div class="yt-player"></div></div>
+        <div class="yt-feed" tabindex="0" role="region"></div>
+        <div class="yt-top">
+          <button class="yt-sound" type="button" data-act="sound" data-ga="Unmute" aria-label="Unmute"><span class="ic"></span><span class="tx">Tap to unmute</span></button>
+          <button class="yt-more" type="button" data-act="more" data-ga="More" aria-label="More" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
+        </div>
+        <div class="yt-center" aria-hidden="true"></div>
+        <div class="yt-prog" aria-hidden="true"><i></i></div>
+        <div class="yt-toast" role="status" aria-live="polite"></div>
+      </div>
+      <nav class="yt-nav" aria-label="YouTube">
+        <a href="https://www.youtube.com/@itsBhaveshAi" target="_blank" rel="noopener" data-ga="Nav: Home"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg><span>Home</span></a>
+        <button type="button" data-act="top" data-ga="Nav: Shorts" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.6" y="1.8" width="12.8" height="20.4" rx="6.4" transform="rotate(-28 12 12)" fill="currentColor"/><path d="M9.7 8.3v7.4l6-3.7z" fill="#0f0f0f"/></svg><span>Shorts</span></button>
+        <a class="yt-create" href="#install" data-ga="Nav: Create" aria-label="Make a Short of your own"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="10.4" stroke-width="1.3"/><path d="M12 7.2v9.6M7.2 12h9.6" stroke-width="1.5" stroke-linecap="round"/></svg></a>
+        <a href="https://www.youtube.com/@itsBhaveshAi?sub_confirmation=1" target="_blank" rel="noopener" data-ga="Nav: Subscriptions"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm2-4h12v2H6zm14 8H4c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-8c0-1.1-.9-2-2-2zm0 10H4v-8h16v8zm-10-7.27v6.53L16 16z"/></svg><span>Subscriptions</span></a>
+        <a href="https://www.youtube.com/@itsBhaveshAi/shorts" target="_blank" rel="noopener" data-ga="Nav: You"><img src="assets/photo.jpg" alt="" width="24" height="24" loading="lazy" draggable="false"><span>You</span></a>
+      </nav>
+      <div class="yt-scrim" data-act="close" data-ga="Menu: Close"></div>
+      <div class="yt-sheet" role="menu" aria-label="More">
+        <a role="menuitem" data-act="watch" target="_blank" rel="noopener" data-ga="Menu: Watch on YouTube"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>Watch on YouTube</a>
+        <button role="menuitem" type="button" data-act="copy" data-ga="Menu: Copy link"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>Copy link</button>
+        <a role="menuitem" href="#install" data-act="close" data-ga="Menu: Make one like this"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>Make a Short like this</a>
+      </div>
+    </div>
+  </template>
+
+  <!-- One Short in the feed -->
+  <template id="tpl-slide">
+    <div class="yt-slide" role="group" aria-roledescription="Short">
+      <img class="yt-thumb" alt="" width="1080" height="1920" loading="lazy" draggable="false">
+      <div class="yt-shade"></div>
+      <div class="yt-rail">
+        <button class="yt-act" type="button" data-act="like" data-ga="Like" aria-label="Like" aria-pressed="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path class="o" d="M9 21h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.58 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2zM9 9l4.34-4.34L12 10h9v2l-3 7H9V9zM1 9h4v12H1z"/><path class="f" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg><span>Like</span></button>
+        <button class="yt-act" type="button" data-act="dislike" data-ga="Dislike" aria-label="Dislike" aria-pressed="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><g transform="rotate(180 12 12)"><path class="o" d="M9 21h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.58 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2zM9 9l4.34-4.34L12 10h9v2l-3 7H9V9zM1 9h4v12H1z"/><path class="f" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></g></svg><span>Dislike</span></button>
+        <a class="yt-act yt-comments" target="_blank" rel="noopener" data-ga="Comments" aria-label="Comments, on YouTube"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM20 4v13.17L18.83 16H4V4h16zM6 12h12v2H6zm0-3h12v2H6zm0-3h12v2H6z"/></svg><span>Comments</span></a>
+        <button class="yt-act" type="button" data-act="share" data-ga="Share" aria-label="Share"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path transform="matrix(-1 0 0 1 24 0)" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg><span>Share</span></button>
+        <img class="yt-disc" alt="" width="36" height="36" loading="lazy" draggable="false">
+      </div>
+      <div class="yt-meta">
+        <div class="yt-ch">
+          <img class="yt-av" src="assets/photo.jpg" alt="" width="32" height="32" loading="lazy" draggable="false">
+          <a class="yt-handle" href="https://www.youtube.com/@itsBhaveshAi" target="_blank" rel="noopener" data-ga="Channel">@itsBhaveshAi</a>
+          <a class="yt-sub" href="https://www.youtube.com/@itsBhaveshAi?sub_confirmation=1" target="_blank" rel="noopener" data-ga="Subscribe">Subscribe</a>
+        </div>
+        <p class="yt-title"></p>
+        <p class="yt-note"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg><span></span></p>
+      </div>
+    </div>
+  </template>
 </section>
 
 <!-- ============ HOW ============ -->
@@ -972,6 +1102,7 @@ document.querySelectorAll('[data-install]').forEach(box => {
   }));
   const btn = box.querySelector('.copy');
   btn.addEventListener('click', async () => {
+    track('copy_install_command', {command: code.textContent});
     try { await navigator.clipboard.writeText(code.textContent); } catch (e) {
       const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges();
     }
@@ -1092,6 +1223,465 @@ if (clip) {
   });
   if (!reduce) new IntersectionObserver(([e]) => { e.isIntersecting ? clip.play().catch(() => {}) : clip.pause(); }, {threshold:.25}).observe(clip);
 }
+
+/* ---------- Google Analytics: every click on the page, and what's done in the phones ---------- */
+function track(name, params) {
+  const p = {};
+  for (const [k, v] of Object.entries(params || {})) if (v !== undefined && v !== null && v !== '') p[k] = v;
+  if (typeof gtag === 'function') gtag('event', name, p);
+}
+const labelOf = el => (el.dataset.ga || el.dataset.title || el.getAttribute('aria-label') || el.textContent || el.title || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+// Capture, so it sees every click before anything else handles it.
+document.addEventListener('click', e => {
+  const el = e.target.closest('a[href], button, summary, [role="tab"], [data-ga], .screen[data-yt]');
+  if (!el) return;
+  const area = el.closest('section, header, footer');
+  const phone = phones.get(el.closest('.device'));
+  const link = el.matches('a[href]') ? el : null;
+  track('ui_click', {
+    element_label: labelOf(el),
+    element_type: el.tagName.toLowerCase(),
+    section: area ? area.id || area.classList[0] || area.tagName.toLowerCase() : 'page',
+    link_url: link?.href,
+    outbound: link ? String(link.host !== location.host) : undefined,
+    ...(phone ? phone.context(el.closest('.yt-slide')?.dataset.id) : {}),
+  });
+}, true);
+
+/* ---------- the demos: Shorts on an iPhone and an Android phone ---------- */
+/* To add a Short, add a line. The thumbnail is YouTube's vertical one (oar2.jpg). */
+const SHORTS = [
+  {id: 'VWhdMEDQJ30', title: 'The best free AI website builder', product: 'makable', lang: 'English'},
+  {id: 'MHD4T2nnJWk', title: 'Compress a PDF on iLovePDF', product: 'iLovePDF', lang: 'हिन्दी'},
+  {id: 'p_XqcGQzU0Q', title: 'Clueso product demo', product: 'Clueso', lang: 'English'},
+  {id: 'NhtTbSJjj_c', title: 'A free business website in 3 minutes', product: 'makable', lang: 'English'},
+];
+const shortUrl = id => `https://www.youtube.com/shorts/${id}`;
+const ICON = {
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h3.5v14H7zm6.5 0H17v14h-3.5z"/></svg>',
+  muted: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>',
+  sound: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
+  liked: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>',
+};
+// Likes are kept in this browser only: 1 liked, -1 disliked.
+const RATED = 'shorts-rated';
+let rated = {};
+try { rated = JSON.parse(localStorage.getItem(RATED)) || {}; } catch (e) {}
+const saveRated = () => { try { localStorage.setItem(RATED, JSON.stringify(rated)); } catch (e) {} };
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); } catch (e) {
+    const t = Object.assign(document.createElement('textarea'), {value: text});
+    document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+  }
+}
+
+// YouTube's player API, loaded once, when the phones are close to the screen.
+let ytApi;
+const loadYT = () => ytApi ||= new Promise((resolve, reject) => {
+  if (window.YT?.Player) return resolve(window.YT);
+  const before = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = () => { before?.(); resolve(window.YT); };
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = reject;
+  document.head.appendChild(s);
+  setTimeout(() => reject(new Error('timeout')), 15000);
+});
+
+const phones = new Map();   // .device → Phone
+
+/* One phone: a feed of Shorts that snaps one to a screen, and a single YouTube player under it.
+   The player moves with the Short it's playing while the feed scrolls, then loads the next one. */
+class Phone {
+  constructor(device, start) {
+    this.device = device;
+    this.os = device.dataset.os;
+    this.items = SHORTS.map((_, i) => SHORTS[(i + start) % SHORTS.length]);
+    this.idx = 0;
+    this.muted = true;
+    this.visible = false;
+    this.userPaused = false;   // paused by a tap, so it stays paused
+    this.started = !reduce;    // with reduced motion, nothing plays until it's tapped
+    this.errors = 0;
+    const display = device.querySelector('.display');
+    this.app = document.getElementById('tpl-app').content.firstElementChild.cloneNode(true);
+    display.insertBefore(this.app, display.querySelector('.home-ind'));
+    const $ = s => this.app.querySelector(s);
+    this.vid = $('.yt-vid'); this.feed = $('.yt-feed'); this.stage = $('.yt-stage'); this.host = $('.yt-player');
+    this.bar = $('.yt-prog i'); this.center = $('.yt-center'); this.toastEl = $('.yt-toast'); this.soundBtn = $('.yt-sound');
+    this.feed.setAttribute('aria-label', `Shorts on the ${this.os === 'ios' ? 'iOS' : 'Android'} phone. Scroll, swipe or use the arrow keys for the next one.`);
+    const tpl = document.getElementById('tpl-slide').content.firstElementChild;
+    this.slides = this.items.map((s, i) => {
+      const el = tpl.cloneNode(true);
+      el.dataset.id = s.id;
+      el.setAttribute('aria-label', `${i + 1} of ${this.items.length}: ${s.title}`);
+      const thumb = `https://i.ytimg.com/vi/${s.id}/oar2.jpg`;
+      el.querySelector('.yt-thumb').src = thumb;
+      el.querySelector('.yt-disc').src = thumb;
+      el.querySelector('.yt-title').textContent = s.title;
+      el.querySelector('.yt-note span').textContent = `${s.product} · ${s.lang}`;
+      el.querySelector('.yt-comments').href = shortUrl(s.id);
+      this.feed.appendChild(el);
+      return el;
+    });
+    this.items.forEach(s => this.paintRating(s.id));
+    this.paintSound();
+    if (!this.started) this.showCenter('play', true);
+    this.wire();
+    phones.set(device, this);
+  }
+
+  get cur() { return this.items[this.idx]; }
+  context(id = this.cur.id) {
+    const i = this.items.findIndex(s => s.id === id);
+    return {phone: this.os, video_id: id, video_title: this.items[i]?.title, position: i + 1};
+  }
+  ev(name, extra, id) { track(name, {...this.context(id), ...extra}); }
+
+  wire() {
+    const f = this.feed;
+    f.addEventListener('scroll', () => {
+      this.stage.style.transform = `translateY(${this.idx * f.clientHeight - f.scrollTop}px)`;
+      clearTimeout(this.settleT);
+      this.settleT = setTimeout(() => this.settle(), 150);
+    }, {passive: true});
+    f.addEventListener('scrollend', () => { clearTimeout(this.settleT); this.settle(); });
+    new ResizeObserver(() => { f.scrollTop = this.idx * f.clientHeight; this.stage.style.transform = ''; }).observe(f);
+
+    // A mouse wheel or a trackpad moves one Short per flick. Past the first or the last, the page scrolls on.
+    this.vid.addEventListener('wheel', e => {
+      if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const now = performance.now();
+      if (!(now - this.wheelAt < 220)) this.wheel = {acc: 0, own: null};   // a new flick
+      this.wheelAt = now;
+      const w = this.wheel;
+      w.acc += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? f.clientHeight : 1);
+      if (w.own === null) {
+        const to = this.idx + Math.sign(w.acc);
+        if (to < 0 || to >= this.items.length) w.own = false;
+        else if (Math.abs(w.acc) >= 12) { w.own = true; this.go(to, 'wheel'); }
+      }
+      if (w.own !== false) e.preventDefault();
+    }, {passive: false});
+
+    // a tap plays or pauses, a double tap likes
+    f.addEventListener('click', e => {
+      if (e.target.closest('a, button')) return;
+      if (this.dragged) { this.dragged = false; return; }
+      const now = performance.now();
+      if (now - this.lastTap < 300) {
+        clearTimeout(this.tapT); this.lastTap = 0;
+        this.burst(e);
+        this.rate(e.target.closest('.yt-slide')?.dataset.id || this.cur.id, 1, 'double_tap', true);
+        return;
+      }
+      this.lastTap = now;
+      this.tapT = setTimeout(() => this.toggle('tap'), 280);
+    });
+
+    // with a mouse, drag it up or down like a finger
+    f.addEventListener('pointerdown', e => {
+      this.dragged = false;
+      if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('a, button')) return;
+      this.drag = {y: e.clientY, top: f.scrollTop, moved: false};
+    });
+    addEventListener('pointermove', e => {
+      if (!this.drag) return;
+      const d = e.clientY - this.drag.y;
+      if (!this.drag.moved && Math.abs(d) < 6) return;
+      this.drag.moved = true;
+      f.style.scrollSnapType = 'none';
+      f.scrollTop = this.drag.top - d;
+    });
+    addEventListener('pointerup', e => {
+      if (!this.drag) return;
+      const d = e.clientY - this.drag.y, moved = this.drag.moved;
+      this.drag = null;
+      if (!moved) return;
+      this.dragged = true;
+      const far = Math.abs(d) > Math.min(60, f.clientHeight * .15);
+      this.go(far ? this.idx + (d < 0 ? 1 : -1) : this.idx, far ? 'drag' : null);
+    });
+
+    f.addEventListener('keydown', e => {
+      const k = e.key;
+      if (k === 'ArrowDown' || k === 'PageDown') this.go(this.idx + 1, 'key');
+      else if (k === 'ArrowUp' || k === 'PageUp') this.go(this.idx - 1, 'key');
+      else if (k === ' ' || k === 'k' || k === 'Enter') this.toggle('key');
+      else if (k === 'm') this.setSound(this.muted, 'key');
+      else return;
+      e.preventDefault();
+    });
+    this.app.addEventListener('keydown', e => { if (e.key === 'Escape') this.menu(false); });
+
+    this.app.addEventListener('click', e => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      const id = b.closest('.yt-slide')?.dataset.id || this.cur.id;
+      switch (b.dataset.act) {
+        case 'like': this.rate(id, 1, 'button'); break;
+        case 'dislike': this.rate(id, -1, 'button'); break;
+        case 'share': this.share(id); break;
+        case 'sound': this.setSound(this.muted, 'button'); break;
+        case 'more': this.menu(true); break;
+        case 'close': this.menu(false); break;
+        case 'watch': this.menu(false); break;
+        case 'copy': this.menu(false); copyText(shortUrl(id)).then(() => this.toast('Link copied')); break;
+        case 'top': this.go(0, 'nav'); break;
+      }
+    });
+  }
+
+  /* the feed */
+  go(i, how) {
+    const n = this.items.length, f = this.feed;
+    i = how === 'auto' ? (i + n) % n : Math.max(0, Math.min(n - 1, i));
+    this.how = how;
+    const top = i * f.clientHeight;
+    if (Math.abs(f.scrollTop - top) < 1) return this.settle();
+    f.scrollTo({top, behavior: reduce ? 'auto' : 'smooth'});
+  }
+  settle() {
+    if (this.drag) return;
+    const f = this.feed, h = f.clientHeight || 1;
+    const i = Math.max(0, Math.min(this.items.length - 1, Math.round(f.scrollTop / h)));
+    if (Math.abs(f.scrollTop - i * h) > 1 && f.style.scrollSnapType) return f.scrollTo({top: i * h, behavior: 'smooth'});
+    f.style.scrollSnapType = '';
+    if (i !== this.idx) this.activate(i, this.how || 'swipe');
+    this.how = null;
+    this.stage.style.transform = '';
+  }
+  activate(i, how) {
+    const from = this.idx;
+    clearTimeout(this.liveT);
+    this.slides[from].classList.remove('live');
+    this.idx = i;
+    this.stage.style.transform = '';
+    this.setBar(0, true);
+    this.userPaused = false;
+    this.counted = false;
+    this.showCenter(this.started ? null : 'play', true);
+    if (how === 'auto') this.ev('short_auto_next', {from_position: from + 1});
+    else this.ev('short_swipe', {method: how, direction: i > from ? 'next' : 'previous'});
+    if (!this.ready) return;
+    this.loaded = this.cur.id;
+    if (this.visible && this.started) this.player.loadVideoById(this.cur.id);
+    else this.player.cueVideoById(this.cur.id);
+  }
+
+  /* the player */
+  createPlayer(YT) {
+    this.loaded = this.cur.id;
+    this.player = new YT.Player(this.host, {
+      host: 'https://www.youtube-nocookie.com',
+      videoId: this.cur.id,
+      width: '100%', height: '100%',
+      playerVars: {autoplay: 0, mute: 1, controls: 0, playsinline: 1, rel: 0, iv_load_policy: 3, fs: 0, disablekb: 1, cc_load_policy: 0, origin: location.origin},
+      events: {
+        onReady: () => {
+          this.ready = true;
+          const frame = this.player.getIframe();
+          frame.tabIndex = -1;
+          frame.setAttribute('aria-hidden', 'true');
+          if (!this.muted) this.player.unMute();
+          this.setVisible(this.visible);
+        },
+        onStateChange: e => this.onState(e.data),
+        onError: e => {
+          this.ev('short_error', {error_code: e.data});
+          // skip to the next one, unless none of them will play here
+          if (++this.errors < this.items.length) this.go(this.idx + 1, 'auto');
+        },
+      },
+    });
+  }
+  playNow() {
+    if (!this.ready) return;
+    if (this.loaded !== this.cur.id) { this.loaded = this.cur.id; this.player.loadVideoById(this.cur.id); }
+    else this.player.playVideo();
+  }
+  setVisible(v) {
+    this.visible = v;
+    if (!this.ready) return;
+    if (v && this.started && !this.userPaused) this.playNow();
+    else if (!v) this.player.pauseVideo();
+  }
+  onState(s) {
+    const S = YT.PlayerState;
+    const playing = s === S.PLAYING;
+    this.device.classList.toggle('on', playing);
+    clearInterval(this.tickT);
+    if (playing) {
+      if (!this.visible || this.userPaused || !this.started) return this.player.pauseVideo();
+      clearTimeout(this.liveT);
+      this.liveT = setTimeout(() => this.slides[this.idx].classList.add('live'), 120);
+      this.tickT = setInterval(() => this.tick(), 250);
+      this.errors = 0;
+      if (!this.counted) { this.counted = true; this.ev('short_play', {sound: this.muted ? 'off' : 'on'}); }
+    } else if (s === S.ENDED) {
+      this.slides[this.idx].classList.remove('live');   // its thumbnail, not YouTube's end screen
+      this.setBar(1);
+      this.ev('short_complete');
+      this.go(this.idx + 1, 'auto');
+    }
+  }
+  tick() {
+    const d = this.player.getDuration?.(), t = this.player.getCurrentTime?.();
+    if (d > 0) this.setBar(t / d);
+  }
+  setBar(f, instant) {
+    const b = this.bar;
+    if (instant) { b.style.transition = 'none'; b.style.width = '0'; void b.offsetWidth; b.style.transition = ''; }
+    else b.style.width = (Math.min(1, f) * 100).toFixed(2) + '%';
+  }
+  toggle(how) {
+    if (!this.ready) {
+      // the player didn't load (blocked, or offline): watch it on YouTube instead
+      if (this.failed) open(shortUrl(this.cur.id), '_blank', 'noopener');
+      return;
+    }
+    const S = YT.PlayerState, st = this.player.getPlayerState();
+    if (this.started && !this.userPaused && (st === S.PLAYING || st === S.BUFFERING)) {
+      this.userPaused = true;
+      this.player.pauseVideo();
+      this.showCenter('play', true);
+      this.ev('short_pause', {method: how});
+    } else {
+      this.userPaused = false;
+      this.started = true;
+      this.playNow();
+      this.showCenter('pause');
+      this.ev('short_resume', {method: how});
+    }
+  }
+
+  /* sound: one phone at a time */
+  setSound(on, how) {
+    if (on) phones.forEach(p => { if (p !== this && !p.muted) p.setSound(false); });
+    this.muted = !on;
+    this.paintSound();
+    if (how) this.ev(on ? 'short_unmute' : 'short_mute', {method: how});
+    if (!this.ready) return;
+    clearTimeout(this.soundT);
+    if (!on) return this.player.mute();
+    this.player.unMute();
+    this.player.setVolume(100);
+    if (this.visible) { this.userPaused = false; this.started = true; this.playNow(); this.showCenter(null); }
+    // A browser can refuse sound that wasn't tapped for inside the video itself, and pause it instead.
+    this.soundT = setTimeout(() => {
+      if (this.muted || !this.visible || this.userPaused) return;
+      if (this.player.getPlayerState() === YT.PlayerState.PAUSED || this.player.isMuted()) {
+        this.muted = true;
+        this.paintSound();
+        this.player.mute();
+        this.playNow();
+        this.toast('This browser kept the sound off here.', shortUrl(this.cur.id));
+        this.ev('short_sound_blocked');
+      }
+    }, 1000);
+  }
+  paintSound() {
+    const b = this.soundBtn, on = !this.muted;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-label', on ? 'Mute' : 'Unmute');
+    b.dataset.ga = on ? 'Mute' : 'Unmute';
+    b.querySelector('.ic').innerHTML = on ? ICON.sound : ICON.muted;
+  }
+
+  /* likes, shared by both phones */
+  rate(id, v, how, keep) {
+    const was = rated[id] || 0, now = keep ? v : (was === v ? 0 : v);
+    if (now === was) return;
+    if (now) rated[id] = now; else delete rated[id];
+    saveRated();
+    phones.forEach(p => p.paintRating(id, now === 1));
+    this.ev(now === 1 ? 'short_like' : now === -1 ? 'short_dislike' : 'short_unrate', {method: how}, id);
+  }
+  paintRating(id, pop) {
+    const r = rated[id] || 0;
+    this.slides?.forEach(el => {
+      if (el.dataset.id !== id) return;
+      const like = el.querySelector('[data-act="like"]');
+      like.setAttribute('aria-pressed', r === 1);
+      el.querySelector('[data-act="dislike"]').setAttribute('aria-pressed', r === -1);
+      if (pop) { like.classList.remove('pop'); void like.offsetWidth; like.classList.add('pop'); }
+    });
+  }
+  burst(e) {
+    const r = this.vid.getBoundingClientRect(), b = document.createElement('span');
+    b.className = 'yt-burst';
+    b.innerHTML = ICON.liked;
+    b.style.left = (e.clientX - r.left) + 'px';
+    b.style.top = (e.clientY - r.top) + 'px';
+    this.vid.appendChild(b);
+    setTimeout(() => b.remove(), 900);
+  }
+
+  async share(id) {
+    const url = shortUrl(id);
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+      try { await navigator.share({title: this.items.find(s => s.id === id)?.title, url}); this.ev('short_share', {method: 'share_sheet'}, id); } catch (e) {}
+      return;
+    }
+    await copyText(url);
+    this.toast('Link copied');
+    this.ev('short_share', {method: 'copy_link'}, id);
+  }
+  menu(open) {
+    if (open === this.app.classList.contains('menu')) return;
+    this.app.classList.toggle('menu', open);
+    if (!open) {
+      if (this.app.querySelector('.yt-sheet').contains(document.activeElement)) this.app.querySelector('.yt-more').focus({preventScroll: true});
+      return;
+    }
+    this.app.querySelector('[data-act="watch"]').href = shortUrl(this.cur.id);
+    this.app.querySelector('.yt-sheet [role="menuitem"]').focus({preventScroll: true});
+  }
+  showCenter(kind, stay) {
+    const c = this.center;
+    clearTimeout(this.centerT);
+    if (!kind) return c.classList.remove('on');
+    c.innerHTML = ICON[kind];
+    c.classList.add('on');
+    if (!stay) this.centerT = setTimeout(() => c.classList.remove('on'), 500);
+  }
+  toast(text, href) {
+    const t = this.toastEl;
+    t.replaceChildren(text);
+    if (href) t.append(' ', Object.assign(document.createElement('a'), {href, target: '_blank', rel: 'noopener', textContent: 'Watch on YouTube'}));
+    t.classList.add('on');
+    clearTimeout(this.toastT);
+    this.toastT = setTimeout(() => t.classList.remove('on'), href ? 4500 : 1800);
+  }
+}
+
+const devices = [...document.querySelectorAll('.device')];
+devices.forEach((d, i) => new Phone(d, i));   // the Android phone starts one Short further on
+// A phone plays while most of it is on screen (in the sideways row on a phone, that's the one in the middle).
+const seen = new IntersectionObserver(es => es.forEach(e => {
+  const r = e.intersectionRect, b = e.boundingClientRect;
+  const v = e.isIntersecting && (e.intersectionRatio >= .5 || (r.height >= innerHeight * .6 && r.width >= b.width * .8));
+  phones.get(e.target.closest('.device'))?.setVisible(v);
+}), {threshold: [0, .25, .5, .75, 1]});
+devices.forEach(d => seen.observe(d.querySelector('.display')));
+new IntersectionObserver(([e], o) => {
+  if (!e.isIntersecting) return;
+  o.disconnect();
+  loadYT().then(YT => phones.forEach(p => p.createPlayer(YT))).catch(() => phones.forEach(p => { p.failed = true; }));
+}, {rootMargin: '700px 0px'}).observe(document.getElementById('duo'));
+document.addEventListener('visibilitychange', () => phones.forEach(p => {
+  if (document.hidden) { if (p.ready) p.player.pauseVideo(); } else p.setVisible(p.visible);
+}));
+
+/* the time in the status bars */
+const clocks = document.querySelectorAll('.clock');
+const setClock = () => {
+  const t = new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}).replace(/\s*[ap]\.?\s?m\.?$/i, '');
+  clocks.forEach(c => { c.textContent = t; });
+};
+setClock();
+setInterval(setClock, 15000);
 </script>
 </body>
 </html>
