@@ -43,7 +43,9 @@ def image(*packages: str, torch: tuple[str, ...] = ()) -> modal.Image:
 omnivoice_image = image(
     "omnivoice==0.2.1", "transformers==5.14.1", "soundfile", torch=("torch==2.8.0", "torchaudio==2.8.0")
 )
-chatterbox_image = image("chatterbox-tts")
+# Chatterbox watermarks what it says with resemble-perth, whose watermarker imports pkg_resources: without setuptools
+# (not in Python 3.12's image; removed from setuptools 82), perth quietly makes it None, and loading Chatterbox fails.
+chatterbox_image = image("chatterbox-tts", "setuptools<82")
 web_image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("ffmpeg")
