@@ -169,7 +169,9 @@ notes.
 
 Follow [script.md](../make-video/references/script.md), its "useful website" section: a hook of 12 words at most,
 3 to 6 scenes said to the viewer ("search…", "type…", "and there it is"), about 20 s of narration in all, the
-outro line exactly as the kept sign-off says it (run.json's `sign_off_line`), a title, a description, and tags.
+outro line exactly as the kept sign-off says it (run.json's `sign_off_line`), a title, a description, and tags. The
+hook's setting is the sign-off's, with what the person wears in it (Read the still that `new` printed): Omni
+dresses them anew each clip, and a grey shirt cutting to a red one shows the sign-off was filmed apart.
 Write it to `RUN/drafts/script.json`, then:
 
 ```sh

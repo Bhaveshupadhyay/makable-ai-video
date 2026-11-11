@@ -71,8 +71,11 @@ free website, found on Google, and every part is shorter:
 1. **The hook,** about 4 s: Omni films 4 s (`intro_seconds`), and the video cuts a moment after the talking ends.
    - `intro_line`: **12 words at most.** A problem the viewer has, then the promise, said to them: "असाइनमेंट
      लिखते-लिखते हाथ दुख गया? ये वेबसाइट आपकी जगह लिख देगी!" Don't name the site: the recording shows it.
-   - `intro_setting`: the shot, as for any intro: "A YouTuber's room at night, blue neon LED strips glowing on the
-     wall behind, a soft warm key light on the face, framed from the chest up."
+   - `intro_setting`: the kept sign-off's shot, so the hook and the sign-off look like one shoot. `new` prints its
+     setting and the path of a still of it: Read the still, and describe its room and light **and what the person
+     wears**, since Omni dresses them anew each clip: "A YouTuber's room at night, blue neon LED strips glowing on the
+     wall behind, a black gaming chair, a soft warm key light on the face, wearing a plain red t-shirt, framed from
+     the chest up."
 2. **The recording:** 3 to 6 `scenes`, **about 20 s of narration** in all. Each is one step, said to the viewer, as
    if they were following along: the search, the first result, the one thing done, the payoff, one more thing.
    - "गूगल पे टेक्स्ट टू हैंडराइटिंग सर्च करो, और पहली वेबसाइट खोलो।"

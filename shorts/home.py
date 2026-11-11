@@ -9,7 +9,8 @@
     products/<name>.md   what the make-video skill knows about each product: its address, how to say its name, ...
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
     sign-offs/hi.mp4     your sign-off for "useful website" Shorts, a language at a time: one clip of your avatar
-    sign-offs/hi.json    saying it (and what it says), brought in as each one's outro (`python -m shorts sign-off`)
+    sign-offs/hi.json    saying it (and what it says, and where), brought in as each one's outro, and a still of it
+    sign-offs/hi.png     (hi.png), to film the hook to look the same (`python -m shorts sign-off`)
     topics.json          the sites those Shorts were made about, so none is made twice (`shorts.trends`)
     trends/<date>.json   the day's YouTube searches, kept so the same one again that day costs no quota
 
@@ -151,9 +152,21 @@ def sign_offs() -> dict[str, str]:
     return {clip.stem: line for clip, line in filter(None, found)}
 
 
-def keep_sign_off(language: str, clip: Path, line: str) -> Path:
+def sign_off_look(language: str) -> tuple[Path | None, str]:
+    """How your sign-off in `language` looks, for a hook to be filmed to match: a still of it (None: none was
+    kept), and the setting it was filmed in ("" if it's not known)."""
+    folder = home() / "sign-offs"
+    still = folder / f"{language}.png"
+    about = folder / f"{language}.json"
+    setting = json.loads(about.read_text()).get("setting", "") if about.exists() else ""
+    return (still if still.exists() else None), setting
+
+
+def keep_sign_off(language: str, clip: Path, line: str, setting: str = "") -> Path:
     """Keeps a copy of `clip`, an MP4 of your avatar saying `line`, as your sign-off in `language`, in place of the
-    one kept before."""
+    one kept before, with the setting it was filmed in, if it's known, and a still of it from its middle."""
+    from .media import duration, still
+
     if not re.fullmatch(r"[a-z]{2,3}", language):
         raise ValueError(f"{language!r} isn't a language's code, such as hi or en")
     if not line.strip():
@@ -165,6 +178,13 @@ def keep_sign_off(language: str, clip: Path, line: str) -> Path:
     shutil.copyfile(Path(clip).expanduser(), part)
     part.replace(kept)
     about = folder / f".{language}.part.json"
-    about.write_text(json.dumps({"line": line.strip()}, ensure_ascii=False, indent=1) + "\n")
+    written = {"line": line.strip(), **({"setting": setting.strip()} if setting.strip() else {})}
+    about.write_text(json.dumps(written, ensure_ascii=False, indent=1) + "\n")
     about.replace(folder / f"{language}.json")
+    picture = folder / f"{language}.png"
+    picture.unlink(missing_ok=True)
+    try:
+        still(kept, duration(kept) / 2, picture)
+    except RuntimeError:  # not a video ffmpeg can read: kept all the same, without a still
+        picture.unlink(missing_ok=True)
     return kept

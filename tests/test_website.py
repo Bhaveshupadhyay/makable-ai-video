@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from shorts.hear import differences, hear, report, said_words
-from shorts.home import keep_sign_off, sign_off, sign_offs
+from shorts.home import keep_sign_off, sign_off, sign_off_look, sign_offs
 from shorts.intro import film
 from shorts.run import FILMED_INTRO, FILMED_OUTRO, Run, Settings, narration_file
 from shorts.script import Scene, Script, check, tag_characters
@@ -353,6 +353,7 @@ def test_a_runs_outro_is_kept_as_the_sign_off(
     main()
     clip, line = sign_off("hi")
     assert clip.read_bytes() == b"filmed" and line == "ऐसी वेबसाइट्स के लिए फॉलो करो।"
+    assert sign_off_look("hi") == (None, "A room at night.")  # its setting, and no still of a clip that isn't one
     assert "every website Short in hi ends on it" in capsys.readouterr().out
 
 

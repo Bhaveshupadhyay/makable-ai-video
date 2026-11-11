@@ -61,6 +61,7 @@ from .home import (
     products,
     runs,
     sign_off,
+    sign_off_look,
     sign_offs,
     signed_in_sites,
     site,
@@ -162,6 +163,11 @@ def bring_in_sign_off(run: Run) -> None:
     print(f"The outro is your sign-off in {settings.language}: {line}")
     bring_in(run, "outro", [clip])
     run.save_settings(run.settings().model_copy(update={"sign_off_line": line}))
+    picture, setting = sign_off_look(settings.language)
+    if picture or setting:
+        print("Film the hook to look like it: what's worn and where, as in its still and its setting")
+        print(f"  still:   {picture or '(none)'}")
+        print(f"  setting: {setting or '(not known)'}")
 
 
 # Who can film you and who can speak the narration, for `me` to keep, as it says them.
@@ -389,9 +395,11 @@ def keep_sign_off_from(args: argparse.Namespace) -> None:
             sys.exit(f"sign-off: {run.folder} has no outro clip yet ({FILMED_OUTRO})")
         script = run.script() if run.path(SCRIPT).exists() else None
         line = args.line or (script.outro_line if script else "")
+        setting = args.setting or (script.outro_setting or script.intro_setting if script else "")
         language = args.language or (script.language if script else run.settings().language)
     elif args.clip:
         clip, line, language = Path(args.clip).expanduser(), args.line or "", args.language or ""
+        setting = args.setting or ""
         if not clip.is_file():
             sys.exit(f"sign-off: there's no file {clip}")
         if not language:
@@ -403,7 +411,7 @@ def keep_sign_off_from(args: argparse.Namespace) -> None:
             print(f"No sign-off kept: {COMMAND} sign-off --from RUN keeps a run's outro, for every website Short")
         return
     try:
-        kept = keep_sign_off(language, clip, line)
+        kept = keep_sign_off(language, clip, line, setting)
     except ValueError as problem:
         sys.exit(f"sign-off: {problem}")
     print(f"Kept {kept}: every website Short in {language} ends on it, saying: {line.strip()}")
@@ -567,6 +575,7 @@ def main() -> None:
     signing_off.add_argument("--clip", help="or a file: a clip of you saying the sign-off")
     signing_off.add_argument("--line", help="what it says (a run's: its script's outro line)")
     signing_off.add_argument("--language", help="the language it's in (a run's: its script's)")
+    signing_off.add_argument("--setting", help="where it's filmed, for hooks to match (a run's: its script's)")
 
     hearing = commands.add_parser("hear", help="what Whisper hears in the narration and the clips, against the script")
     hearing.add_argument("run", type=Path)
