@@ -336,6 +336,19 @@ def test_the_same_words_written_two_ways_arent_a_difference() -> None:
         {"said": "two", "heard": ""},
         {"said": "", "heard": "four"},
     ]
+    assert differences("कोई कर्सिव", "कोई करसिव") == []  # a halant
+
+
+def test_english_words_whisper_writes_in_english_letters_are_heard_as_written() -> None:
+    # What Whisper wrote for the texttohandwriting.com Short's narration, by OmniVoice
+    said = "गूगल पे टेक्स्ट टू हैंडराइटिंग सर्च करो, और पहली वेबसाइट खोलो।"
+    assert differences(said, "गूगल पे text to handwriting सर्च करो और पहली website खोलो") == []
+    said = "जनरेट इमेज दबाओ, और असली कॉपी के पेज जैसी इमेज तैयार, पीडीएफ़ भी डाउनलोड कर लो।"
+    heard = "generate image दबाओ और असली copy के page जैसी image तयार PDF भी डाउनलोड कर लो"
+    assert differences(said, heard) == [{"said": "तैयार", "heard": "तयार"}]  # a vowel, in the same script
+    said = "इसका यूज़ कहाँ करना है, आप समझदार हो। ऐसी वेबसाइट्स के लिए फॉलो करो।"
+    assert differences(said, "इसका use कहां करना है आप समझदार हो ऐसी websites के लिए follow करो") == []
+    assert differences("पूरी चौदह हैंडराइटिंग", "पूरी 14 handwriting") == [{"said": "चौदह", "heard": "14"}]
 
 
 def test_hear_flags_the_words_that_came_out_differently(run: Run) -> None:
