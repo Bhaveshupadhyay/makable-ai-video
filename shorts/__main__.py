@@ -348,6 +348,7 @@ def show_trends(args: argparse.Namespace) -> None:
             count=args.count,
             fresh=args.fresh,
             least_views=args.least_views,
+            loose=args.loose,
         )
     except (ValueError, YouTubeError) as problem:
         sys.exit(f"trends: {problem}")
@@ -550,6 +551,9 @@ def main() -> None:
     trending.add_argument("--top", type=int, default=20, help="how many to show")
     trending.add_argument("--least-views", type=int, default=10_000, help="leave out Shorts with fewer views")
     trending.add_argument("--fresh", action="store_true", help="search again, though it was searched today")
+    trending.add_argument(
+        "--loose", action="store_true", help="every Short found, even those that don't say the search's words"
+    )
     trending.add_argument("--json", action="store_true", help="as JSON, with each one's description and tags")
 
     topics = commands.add_parser("topics", help="the sites website Shorts were made about already")

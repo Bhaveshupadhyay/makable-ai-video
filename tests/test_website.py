@@ -25,6 +25,7 @@ from shorts.trends import (
     log_site,
     made_already,
     made_sites,
+    mentions,
     sites_in,
 )
 
@@ -56,7 +57,7 @@ VIDEOS = {
     },
     "bbbbbbbbbbb": {  # a big channel's: more views, but fewer than its subscribers
         "snippet": {
-            "title": "AI website that edits photos",
+            "title": "Useful AI website that edits photos",
             "channelId": "big",
             "channelTitle": "Big Tech Hindi",
             "publishedAt": posted(5),
@@ -74,6 +75,29 @@ VIDEOS = {
         "snippet": {"title": "Website review", "channelId": "big", "channelTitle": "Big", "publishedAt": posted(3)},
         "statistics": {"viewCount": "800000"},
         "contentDetails": {"duration": "PT3M30S"},
+    },
+}
+VIDEOS |= {
+    "eeeeeeeeeee": {  # found by the search, but not about it
+        "snippet": {
+            "title": "Online Friend 🎮",
+            "channelId": "small",
+            "channelTitle": "Tiny",
+            "publishedAt": posted(1),
+        },
+        "statistics": {"viewCount": "900000"},
+        "contentDetails": {"duration": "PT20S"},
+    },
+    "fffffffffff": {  # in another language
+        "snippet": {
+            "title": "Useful website",
+            "channelId": "small",
+            "channelTitle": "Tiny",
+            "publishedAt": posted(1),
+            "defaultAudioLanguage": "ar",
+        },
+        "statistics": {"viewCount": "900000"},
+        "contentDetails": {"duration": "PT20S"},
     },
 }
 CHANNELS = {
@@ -136,6 +160,13 @@ def test_trends_ranks_the_shorts_that_outrun_their_channels() -> None:
     text = listing(found, NOW)
     assert "1. Useful website for students😂" in text and "20.0x its subscribers" in text
     assert "200k views in 2 days (100k a day" in text and "names: texttohandwriting.com" in text
+
+
+def test_a_short_that_isnt_about_the_search_or_is_in_another_language_is_left_out() -> None:
+    found = find(["useful website"], api=api(YouTube()), now=NOW, loose=True)
+    assert {"eeeeeeeeeee", "fffffffffff"} <= {item.id for item in found.trends}
+    assert mentions("Anti-AI art websites are my favourite", "ai website")
+    assert not mentions("She said a website", "ai website")
 
 
 def test_the_same_search_again_today_costs_no_quota(shorts_home: Path) -> None:

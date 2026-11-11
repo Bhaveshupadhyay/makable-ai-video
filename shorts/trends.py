@@ -178,6 +178,12 @@ class Trend:
     tags: list[str] = field(default_factory=list)
     queries: list[str] = field(default_factory=list)  # the searches that found it
     made: str | None = None  # the site in the topics log it's about, if it's one made already
+    audio_language: str | None = None  # what its channel says it's spoken in ("hi", "en-IN"), if it says
+
+    @property
+    def text(self) -> str:
+        """Its title, description and tags: what's written about it."""
+        return f"{self.title}\n{self.description}\n{' '.join(self.tags)}"
 
     @property
     def url(self) -> str:
@@ -221,6 +227,7 @@ class Trend:
             "sites": self.sites,
             "made": self.made,
             "found_by": self.queries,
+            "audio_language": self.audio_language,
             "tags": self.tags,
             "description": self.description,
         }
@@ -247,6 +254,7 @@ def trend(video: dict[str, Any], channels: dict[str, dict[str, Any]]) -> Trend:
         seconds=iso_seconds(video.get("contentDetails", {}).get("duration", "")),
         description=snippet.get("description", ""),
         tags=snippet.get("tags", []),
+        audio_language=snippet.get("defaultAudioLanguage") or snippet.get("defaultLanguage"),
     )
 
 
@@ -340,11 +348,16 @@ def find(
     count: int = 25,
     fresh: bool = False,
     least_views: int = 10_000,
+    loose: bool = False,
     api: YouTubeData | None = None,
     now: datetime | None = None,
 ) -> Found:
     """The Shorts the searches find, posted in the last `days`, with at least `least_views` views, the outliers
     first (`Trend.score`). Each is marked with the site in the topics log it's about, if any.
+
+    YouTube's search finds far more than what's asked ("Online Friend" for "free website"), so a Short is kept only
+    if what's written about it has every word of a search that found it (`mentions`), and it isn't spoken in
+    another language than `language` or English, by what its channel says.
 
     Args:
         queries: What to search for: "useful website", "website for students".
@@ -354,6 +367,7 @@ def find(
         count: How many Shorts each search returns (at most 50).
         fresh: Search again, even if the same search was made earlier today.
         least_views: Leave out Shorts with fewer views.
+        loose: Keep every Short the searches find, whatever it says and whatever it's spoken in.
         api: YouTube's Data API (a test's); one with YOUTUBE_API_KEY by default.
         now: The time now (a test's).
     """
@@ -388,10 +402,20 @@ def find(
         if item.views < least_views or (item.seconds is not None and item.seconds > LONGEST_SHORT):
             continue
         item.queries = found_by.get(item.id, [])
-        item.made = made_already(f"{item.title}\n{item.description}\n{' '.join(item.tags)}", log)
+        spoken = (item.audio_language or language).lower().split("-")[0]
+        if not loose and (spoken not in (language, "en") or not any(mentions(item.text, q) for q in item.queries)):
+            continue
+        item.made = made_already(item.text, log)
         trends.append(item)
     trends.sort(key=lambda item: item.score(now), reverse=True)
     return Found(trends, api.units, kept["units"], reused)
+
+
+def mentions(text: str, query: str) -> bool:
+    """Whether `text` has every word of `query` in it, as a word or the start of one: "useful website" is in "Useful
+    websites for students", and "ai website" in "Anti-AI art websites", but not in "said a website"."""
+    words = "".join(letter if unicodedata.category(letter)[0] in "LMN" else " " for letter in text.lower()).split()
+    return all(any(word.startswith(part) for word in words) for part in query.lower().split())
 
 
 def short_number(value: float | None) -> str:
