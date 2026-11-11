@@ -4,8 +4,9 @@
 #
 # The pipeline runs from the plugin's own folder, in Python environments of its own. This makes them with uv the first
 # time, and again when pyproject.toml changes (after an update): `pipeline`, for every stage; `browser`, for
-# browser-use, which pins its own packages, made when a command first needs a browser; and `kokoro`, for Kokoro's
-# torch, made when a run Kokoro narrates is first made or spoken. They're in
+# browser-use, which pins its own packages, made when a command first needs a browser; `kokoro`, for Kokoro's
+# torch, made when a run Kokoro narrates is first made or spoken; and `whisper`, for faster-whisper, made when `hear`
+# first listens to a run. They're in
 # ~/.cache/makable-shorts/envs (SHORTS_ENVS), outside the plugin, which is replaced on each update; deleting them is safe.
 #
 # Nothing needs installing by hand: uv is yours if you have it, or else its own, downloaded the first time; ffmpeg is
@@ -83,6 +84,11 @@ if [ -z "${SHORTS_KOKORO_PYTHON:-}" ]; then # unless you've your own environment
     ;;
   esac
   if [ -x "$envs/kokoro/bin/python" ]; then export SHORTS_KOKORO_PYTHON="$envs/kokoro/bin/python"; fi
+fi
+
+if [ -z "${SHORTS_WHISPER_PYTHON:-}" ]; then # unless you've your own environment with faster-whisper
+  if [ "${1:-}" = hear ]; then environment whisper whisper; fi
+  if [ -x "$envs/whisper/bin/python" ]; then export SHORTS_WHISPER_PYTHON="$envs/whisper/bin/python"; fi
 fi
 
 export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"

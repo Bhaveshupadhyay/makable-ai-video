@@ -34,7 +34,8 @@ may still be loading, or show only the top of a page. Say only what's visible du
    - `outro_line`: 8 to 16 words that ask people to try the product, in the words of the notes' sign-off.
    - `outro_setting`: leave it empty, so the outro is filmed in the intro's setting.
 
-Also write a YouTube `title` (under 70 characters) and a `description` of 2 or 3 sentences.
+Also write a YouTube `title` (under 70 characters), a `description` of 2 or 3 sentences, and a few `tags` for
+YouTube Studio: the words people would search for it by.
 
 ## A product demo, with no avatar
 
@@ -61,6 +62,44 @@ is a caption, shown whole for as long as its stretch is on screen:
 - **The stretch plays at its own speed,** so pick it for what it shows, not for how long the text is. It's slowed
   down only if its words take longer to read (2.5 words a second): `check-script` shows each one's speed.
 - **About 50 s of scenes** in all, as for a narrated video.
+
+## A "useful website" Short
+
+When `run.json`'s `format` is `website` (the website-short skill), the video is 20 to 30 s about someone else's
+free website, found on Google, and every part is shorter:
+
+1. **The hook,** about 4 s: Omni films 4 s (`intro_seconds`), and the video cuts a moment after the talking ends.
+   - `intro_line`: **12 words at most.** A problem the viewer has, then the promise, said to them: "असाइनमेंट
+     लिखते-लिखते हाथ दुख गया? ये वेबसाइट आपकी जगह लिख देगी!" Don't name the site: the recording shows it.
+   - `intro_setting`: the kept sign-off's shot, so the hook and the sign-off look like one shoot. `new` prints its
+     setting and the path of a still of it: Read the still, and describe its room and light **and what the person
+     wears**, since Omni dresses them anew each clip: "A YouTuber's room at night, blue neon LED strips glowing on the
+     wall behind, a black gaming chair, a soft warm key light on the face, wearing a plain red t-shirt, framed from
+     the chest up."
+2. **The recording:** 3 to 6 `scenes`, **about 20 s of narration** in all. Each is one step, said to the viewer, as
+   if they were following along: the search, the first result, the one thing done, the payoff, one more thing.
+   - "गूगल पे टेक्स्ट टू हैंडराइटिंग सर्च करो, और पहली वेबसाइट खोलो।"
+   - "कोई भी टेक्स्ट टाइप करो, और वो सीधा हैंडराइटिंग में!"
+   - "जनरेट इमेज दबाओ, और असली कॉपी के पेज जैसी इमेज तैयार, पीडीएफ़ भी डाउनलोड कर लो।"
+   Say the site's name once at most, as the notes write it. Hype it where the payoff appears.
+3. **The sign-off:** the outro is the clip kept for every website Short (`makable-shorts sign-off`), so
+   `outro_line` is **exactly what it says**: `run.json`'s `sign_off_line`, which `new` printed. If none is kept
+   yet, write one that fits every website, not just this one, since it's kept for the next ones: a cheeky line
+   about when to use it, then the follow: "इसका यूज़ कहाँ करना है, आप समझदार हो। ऐसी वेबसाइट्स के लिए फॉलो करो।"
+   `outro_setting`: `""`.
+
+And for YouTube Studio:
+
+- `title`: under 70 characters, the curiosity, not the site's name: "स्टूडेंट्स के लिए सीक्रेट वेबसाइट 🤫". An
+  emoji is fine here: it's not said.
+- `description`: a sentence or two that name the site by its address, so viewers can find it, then a few
+  hashtags (`#shorts #website …`).
+- `tags`: 5 to 15 words people search for it by, in English and as Indians type them: the site's name, what it
+  does ("text to handwriting", "handwriting converter"), "useful websites", "website for students". YouTube takes
+  500 characters of tags in all.
+
+`check-script` holds a website Short to these: a hook of 12 words at most, 3 to 6 scenes, about 20 s of narration,
+the sign-off's line, and some tags.
 
 ## Reading the steps
 
@@ -136,6 +175,7 @@ For a website builder, say:
   "outro_setting": "",
   "title": "One sentence to a live bakery website",
   "description": "…",
+  "tags": ["ai website builder", "free website", "website from a prompt"],
   "language": "en"
 }
 ```

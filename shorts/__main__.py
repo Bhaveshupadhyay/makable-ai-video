@@ -10,6 +10,12 @@
     python -m shorts deploy-voice              the voice API, on your own Modal account (see shorts/deploy.py)
     python -m shorts signin --url URL          sign in to a site by hand, once, for recordings --signed-in
     python -m shorts new RUN [--face PHOTO] [--music FILE] [--language hi] [--tone hype]   a run, with your files
+                [--format website]             a "useful website" Short of 20 to 30 s, with your kept sign-off
+    python -m shorts trends [QUERY ...]        what's trending on YouTube Shorts, the outliers first (YOUTUBE_API_KEY;
+                                               see shorts/trends.py)
+    python -m shorts topics [--add SITE | --remove SITE]   the sites website Shorts were made about already
+    python -m shorts sign-off [--from RUN | --clip FILE --line TEXT --language hi]   the clip of you signing off,
+                                               kept for every website Short in its language
     python -m shorts drive RUN start|look|click|type|...|stop   footage recorded by driving Chrome a command
                                                at a time, as Claude Code does (see shorts/drive.py)
     python -m shorts import RUN PRODUCT FILE ...   files made elsewhere, or links to them: the script (always),
@@ -22,6 +28,8 @@
     python -m shorts check-script RUN [FILE]   what each scene says over which stretch, and what's wrong
     python -m shorts frames RUN NAME [--every SECONDS | --at SECONDS ...]   a recording's frames, labelled
                                                with their times, in contact sheets (RUN/frames/NAME-1.png, ...)
+    python -m shorts hear RUN [--model NAME]   what Whisper hears in the narration and the clips, and the words
+                                               that differ from the script, to listen to (see shorts/hear.py)
 
 Keys and settings come from the environment, or from a .env file (KEY=value lines) for what the environment doesn't
 set: the one in SHORTS_HOME, or one next to shorts/. Which keys depends on who films you and who speaks the narration
@@ -42,17 +50,33 @@ from pathlib import Path
 
 from . import COMMAND
 from .filmers import FILMERS, heygen_voices
-from .home import MINE, choose, chosen, home, keep, mine, products, runs, signed_in_sites, site
-from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
+from .home import (
+    MINE,
+    choose,
+    chosen,
+    home,
+    keep,
+    keep_sign_off,
+    mine,
+    products,
+    runs,
+    sign_off,
+    sign_off_look,
+    sign_offs,
+    signed_in_sites,
+    site,
+)
+from .keys import TRENDS, add, env_file, google_signed_in, load, needed, open_in_editor
 from .orchestrator import PACKAGE_ROOT, advice, elsewhere, run_all, run_stage, shorts_in, status
-from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
-from .script import LANGUAGES, TONES, Script, speed, words
+from .run import FILMED_OUTRO, NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, file_hash, footage_file
+from .script import LANGUAGES, TONES, Script, speed, tag_characters, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
 from .voice import KOKORO_VOICES
 
 WINDOW = "the browser's window, WIDTHxHEIGHT: 720x1280 gets a site's phone layout, 1280x800 its desktop one"
+HOOK_SECONDS = 4  # how long Omni films a website Short's intro, unless run.json says otherwise
 
 
 def size(text: str) -> tuple[int, int]:
@@ -109,8 +133,41 @@ def new(run: Run, args: argparse.Namespace) -> None:
     changed = settings.model_copy(update=updates)
     if changed.intro == "card" and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
         updates["narration_voice"] = "sample"  # no avatar to take a voice from: an API speaks in yours
+    if changed.format == "website" and changed.intro_seconds is None and "intro_seconds" not in updates:
+        updates["intro_seconds"] = HOOK_SECONDS
     run.save_settings(settings.model_copy(update=updates))
+    if run.settings().format == "website":
+        bring_in_sign_off(run)
     print(run.path(SETTINGS).read_text())
+
+
+def bring_in_sign_off(run: Run) -> None:
+    """In a website Short whose outro is a clip of you, brings in your sign-off in its language (`sign-off`) as the
+    outro, if it isn't in already, so it's never filmed again. Without one, says the outro is filmed this time."""
+    settings = run.settings()
+    if settings.outro in ("card", "none"):
+        return
+    kept = sign_off(settings.language)
+    if kept is None:
+        print(
+            f"There's no sign-off kept in {settings.language} yet: this video's outro is filmed ({settings.outro}), "
+            f"and `{COMMAND} sign-off --from {run.folder}` keeps it for the next ones, once it's made"
+        )
+        return
+    clip, line = kept
+    there = run.path(FILMED_OUTRO)
+    if settings.outro == "import" and there.exists() and file_hash(there) == file_hash(clip):
+        if settings.sign_off_line != line:
+            run.save_settings(settings.model_copy(update={"sign_off_line": line}))
+        return
+    print(f"The outro is your sign-off in {settings.language}: {line}")
+    bring_in(run, "outro", [clip])
+    run.save_settings(run.settings().model_copy(update={"sign_off_line": line}))
+    picture, setting = sign_off_look(settings.language)
+    if picture or setting:
+        print("Film the hook to look like it: what's worn and where, as in its still and its setting")
+        print(f"  still:   {picture or '(none)'}")
+        print(f"  setting: {setting or '(not known)'}")
 
 
 # Who can film you and who can speak the narration, for `me` to keep, as it says them.
@@ -174,6 +231,11 @@ def show_me(args: argparse.Namespace) -> None:
         print(f"  {'' if line else 'products':10} {name:{width}}  {path}".rstrip())
     print(f"  {'runs':10} {runs()}")
     print(f"  {'signed in':10} {', '.join(signed_in_sites()) or '(nowhere)'}")
+    kept_sign_offs = sign_offs() or {"(none)": f"{COMMAND} sign-off keeps one, for website Shorts"}
+    for line, (language, said) in enumerate(kept_sign_offs.items()):
+        print(f"  {'' if line else 'sign-offs':10} {language}: {said}")
+    trends_key = "set" if all(os.environ.get(key) for key in TRENDS) else f"not set ({COMMAND} keys --open --trends)"
+    print(f"  {'trends':10} {', '.join(TRENDS)} {trends_key}")
     if not (filmer and narrator):
         print(f"  {'keys':10} (they depend on who films you and who speaks: choose them first)")
         return
@@ -191,9 +253,9 @@ def show_keys(args: argparse.Namespace) -> None:
     """Adds a line to SHORTS_HOME's .env for each key your choices need, then says which are still empty, and with
     --open, opens it in your text editor if you've some to fill in."""
     choices = chosen()
-    if not {"filmer", "narrator"} <= choices.keys():
+    if not {"filmer", "narrator"} <= choices.keys() and not args.trends:
         sys.exit(f"keys: choose who films you and who speaks the narration first: {CHOOSE}")
-    file, keys = env_file(), needed(choices)
+    file, keys = env_file(), needed(choices) + (list(TRENDS) if args.trends else [])
     empty = add(keys, file)
     print(file)
     for key in keys:
@@ -202,7 +264,7 @@ def show_keys(args: argparse.Namespace) -> None:
         print("  (your choices need no keys)")
     if set(UNASKED) & set(empty):
         print(f"`{COMMAND} deploy-voice` deploys your voice API to Modal, and sets {' and '.join(UNASKED)}")
-    if choices["filmer"] == "omni" and not google_signed_in():
+    if choices.get("filmer") == "omni" and not google_signed_in():
         print(
             "Google Cloud has no sign-in here yet: sign in once, in a terminal, with gcloud auth application-default login"
         )
@@ -241,7 +303,7 @@ def show_check(run: Run, file: Path | None) -> bool:
     script = Script.model_validate_json((file or run.path(SCRIPT)).read_text())
     settings = run.settings()
     intro, outro = (
-        ("Title card" if settings.intro == "card" else "Intro"),
+        ("Title card" if settings.intro == "card" else "Hook" if settings.format == "website" else "Intro"),
         ("End card" if settings.outro == "card" else "Outro"),
     )
     print(f"{intro}, {words(script.intro_line)} words: {script.intro_line}")
@@ -251,6 +313,8 @@ def show_check(run: Run, file: Path | None) -> bool:
         print(f"Scene {number}: {scene.footage} {where}, {words(scene.text)} words: {scene.text}")
     if script.outro_line:
         print(f"{outro}, {words(script.outro_line)} words: {script.outro_line}")
+    if script.tags:
+        print(f"Tags, {tag_characters(script.tags)} characters: {', '.join(script.tags)}")
     errors, warnings = check_script(run, script)
     for warning in warnings:
         print(f"Warning: {warning}")
@@ -275,6 +339,99 @@ def show_frames(run: Run, name: str, times: list[float] | None, every: float, wi
     for number, first in enumerate(range(0, len(times), 30), 1):
         sheet = contact_sheet(video, times[first : first + 30], run.path(f"frames/{name}-{number}.png"), width=width)
         print(f"{sheet}: {times[first]:g}-{times[first : first + 30][-1]:g} s")
+
+
+def show_trends(args: argparse.Namespace) -> None:
+    """What's trending on YouTube Shorts (`shorts.trends`), the outliers first."""
+    from .trends import QUERIES, YouTubeError, find, listing
+
+    try:
+        found = find(
+            args.queries or list(QUERIES),
+            days=args.days,
+            region=args.region,
+            language=args.language,
+            count=args.count,
+            fresh=args.fresh,
+            least_views=args.least_views,
+            loose=args.loose,
+        )
+    except (ValueError, YouTubeError) as problem:
+        sys.exit(f"trends: {problem}")
+    if args.json:
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        print(json.dumps([item.summary(now) for item in found.trends[: args.top]], indent=1, ensure_ascii=False))
+    else:
+        print(listing(found, top=args.top))
+
+
+def show_topics(args: argparse.Namespace) -> None:
+    """The topics log: the sites website Shorts were made about, so `trends` marks Shorts about them."""
+    from .trends import forget_site, log_site, made_sites, topics_file
+
+    if args.add:
+        run = str(Path(args.run).resolve()) if args.run else ""
+        entry = log_site(args.add, about=args.about or "", run=run)
+        print(f"Logged {entry['site']}: trends marks Shorts about it as made already")
+    elif args.remove:
+        print(f"Took {args.remove} out of the log" if forget_site(args.remove) else f"{args.remove} isn't in the log")
+    sites = made_sites()
+    print(topics_file())
+    for entry in sites:
+        about = f" ({entry['about']})" if entry.get("about") else ""
+        print(f"  {entry['made']}  {entry['site']}{about}  {entry.get('run', '')}".rstrip())
+    if not sites:
+        print(f"  (none yet: {COMMAND} topics --add SITE, once its Short is made)")
+
+
+def keep_sign_off_from(args: argparse.Namespace) -> None:
+    """Keeps a clip of you signing off, for every website Short in its language: a run's outro, or a file."""
+    if args.source:
+        run = Run(args.source)
+        clip = run.path(FILMED_OUTRO)
+        if not clip.exists():
+            sys.exit(f"sign-off: {run.folder} has no outro clip yet ({FILMED_OUTRO})")
+        script = run.script() if run.path(SCRIPT).exists() else None
+        line = args.line or (script.outro_line if script else "")
+        setting = args.setting or (script.outro_setting or script.intro_setting if script else "")
+        language = args.language or (script.language if script else run.settings().language)
+    elif args.clip:
+        clip, line, language = Path(args.clip).expanduser(), args.line or "", args.language or ""
+        setting = args.setting or ""
+        if not clip.is_file():
+            sys.exit(f"sign-off: there's no file {clip}")
+        if not language:
+            sys.exit("sign-off: say which language it's in: --language hi")
+    else:
+        for language, line in (sign_offs() or {}).items():
+            print(f"{language}: {line}  ({home() / 'sign-offs' / f'{language}.mp4'})")
+        if not sign_offs():
+            print(f"No sign-off kept: {COMMAND} sign-off --from RUN keeps a run's outro, for every website Short")
+        return
+    try:
+        kept = keep_sign_off(language, clip, line, setting)
+    except ValueError as problem:
+        sys.exit(f"sign-off: {problem}")
+    print(f"Kept {kept}: every website Short in {language} ends on it, saying: {line.strip()}")
+
+
+def show_heard(run: Run, args: argparse.Namespace) -> None:
+    """What Whisper hears in the run's narration and clips (`shorts.hear`), in the Python with faster-whisper."""
+    if importlib.util.find_spec("faster_whisper") is None:
+        python = os.path.expanduser(os.environ.get("SHORTS_WHISPER_PYTHON", ""))
+        if not python or os.environ.get("SHORTS_WHISPER_SENT"):
+            raise NotReady(
+                "faster-whisper isn't installed here: pip install 'makable-shorts[whisper]', or set "
+                "SHORTS_WHISPER_PYTHON to the Python of an environment that has it"
+            )
+        paths = [str(PACKAGE_ROOT), *filter(None, [os.environ.get("PYTHONPATH")])]
+        environment = {**os.environ, "PYTHONPATH": os.pathsep.join(paths), "SHORTS_WHISPER_SENT": "1"}
+        sys.exit(subprocess.run([python, "-m", "shorts", *sys.argv[1:]], env=environment).returncode)
+    from .hear import hear, report
+
+    print(report(run, hear(run, model=args.model)))
 
 
 def browse_python() -> tuple[str, dict[str, str]]:
@@ -368,6 +525,12 @@ def main() -> None:
     setup.add_argument("--reference-text", help="what's said in the voice sample, for OmniVoice")
     setup.add_argument("--size", type=size, help="the video's width x height (default 1080x1920)")
     setup.add_argument("--captions", action=argparse.BooleanOptionalAction)
+    setup.add_argument(
+        "--format", choices=["demo", "website"], help='a demo of your product, or a "useful website" Short'
+    )
+    setup.add_argument(
+        "--intro-seconds", type=int, help=f"how long Omni films the intro, 3 to 10 (website: {HOOK_SECONDS})"
+    )
 
     me = commands.add_parser("me", help="your own files and choices, kept for every video, and the keys you need")
     for kind, what in (
@@ -383,6 +546,40 @@ def main() -> None:
 
     keyed = commands.add_parser("keys", help="add the keys your choices need to your .env, for you to fill in")
     keyed.add_argument("--open", action="store_true", help="open it in your text editor, if there's a key to fill in")
+    keyed.add_argument("--trends", action="store_true", help="and the key trends needs (YOUTUBE_API_KEY)")
+
+    trending = commands.add_parser("trends", help="what's trending on YouTube Shorts, the outliers first")
+    trending.add_argument(
+        "queries", nargs="*", metavar="QUERY", help='what to search for (default: "useful website", ...)'
+    )
+    trending.add_argument("--days", type=int, default=14, help="posted in the last this many days")
+    trending.add_argument("--region", default="IN", help="the country's YouTube to search: IN, US, ...")
+    trending.add_argument("--language", default="hi", help="the language they're in: hi, en, ...")
+    trending.add_argument("--count", type=int, default=25, help="how many Shorts each search finds, at most 50")
+    trending.add_argument("--top", type=int, default=20, help="how many to show")
+    trending.add_argument("--least-views", type=int, default=10_000, help="leave out Shorts with fewer views")
+    trending.add_argument("--fresh", action="store_true", help="search again, though it was searched today")
+    trending.add_argument(
+        "--loose", action="store_true", help="every Short found, even those that don't say the search's words"
+    )
+    trending.add_argument("--json", action="store_true", help="as JSON, with each one's description and tags")
+
+    topics = commands.add_parser("topics", help="the sites website Shorts were made about already")
+    topics.add_argument("--add", metavar="SITE", help="log a site, once its Short is made")
+    topics.add_argument("--about", help='the words it\'s about, comma-separated: "text to handwriting"')
+    topics.add_argument("--run", help="the run folder it was made in")
+    topics.add_argument("--remove", metavar="SITE", help="take a site out of the log")
+
+    signing_off = commands.add_parser("sign-off", help="keep a clip of you signing off, for every website Short")
+    signing_off.add_argument("--from", dest="source", type=Path, metavar="RUN", help="a run's outro, with its line")
+    signing_off.add_argument("--clip", help="or a file: a clip of you saying the sign-off")
+    signing_off.add_argument("--line", help="what it says (a run's: its script's outro line)")
+    signing_off.add_argument("--language", help="the language it's in (a run's: its script's)")
+    signing_off.add_argument("--setting", help="where it's filmed, for hooks to match (a run's: its script's)")
+
+    hearing = commands.add_parser("hear", help="what Whisper hears in the narration and the clips, against the script")
+    hearing.add_argument("run", type=Path)
+    hearing.add_argument("--model", default="large-v3-turbo", help="Whisper's model, as faster-whisper names it")
 
     commands.add_parser("deploy-voice", help="deploy the voice API to your own Modal account, and keep its key")
 
@@ -478,6 +675,15 @@ def main() -> None:
     if args.command == "keys":
         show_keys(args)
         return
+    if args.command == "trends":
+        show_trends(args)
+        return
+    if args.command == "topics":
+        show_topics(args)
+        return
+    if args.command == "sign-off":
+        keep_sign_off_from(args)
+        return
     if args.command == "deploy-voice":
         from .deploy import deploy_voice, health
 
@@ -505,7 +711,7 @@ def main() -> None:
             print(f"{voice['voice_id']}  {about}  {voice.get('preview_audio_url') or ''}")
         return
     run = Run(args.run)
-    if args.command not in ("status", "check-script"):  # the rest write to it
+    if args.command not in ("status", "check-script", "hear"):  # the rest write to it (hear, only once it's heard)
         run.make()
     try:
         if args.command == "new":
@@ -520,6 +726,8 @@ def main() -> None:
             sys.exit(0 if show_check(run, args.file) else 1)
         elif args.command == "frames":
             show_frames(run, args.name, args.at, args.every, args.width)
+        elif args.command == "hear":
+            show_heard(run, args)
         elif args.command == "drive":
             drive(run, args)
         elif python := elsewhere(run, args.command):  # in the Python with its packages

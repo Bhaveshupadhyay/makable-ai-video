@@ -8,6 +8,11 @@
                          this machine, or no one: a video without a voice): `python -m shorts me --filmer --narrator`
     products/<name>.md   what the make-video skill knows about each product: its address, how to say its name, ...
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
+    sign-offs/hi.mp4     your sign-off for "useful website" Shorts, a language at a time: one clip of your avatar
+    sign-offs/hi.json    saying it (and what it says, and where), brought in as each one's outro, and a still of it
+    sign-offs/hi.png     (hi.png), to film the hook to look the same (`python -m shorts sign-off`)
+    topics.json          the sites those Shorts were made about, so none is made twice (`shorts.trends`)
+    trends/<date>.json   the day's YouTube searches, kept so the same one again that day costs no quota
 
 A new run takes a copy of your photo, music and voice from here, and your choices, unless it's given others
 (`shorts.run`).
@@ -130,3 +135,56 @@ def signed_in_sites() -> list[str]:
     """The sites there's a signed-in profile for."""
     folder = home() / "sites"
     return sorted(entry.name for entry in folder.iterdir() if entry.is_dir()) if folder.exists() else []
+
+
+def sign_off(language: str) -> tuple[Path, str] | None:
+    """Your sign-off for website Shorts in `language` ("hi"): the clip, and what's said in it. None: none is kept."""
+    clip, about = home() / "sign-offs" / f"{language}.mp4", home() / "sign-offs" / f"{language}.json"
+    if not clip.exists() or not about.exists():
+        return None
+    return clip, json.loads(about.read_text())["line"]
+
+
+def sign_offs() -> dict[str, str]:
+    """What each kept sign-off says, by its language."""
+    folder = home() / "sign-offs"
+    found = (sign_off(about.stem) for about in sorted(folder.glob("*.json"))) if folder.exists() else ()
+    return {clip.stem: line for clip, line in filter(None, found)}
+
+
+def sign_off_look(language: str) -> tuple[Path | None, str]:
+    """How your sign-off in `language` looks, for a hook to be filmed to match: a still of it (None: none was
+    kept), and the setting it was filmed in ("" if it's not known)."""
+    folder = home() / "sign-offs"
+    still = folder / f"{language}.png"
+    about = folder / f"{language}.json"
+    setting = json.loads(about.read_text()).get("setting", "") if about.exists() else ""
+    return (still if still.exists() else None), setting
+
+
+def keep_sign_off(language: str, clip: Path, line: str, setting: str = "") -> Path:
+    """Keeps a copy of `clip`, an MP4 of your avatar saying `line`, as your sign-off in `language`, in place of the
+    one kept before, with the setting it was filmed in, if it's known, and a still of it from its middle."""
+    from .media import duration, still
+
+    if not re.fullmatch(r"[a-z]{2,3}", language):
+        raise ValueError(f"{language!r} isn't a language's code, such as hi or en")
+    if not line.strip():
+        raise ValueError("Say what the sign-off says: its line")
+    folder = home() / "sign-offs"
+    folder.mkdir(parents=True, exist_ok=True)
+    kept = folder / f"{language}.mp4"
+    part = folder / f".{language}.part.mp4"  # first, so a failed copy loses nothing
+    shutil.copyfile(Path(clip).expanduser(), part)
+    part.replace(kept)
+    about = folder / f".{language}.part.json"
+    written = {"line": line.strip(), **({"setting": setting.strip()} if setting.strip() else {})}
+    about.write_text(json.dumps(written, ensure_ascii=False, indent=1) + "\n")
+    about.replace(folder / f"{language}.json")
+    picture = folder / f"{language}.png"
+    picture.unlink(missing_ok=True)
+    try:
+        still(kept, duration(kept) / 2, picture)
+    except RuntimeError:  # not a video ffmpeg can read: kept all the same, without a still
+        picture.unlink(missing_ok=True)
+    return kept

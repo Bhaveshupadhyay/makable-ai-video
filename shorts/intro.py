@@ -13,6 +13,7 @@ from typing import Any
 from .script import Script
 
 VIDEO_MODEL = "gemini-omni-1.1-flash-preview"  # Omni, on Agent Platform: still a preview there
+SECONDS = (3, 10)  # how long a clip Omni films, at least and at most: 10 s unless it's asked for another
 
 
 def avatar_prompt(line: str, setting: str) -> str:
@@ -34,7 +35,9 @@ def outro_prompt(script: Script) -> str:
     return avatar_prompt(script.outro_line, script.outro_setting or script.intro_setting)
 
 
-def film(client: Any, prompt: str, face: Path, out: Path, *, model: str = VIDEO_MODEL) -> Path:
+def film(
+    client: Any, prompt: str, face: Path, out: Path, *, model: str = VIDEO_MODEL, seconds: int | None = None
+) -> Path:
     """Generates a clip of you (9:16, 720p, with Omni's own voice) and saves it to `out`.
 
     Args:
@@ -44,10 +47,13 @@ def film(client: Any, prompt: str, face: Path, out: Path, *, model: str = VIDEO_
         face: A photo of you, face clearly visible.
         out: Where to save the MP4.
         model: The Omni model.
+        seconds: How long the clip is, 3 to 10 (None: Omni's own, 10). It's paid by the second.
 
     Raises:
         RuntimeError: Omni returned no video, e.g. when its safety filters refused the photo or prompt.
     """
+    if seconds is not None and not SECONDS[0] <= seconds <= SECONDS[1]:
+        raise ValueError(f"Omni films clips of {SECONDS[0]} to {SECONDS[1]} s, not {seconds}")
     interaction = client.interactions.create(
         model=model,
         input=[
@@ -58,7 +64,12 @@ def film(client: Any, prompt: str, face: Path, out: Path, *, model: str = VIDEO_
             },
             {"type": "text", "text": prompt},
         ],
-        response_format={"type": "video", "aspect_ratio": "9:16", "resolution": "720p"},
+        response_format={
+            "type": "video",
+            "aspect_ratio": "9:16",
+            "resolution": "720p",
+            **({"duration": f"{seconds}s"} if seconds else {}),
+        },
         timeout=600,
     )
     video = interaction.output_video

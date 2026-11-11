@@ -10,6 +10,10 @@ longer to read, while the captions say them, and holds each card for as long as 
 
 A scene without a stretch plays its recording on from where the scene before on it stopped. Needs only ffmpeg, and
 Pillow for the captions and the cards.
+
+In a "useful website" Short (format "website"), the intro and the outro are cut a moment after their talking ends
+(`media.speech_span`), so the hook goes straight into the recording, and the video ends as the sign-off does.
+metadata.json has the script's tags too, for YouTube Studio.
 """
 
 import json
@@ -40,6 +44,7 @@ from .base import NotReady, Stage, read_script
 
 FILMED = ("omni", "heygen", "import")  # an intro or outro that's a clip of you
 CARD_SHORTEST = 2.0  # seconds a card is on screen, at least, in a video without a voice
+AFTER_SPEECH = 0.25  # seconds a website Short's intro and outro go on after their talking ends
 
 
 def heard(path: str) -> str:
@@ -98,7 +103,12 @@ class Assemble(Stage):
             if silent or "card" in (settings.intro, settings.outro)
             else ()
         )
-        source = fingerprint(script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind)
+        if settings.format == "website":
+            kind = (*kind, "website", AFTER_SPEECH)
+        written = script.model_dump()
+        if not written["tags"]:  # a script from before it had tags is the same script
+            del written["tags"]
+        source = fingerprint(written, hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind)
         return {FINAL: source, METADATA: source}
 
     def card(self, run: Run, settings: Settings, text: str, footage: Path, at: float, out: Path, said: str) -> Part:
@@ -130,8 +140,7 @@ class Assemble(Stage):
                 self.card(run, settings, script.intro_line, footage, first.start or 0.0, title, CARD_NARRATION["intro"])
             ]
         else:
-            intro = files["the intro"]
-            parts = [Part(intro, whole_frames(duration(intro)), intro, script.intro_line, speech_span(intro))]
+            parts = [self.clip(files["the intro"], script.intro_line, settings)]
         played: dict[str, float] = {}  # how far into each recording the scenes without a stretch got
         for index, scene in enumerate(script.scenes):
             footage = run.path(footage_file(scene.footage))
@@ -163,9 +172,16 @@ class Assemble(Stage):
             end = work / "end-card.png"
             parts.append(self.card(run, settings, script.outro_line, footage, at, end, CARD_NARRATION["outro"]))
         elif "the outro" in files:
-            outro = files["the outro"]
-            parts.append(Part(outro, whole_frames(duration(outro)), outro, script.outro_line, speech_span(outro)))
+            parts.append(self.clip(files["the outro"], script.outro_line, settings))
         return parts
+
+    def clip(self, filmed: Path, line: str, settings: Settings) -> Part:
+        """A clip of you saying `line`, as filmed: or in a website Short, until a moment after the talking ends."""
+        said = speech_span(filmed)
+        length = duration(filmed)
+        if settings.format == "website":
+            length = min(length, said[1] + AFTER_SPEECH)
+        return Part(filmed, whole_frames(length), filmed, line, said)
 
     def make(self, run: Run, paths: list[str]) -> None:
         settings, script = run.settings(), run.script()
@@ -179,6 +195,7 @@ class Assemble(Stage):
         metadata = {
             "title": script.title,
             "description": script.description,
+            "tags": script.tags,
             # YouTube asks for this when AI makes a real person appear to say something: an avatar of you, or a voice
             # cloned from yours. Kokoro's voices aren't anyone's.
             "containsSyntheticMedia": avatar or cloned,

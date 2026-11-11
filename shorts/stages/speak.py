@@ -8,6 +8,9 @@ An API speaks in the voice of the person in the intro (voice/avatar.wav, from ta
 SHORTS_SPEECH_URL and SHORTS_SPEECH_KEY); run.json's `narrator_model` is its model, unless it's the API's own, and
 `narrator_options` its voice settings. Kokoro speaks in a voice of its own (`kokoro_voice`), for nothing, with no key.
 Only what's said whose text, voice or settings changed is spoken again.
+
+In a "useful website" Short, the intro's few seconds are all its line, so OmniVoice is told that's what the avatar's
+voice says (its reference text), unless run.json's `reference_text` says otherwise.
 """
 
 from pathlib import Path
@@ -69,11 +72,18 @@ class Speak(Stage):
             self.sample(run, settings),
             language,
             settings.narration_model,
-            settings.reference_text,
+            self.transcript(run, settings),
             settings.pronounce,
             narrator=settings.narrator,
             **settings.narrator_options,
         )
+
+    def transcript(self, run: Run, settings: Settings) -> str | None:
+        """What's said in the voice it's cloned from, if it's known: run.json's `reference_text`, or in a website
+        Short narrated in the avatar's voice, the intro line, which is all its short intro says."""
+        if settings.reference_text or settings.format != "website" or settings.narration_voice != "intro":
+            return settings.reference_text
+        return read_script(run).intro_line
 
     def plan(self, run: Run) -> dict[str, str]:
         voice = self.voice(run)

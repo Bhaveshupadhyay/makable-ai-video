@@ -17,7 +17,8 @@ scenes spoken by another tool).
     voice/avatar.wav                 the intro's voice, to speak the narration in (with narration_voice "intro")
     narration/01.wav, 02.wav, ...    each scene's narration (none, with narrator "none")
     narration/intro.wav, outro.wav   the title card's line, and the end card's, said over the cards
-    final.mp4, metadata.json         the video, and what to upload it with
+    final.mp4, metadata.json         the video, and what to upload it with: its title, description and tags
+    heard.json                       what Whisper heard in each narration file and clip (`python -m shorts hear`)
     .records/<product>.json          what made each of a product's files, and from what
     .gitignore                       all of it: a run folder stays out of git (`Run.make`)
 
@@ -76,14 +77,20 @@ NARRATOR_MODELS = {"modal": "omnivoice", "elevenlabs": "eleven_multilingual_v2"}
 class Settings(BaseModel):
     """What a video is made from (run.json). Paths are relative to the run folder, or absolute."""
 
+    # What the video is: a demo of your own product, about a minute long ("demo"), or a "useful website" Short of 20
+    # to 30 s ("website"): a hook of about 4 s, someone else's website found on Google and used, and your sign-off,
+    # one clip kept for every website Short (`home.sign_off`), so it's filmed once.
+    format: Literal["demo", "website"] = "demo"
     language: str = "en"  # what the script is written and spoken in: one of script.LANGUAGES
     tone: str = "friendly"  # how the script sounds: one of script.TONES
     footage: dict[str, str] = {}  # each recording, by name: a file to copy in (drive brings its recordings in)
     # intro/filmed.mp4: who films it (shorts.filmers: Gemini Omni, HeyGen; about $1 a clip), or you bring it in. Or
     # no avatar: a title card, the intro line in big letters over a still of the recording (shorts.cards).
     intro: Literal["omni", "heygen", "import", "card"] = "omni"
+    intro_seconds: int | None = None  # how long Omni films the intro: 3 to 10 (None: its own, 10)
     # outro/filmed.mp4: the same, an end card with the outro line, or no outro
     outro: Literal["omni", "heygen", "import", "card", "none"] = "omni"
+    sign_off_line: str | None = None  # what the outro says, when it's your kept sign-off: the script's outro_line
     filmer_voice: str | None = None  # the voice the filmer gives you, for one that takes one: HeyGen's voice_id
     # Who speaks narration/*.wav: a text-to-speech API (shorts.speech_api: ElevenLabs, or the voice API on your own
     # Modal account), Kokoro on this machine (free, in a voice of its own: kokoro_voice), or you bring it in. Or

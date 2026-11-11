@@ -31,7 +31,9 @@ class Scene(BaseModel):
 
 
 class Script(BaseModel):
-    intro_line: str  # what the avatar says to the camera, 14 to 20 words: or what a title card says, in fewer
+    # What the avatar says to the camera, 14 to 20 words (a website Short's hook: 12 at most): or what a title card
+    # says, in fewer
+    intro_line: str
     intro_setting: str  # the intro's shot in one sentence: place, light, framing ("" for a card)
     scenes: list[Scene]
     title: str
@@ -41,6 +43,7 @@ class Script(BaseModel):
     outro_line: str = ""
     outro_setting: str = ""
     language: str = "en"  # what it's written in (one of LANGUAGES), so it's spoken in it
+    tags: list[str] = []  # YouTube Studio's tags: words people search for it by
 
 
 def recording_length(steps: list[dict[str, Any]]) -> float:
@@ -53,6 +56,11 @@ INTRO_WORDS = (14, 20)  # the intro line, to fit Omni's 10-second clip
 OUTRO_WORDS = 20  # at most, for the outro's clip
 CARD_WORDS = 12  # at most, for a title card or an end card to read at a glance
 SCENES = (3, 8)
+# A "useful website" Short (run.json's format "website"): 20 to 30 s in all
+HOOK_WORDS = 12  # at most, in its intro line: the hook, in a clip of about 4 s
+WEBSITE_SCENES = (3, 6)
+WEBSITE_NARRATION = 20  # seconds of narration, between the hook and the sign-off
+TAG_CHARACTERS = 500  # YouTube's limit on a video's tags, all together
 SPEEDS = (0.6, 2.5)  # how much slower or faster than real time a stretch can play and still look right
 SHORTEST = 1.0  # seconds: the shortest stretch of a recording a scene can be said over
 SAID = re.compile(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]|#\w")  # emoji and hashtags, which aren't said
@@ -60,6 +68,12 @@ SAID = re.compile(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]|#\w")  # emoji and hash
 
 def words(text: str) -> int:
     return len(text.split())
+
+
+def tag_characters(tags: list[str]) -> int:
+    """How many characters YouTube counts in a video's tags: each one's, the commas between them, and the quotes it
+    puts around a tag with a space in it."""
+    return sum(len(tag) + (2 if " " in tag else 0) for tag in tags) + max(len(tags) - 1, 0)
 
 
 def on_screen(scene: Scene, silent: bool = False) -> float:
@@ -87,6 +101,8 @@ def check(
     outro: bool = False,
     cards: Collection[str] = (),
     silent: bool = False,
+    website: bool = False,
+    sign_off: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """What's wrong with a script, checked against the recordings it's said over: errors (the video can't be
     made from it as it is) and warnings (it can, but it may not look or sound right).
@@ -99,6 +115,9 @@ def check(
         outro: Whether the video has an outro (run.json's outro isn't "none"), which needs a line.
         cards: Which of "intro" and "outro" are cards, not clips (a video without an avatar).
         silent: Whether the video has no voice: its scenes are read, in the captions, not heard.
+        website: Whether it's a "useful website" Short (format "website"): a short hook, about 20 s of
+            narration, and tags.
+        sign_off: What the outro says, when it's your kept sign-off: the outro line should be it.
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -107,6 +126,11 @@ def check(
     elif "intro" in cards:
         if words(script.intro_line) > CARD_WORDS:
             warnings.append(f"The title card's line has {words(script.intro_line)} words: keep it to {CARD_WORDS}")
+    elif website:
+        if words(script.intro_line) > HOOK_WORDS:
+            warnings.append(
+                f"The hook has {words(script.intro_line)} words: keep it to {HOOK_WORDS}, for a clip of about 4 s"
+            )
     elif not INTRO_WORDS[0] <= words(script.intro_line) <= INTRO_WORDS[1]:
         warnings.append(f"The intro line has {words(script.intro_line)} words: 14 to 20 fit Omni's 10-second clip")
     if outro and not script.outro_line.strip():
@@ -115,8 +139,12 @@ def check(
         warnings.append(f"The end card's line has {words(script.outro_line)} words: keep it to {CARD_WORDS}")
     elif words(script.outro_line) > OUTRO_WORDS:
         warnings.append(f"The outro line has {words(script.outro_line)} words: keep it to {OUTRO_WORDS} or fewer")
-    if not SCENES[0] <= len(script.scenes) <= SCENES[1]:
-        warnings.append(f"The script has {len(script.scenes)} scenes: {SCENES[0]} to {SCENES[1]} tell a minute's story")
+    if sign_off is not None and script.outro_line.strip() != sign_off.strip():
+        warnings.append(f"The outro is your kept sign-off, so its line is what it says: {sign_off}")
+    least, most = WEBSITE_SCENES if website else SCENES
+    if not least <= len(script.scenes) <= most:
+        story = "a 20-second story" if website else "a minute's story"
+        warnings.append(f"The script has {len(script.scenes)} scenes: {least} to {most} tell {story}")
 
     stretches: dict[str, list[tuple[float, float, int]]] = {}  # each recording's stretches so far, and their scenes
     for number, scene in enumerate(script.scenes, 1):
@@ -146,7 +174,8 @@ def check(
         before.append((scene.start, scene.end, number))
 
     known = [length for length in lengths.values() if length is not None]
-    target = min(NARRATION, sum(known)) if known else NARRATION
+    narration = WEBSITE_NARRATION if website else NARRATION
+    target = min(narration, sum(known)) if known else narration
     if silent:
         seconds = sum(on_screen(scene, silent) for scene in script.scenes)
         long = f"The scenes last about {seconds:.0f} s"
@@ -157,6 +186,10 @@ def check(
         warnings.append(f"{long}: aim for about {target:.0f} s")
     if len(script.title) >= 70:
         warnings.append(f"The title has {len(script.title)} characters: YouTube shows fewer than 70")
+    if website and not script.tags:
+        warnings.append("There are no tags: give YouTube Studio a few words people search for it by (tags)")
+    if tag_characters(script.tags) > TAG_CHARACTERS:
+        warnings.append(f"The tags have {tag_characters(script.tags)} characters: YouTube takes {TAG_CHARACTERS}")
     said = [script.intro_line, script.outro_line, *(scene.text for scene in script.scenes)]
     if any(SAID.search(text) for text in said):
         cant = "the captions can't show" if silent else "the narrator can't say"
