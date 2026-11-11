@@ -132,7 +132,15 @@ def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     settings = run.settings()
     cards = [part for part in ("intro", "outro") if getattr(settings, part) == "card"]
     silent = settings.narrator == "none"
-    return check(script, *footage_lengths(run), outro=settings.outro != "none", cards=cards, silent=silent)
+    return check(
+        script,
+        *footage_lengths(run),
+        outro=settings.outro != "none",
+        cards=cards,
+        silent=silent,
+        website=settings.format == "website",
+        sign_off=settings.sign_off_line,
+    )
 
 
 def fetched(run: Run, file: str | Path) -> Path:

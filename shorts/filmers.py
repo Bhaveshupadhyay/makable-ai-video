@@ -37,9 +37,11 @@ class Filmer:
     name: str
     packages: tuple[str, ...]  # the modules it imports
     where: str  # what a machine needs to film with it
-    # What a clip is made from, besides the photo: when it changes, the clip is filmed again.
+    # What a clip is made from, besides the photo and its length: when it changes, the clip is filmed again.
     source: Callable[[str, str, Settings], tuple[str, ...]]
-    film: Callable[[str, str, Path, Path, Settings], Path]  # (line, setting, photo, out, settings) -> out
+    # (line, setting, photo, out, settings, seconds=None) -> out. A filmer that times a clip by its speech (HeyGen)
+    # takes no `seconds`.
+    film: Callable[..., Path]
 
 
 def omni_client() -> Any:
@@ -57,13 +59,13 @@ def omni_client() -> Any:
     return genai.Client(vertexai=True, project=project, location="global")
 
 
-def _omni_film(line: str, setting: str, face: Path, out: Path, settings: Settings) -> Path:
+def _omni_film(line: str, setting: str, face: Path, out: Path, settings: Settings, seconds: int | None = None) -> Path:
     from google.auth.exceptions import DefaultCredentialsError
 
     from .intro import film
 
     try:
-        return film(omni_client(), avatar_prompt(line, setting), face, out)
+        return film(omni_client(), avatar_prompt(line, setting), face, out, **({"seconds": seconds} if seconds else {}))
     except DefaultCredentialsError as error:  # the client signs in when it first asks for something
         raise ValueError(
             "Sign in to Google Cloud once, for Omni: gcloud auth application-default login "

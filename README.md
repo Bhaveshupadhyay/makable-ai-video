@@ -86,6 +86,22 @@ Each video is in `.makable-shorts/runs/` in your product's repo, kept out of git
 
 You choose who films your avatar and who speaks the narration: see [Who films you](#who-films-you) and [Who speaks the narration](#who-speaks-the-narration).
 
+## Useful-website Shorts
+
+```
+/website-short                      # the day's: a site picked from what's trending
+/website-short "remove background"  # a topic, or a site
+```
+
+A 20 to 30 s Short about someone else's free website, in Hindi unless you say otherwise, made the way "useful website for students" Shorts are: your avatar says a 4-second hook to the camera, the recording goes from a Google search to the site's result, and your avatar signs off ("you know when to use this, follow for more websites like this"). The skill (`skills/website-short/`):
+
+1. **Finds what's trending:** `makable-shorts trends "useful website" "website for students" ...` searches YouTube Shorts posted in the last 14 days in India, in Hindi, most viewed first, and ranks the outliers: their views over their channel's subscribers, times their views a day. It shows each one's title, link, views and channel, and the sites its description names. It needs `YOUTUBE_API_KEY`, a free API key from a Google Cloud project with the YouTube Data API v3 on (`makable-shorts keys --open --trends` adds its line). A key has 10,000 units a day and a search costs 100, so the day's searches are kept, and the same one again costs nothing.
+2. **Picks a site** from them that's free, needs no sign-in, shows its result within a minute, and isn't in the topics log (`makable-shorts topics`, the sites made already), trying it first. It writes the site's notes.
+3. **Records it** from Google (signed in once with `makable-shorts signin --url https://www.google.com`, which gets past Google's "unusual traffic" check), and writes the script: a hook of 12 words at most, a few steps said to the viewer, about 20 s of narration, and a title, description and tags for YouTube Studio.
+4. **Makes it:** `makable-shorts new RUN --format website` has Omni film the hook for 4 s (about $0.40), and brings in your **sign-off**, one clip kept in SHORTS_HOME (`makable-shorts sign-off`) for every website Short in its language, so it costs nothing after the first. The first one is filmed, and `makable-shorts sign-off --from RUN` keeps it. The hook and the sign-off are cut a moment after their talking ends, and OmniVoice is told what the hook says, to clone the avatar's voice from it.
+5. **Listens to it:** `makable-shorts hear RUN` has Whisper (faster-whisper, on your machine) write down what each clip and scene says, and lists the words that came out differently from the script, for you to listen to.
+6. **Stops for your approval**, with the video, its title, description and tags. You post it yourself, for now.
+
 ---
 
 ## How `/make-video` works
@@ -115,7 +131,7 @@ Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and ke
 
 Then `makable-shorts keys --open` writes the keys those need into `~/.config/makable-shorts/.env`, each with where to get it, and opens the file in your text editor: you paste the keys in there, never into the chat (`.env.example` lists them all; the environment wins over the files). Your own voice API needs none from you: `makable-shorts deploy-voice` deploys it to your Modal account and writes its address and key there itself. Your photo and music are `makable-shorts me --face PHOTO [--music FILE]`. A photo with its background removed works best with Omni, which films the setting the script describes.
 
-**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), who films you and who speaks (`choices.json`), the sites you've signed in to (`sites/`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), and your choices, unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
+**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), who films you and who speaks (`choices.json`), the sites you've signed in to (`sites/`), a `.env`, the notes on products whose code isn't where you make their videos (`products/<name>.md`), and for website Shorts, your sign-off in each language (`sign-offs/`), the sites made already (`topics.json`) and the day's YouTube searches (`trends/`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), and your choices, unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
 
 **Kinds, in run.json.** A demo's `intro` and `outro` are `card`, and a silent one's `narrator` is `none` (`makable-shorts new RUN --intro card --outro card --narrator none`, for one video). The cards are drawn by `assemble` (`shorts/cards.py`). The narrator says their lines too (`narration/intro.wav`, `outro.wav`), so a narrated demo's cards stay up while they're said, and a silent one's for as long as they take to read. `metadata.json`'s `containsSyntheticMedia`, for YouTube's "altered or synthetic content", is true for an avatar or a cloned voice, and false for Kokoro's voice or no voice.
 

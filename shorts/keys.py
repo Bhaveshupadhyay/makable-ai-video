@@ -1,6 +1,6 @@
 """Your keys: the ones the services you chose need, in SHORTS_HOME's .env, which you fill in yourself.
 
-    python -m shorts keys [--open]
+    python -m shorts keys [--open] [--trends]
 
 Who films you and who speaks the narration (`python -m shorts me --filmer ... --narrator ...`, `home.chosen`) say
 which keys a video needs (`needed`). `keys` adds a line to the .env for each one it hasn't, under a comment saying
@@ -34,7 +34,13 @@ ABOUT = {
     ),
     "SHORTS_SPEECH_URL": f"Your voice API on Modal speaks the narration: its address. `{COMMAND} deploy-voice` sets it",
     "SHORTS_SPEECH_KEY": f"and its key, which `{COMMAND} deploy-voice` sets too",
+    "YOUTUBE_API_KEY": (
+        f"`{COMMAND} trends` finds what's trending on YouTube Shorts with it: an API key from console.cloud.google.com "
+        "(APIs and services, Credentials, Create credentials, API key), in a project with the YouTube Data API v3 on. "
+        "Free: 10,000 units a day, and a search is 100"
+    ),
 }
+TRENDS = ("YOUTUBE_API_KEY",)  # the key `trends` needs, whatever your choices: `keys --trends` adds it
 
 # The keys each choice needs: who films you (`filmer`), and who speaks (`narrator`).
 NEEDS = {

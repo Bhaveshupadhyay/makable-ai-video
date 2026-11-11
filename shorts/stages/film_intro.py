@@ -6,6 +6,8 @@ date (its line, its setting, the photo or the filmer changed), and `python -m sh
 `film-outro`), or `run --paid`, films it. A clip filmed elsewhere (the Gemini app, HeyGen's or Higgsfield's site)
 comes in with `python -m shorts import RUN intro CLIP` (or `outro`), a file or a link to one. The outro is filmed in
 the intro's setting unless the script gives it one, and used as filmed.
+
+Omni films the intro for run.json's `intro_seconds` (a website Short's 4-second hook), or its own 10 s.
 """
 
 from .. import COMMAND
@@ -37,6 +39,10 @@ class FilmIntro(Stage):
         """The line, and the shot's setting."""
         return script.intro_line, script.intro_setting
 
+    def seconds(self, settings: Settings) -> int | None:
+        """How long the clip is filmed for, by a filmer that takes it (Omni): None, its own."""
+        return settings.intro_seconds if self.filmer(settings).name == "omni" else None
+
     def plan(self, run: Run) -> dict[str, str]:
         settings = run.settings()
         if settings.face is None:
@@ -48,14 +54,19 @@ class FilmIntro(Stage):
             raise NotReady(f"the photo {face} isn't there")
         filmer = self.filmer(settings)
         made_from = filmer.source(*self.said(read_script(run)), settings)
+        seconds = self.seconds(settings)
+        made_from += (f"{seconds} s",) if seconds else ()  # (a clip of its own length is named as before)
         return {self.file: fingerprint(filmer.name, *made_from, file_hash(face))}
 
     def make(self, run: Run, paths: list[str]) -> None:
         settings = run.settings()
         filmer = self.filmer(settings)
-        print(f"Filming the {self.product} with {filmer.name} ({self.cost})")
+        seconds = self.seconds(settings)
+        cost = f"about ${seconds / 10:.2f}" if seconds else self.cost  # Omni: $0.10 a second
+        print(f"Filming the {self.product} with {filmer.name}{f' for {seconds} s' if seconds else ''} ({cost})")
         with writing(run.path(self.file)) as out:
-            filmer.film(*self.said(run.script()), run.resolve(settings.face), out, settings)
+            length = {"seconds": seconds} if seconds else {}
+            filmer.film(*self.said(run.script()), run.resolve(settings.face), out, settings, **length)
 
 
 class FilmOutro(FilmIntro):
@@ -70,3 +81,6 @@ class FilmOutro(FilmIntro):
         if not script.outro_line.strip():
             raise NotReady("the script has no outro line (outro_line)")
         return script.outro_line, script.outro_setting or script.intro_setting
+
+    def seconds(self, settings: Settings) -> int | None:
+        return None  # its own: the outro's line is longer than a hook

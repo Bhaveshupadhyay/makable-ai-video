@@ -9,6 +9,9 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(makable-shorts *), Bash(git s
 
 The request: $ARGUMENTS
 
+For a **"useful website" Short** about someone else's free website (20 to 30 s, picked from what's trending on
+YouTube), use the website-short skill instead: `${CLAUDE_PLUGIN_ROOT}/skills/website-short/SKILL.md`.
+
 The video is made by this plugin's pipeline, the `makable-shorts` command. Its stages share a **run folder**
 (`.makable-shorts/runs/<name>/` in the project), and `${CLAUDE_PLUGIN_ROOT}/shorts/run.py` describes every file in it. Your part is what needs judgment:
 
@@ -278,13 +281,17 @@ a dollar to film again.
 ## 9. Report
 
 Tell the user:
-- the video's path and length (`RUN/metadata.json` has its seconds, title and description);
+- the video's path and length (`RUN/metadata.json` has its seconds, title, description and tags);
 - the scenes as they were made;
 - anything to check by eye or ear: Omni sometimes says a line a little differently, and the outro's voice
   can differ from the intro's, since each clip is a separate take. If one is off, delete that clip and run
   step 8 again to film it again (about a dollar). A narrator can say a name or a web address wrong (Kokoro
   especially, since it reads from spelling, not from a voice it copied): respell it with `new RUN --pronounce WORD=SAID`, add it to the notes'
   `pronounce`, and run step 8 again, which speaks only the lines with it again;
+- what `makable-shorts hear RUN` flags: Whisper writes down what the intro, each scene and the outro say, and
+  lists the words that came out differently from the script, to listen to. Whisper mishears too, so treat each as
+  a place to listen; respell one the narrator really says wrong, as above. The first time, it downloads Whisper
+  (about 1.6 GB): give it a Bash timeout of 1800000 ms;
 - whether to tick YouTube's "altered or synthetic content" box: `metadata.json`'s `containsSyntheticMedia` says
   so for an avatar or a cloned voice, not for Kokoro's voice or a silent demo;
 - notes you wrote or changed in the repo (`.makable-shorts/products/`): they're the user's to commit. In GitHub

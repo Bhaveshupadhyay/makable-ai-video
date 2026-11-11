@@ -1,6 +1,6 @@
 [project]
 name = "makable-shorts"
-version = "0.3.3"
+version = "0.4.0"
 description = "1-minute product demo videos, made by stages that share a run folder"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -22,6 +22,8 @@ kokoro = [
     "soundfile",
     "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
 ]
+# hear: Whisper writes down what the narration says, to check it against the script. In an environment of its own.
+whisper = ["faster-whisper>=1.1"]
 dev = ["pytest", "ruff", "fastapi", "python-multipart", "httpx"]  # and services/voice's API, for its tests
 
 [project.scripts]

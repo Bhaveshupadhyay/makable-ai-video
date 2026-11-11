@@ -1,7 +1,7 @@
 {
   "name": "makable-shorts",
-  "version": "0.3.3",
-  "description": "Makes 1-minute demo videos of your own web product for YouTube Shorts and Instagram Reels: Claude records the feature in Chrome, writes the script, and the pipeline films you as an AI avatar from your photo and narrates it in your avatar's voice, or makes a product demo with title cards, narrated by a free voice on your machine or with captions alone.",
+  "version": "0.4.0",
+  "description": "Makes 1-minute demo videos of your own web product for YouTube Shorts and Instagram Reels: Claude records the feature in Chrome, writes the script, and the pipeline films you as an AI avatar from your photo and narrates it in your avatar's voice, or makes a product demo with title cards, narrated by a free voice on your machine or with captions alone. And 20-second \"useful website\" Shorts about a free site picked from what's trending on YouTube.",
   "author": {
     "name": "Bhaveshupadhyay",
     "url": "https://github.com/Bhaveshupadhyay"
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/Bhaveshupadhyay/makable-ai-video",
   "repository": "https://github.com/Bhaveshupadhyay/makable-ai-video",
   "license": "MIT",
-  "keywords": ["video", "youtube-shorts", "instagram-reels", "product-demo", "ai-avatar", "screen-recording"]
+  "keywords": ["video", "youtube-shorts", "instagram-reels", "product-demo", "ai-avatar", "screen-recording", "youtube-trends"]
 }
