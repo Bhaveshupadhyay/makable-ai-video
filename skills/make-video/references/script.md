@@ -164,8 +164,9 @@ going by what the tag means, not how it's spelled:
   > Scene 1: [lugh] is now [laughter]. Scene 2: removed [whisper], OmniVoice can't whisper. Scene 3: [excited] is now
   > [surprise-wa], a surprised "वा!".
 
-Then run `check-script` again. With a narrator other than OmniVoice, every tag is left out anyway (`check-script`
-warns): tell the user that once, rather than rewriting each one.
+Then run `check-script` again. Do this whoever the narrator is: a tag OmniVoice doesn't perform is an error with
+every narrator. With a narrator other than OmniVoice, the tags above are left out (`check-script` warns): leave
+those as they are and tell the user that once.
 
 ## The format
 
