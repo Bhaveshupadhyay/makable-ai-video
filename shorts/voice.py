@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 from .media import ffmpeg
+from .tags import TAG, for_model, without
 
 
 def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: float = 20.0) -> Path:
@@ -31,15 +32,18 @@ def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: floa
 
 
 def respelled(text: str, pronounce: dict[str, str]) -> str:
-    """`text` as a model reads it: the words in `pronounce` respelled, keeping a capital letter."""
-    for word, said in pronounce.items():
-        text = re.sub(
-            rf"\b{re.escape(word)}\b",
-            lambda match, said=said: said[:1].upper() + said[1:] if match[0][0].isupper() else said,
-            text,
-            flags=re.IGNORECASE,
-        )
-    return text
+    """`text` as a model reads it: the words in `pronounce` respelled, keeping a capital letter. Its tags
+    ("[sigh]") are left as they are, even when a word in `pronounce` is in one."""
+    parts = re.split(f"({TAG.pattern})", text)  # the words, then a tag, then words...
+    for index in range(0, len(parts), 2):
+        for word, said in pronounce.items():
+            parts[index] = re.sub(
+                rf"\b{re.escape(word)}\b",
+                lambda match, said=said: said[:1].upper() + said[1:] if match[0][0].isupper() else said,
+                parts[index],
+                flags=re.IGNORECASE,
+            )
+    return "".join(parts)
 
 
 class ApiVoice:
@@ -88,13 +92,19 @@ class ApiVoice:
         self.voice_id: str | None = None
 
     @property
+    def name(self) -> str:
+        """Who speaks: the model."""
+        return self.model
+
+    @property
     def settings(self) -> str:
         """The model, the language, the transcript and the settings, for naming what's spoken with them."""
         return repr(("api", self.model, self.language, self.transcript, sorted(self.tts_options.items())))
 
     def spoken(self, text: str) -> str:
-        """`text` as the model reads it: the words in `pronounce` respelled, keeping a capital letter."""
-        return respelled(text, self.pronounce)
+        """`text` as the model reads it: its tags as the model takes them (`tags.for_model`: OmniVoice performs
+        them, other models get none), and the words in `pronounce` respelled, keeping a capital letter."""
+        return respelled(for_model(text, self.model), self.pronounce)
 
     def say(self, text: str, out: Path) -> Path:
         """Speaks `text` in the sample's voice, through the API, and saves it as WAV."""
@@ -160,12 +170,17 @@ class KokoroVoice:
         self.pipeline = None
 
     @property
+    def name(self) -> str:
+        return "Kokoro"
+
+    @property
     def settings(self) -> str:
         """The voice and the settings, for naming what's spoken with them."""
         return repr(("kokoro", self.voice, sorted(self.tts_options.items())))
 
     def spoken(self, text: str) -> str:
-        return respelled(text, self.pronounce)
+        """`text` as Kokoro reads it: without tags, which it would read out, and with `pronounce`'s words."""
+        return respelled(without(text), self.pronounce)
 
     def say(self, text: str, out: Path) -> Path:
         """Speaks `text` in its voice, and saves it as WAV."""

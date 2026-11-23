@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from .compose import GAP
+from .tags import TAGS, found, known, performed, without
 
 WORDS_PER_SECOND = 2.5  # how fast the narration is spoken, near enough, and the captions read without it
 NARRATION = 50  # seconds of narrated recording, between the intro and the outro
@@ -58,8 +59,12 @@ SHORTEST = 1.0  # seconds: the shortest stretch of a recording a scene can be sa
 SAID = re.compile(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]|#\w")  # emoji and hashtags, which aren't said
 
 
+TAGS_A_VIDEO = 3  # at most: a tag here and there lands, one on every line sounds put on
+
+
 def words(text: str) -> int:
-    return len(text.split())
+    """How many words are said: tags aren't words."""
+    return len(without(text).split())
 
 
 def on_screen(scene: Scene, silent: bool = False) -> float:
@@ -87,6 +92,7 @@ def check(
     outro: bool = False,
     cards: Collection[str] = (),
     silent: bool = False,
+    narrator: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """What's wrong with a script, checked against the recordings it's said over: errors (the video can't be
     made from it as it is) and warnings (it can, but it may not look or sound right).
@@ -99,6 +105,8 @@ def check(
         outro: Whether the video has an outro (run.json's outro isn't "none"), which needs a line.
         cards: Which of "intro" and "outro" are cards, not clips (a video without an avatar).
         silent: Whether the video has no voice: its scenes are read, in the captions, not heard.
+        narrator: The model that speaks the narration ("omnivoice", "chatterbox", "kokoro", "" for none), so tags
+            it would leave out are warned about (None: not checked).
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -163,4 +171,44 @@ def check(
         warnings.append(f"Something that's said has an emoji or a hashtag, which {cant}")
     if silent and any(not scene.text.strip() for scene in script.scenes):
         warnings.append("A scene has no text: without a voice, the captions are all that says what's happening")
+    check_tags(script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards)
     return errors, warnings
+
+
+def check_tags(
+    script: Script,
+    errors: list[str],
+    warnings: list[str],
+    *,
+    cards: Collection[str],
+    narrator: str | None,
+    outro: bool = True,
+) -> None:
+    """What's wrong with the script's tags ("[laughter]"), added to `errors` and `warnings` (see `check`). The outro
+    line is checked only if the video has an outro."""
+    lines = [("The intro line", script.intro_line, "intro")]
+    lines += [(f"Scene {number}", scene.text, "") for number, scene in enumerate(script.scenes, 1)]
+    lines += [("The outro line", script.outro_line, "outro")] if outro else []
+    choices = ", ".join(sorted(performed()))
+    every = []
+    for where, text, part in lines:
+        tags = found(text)
+        every += tags
+        for tag in dict.fromkeys(tag for tag in tags if not known(tag)):
+            errors.append(
+                f"{where} has {tag}, which no narrator performs: swap it for the closest in meaning of {choices}, "
+                "or remove it, and tell the user"
+            )
+        if tags and not without(text).strip():
+            errors.append(f"{where} has only {', '.join(tags)}: it needs words too, for the captions")
+        if tags and part and part not in cards:
+            errors.append(
+                f"{where} has {', '.join(tags)}: the {part} is filmed (Omni, HeyGen or your own clip), "
+                "and only the narrator performs tags"
+            )
+    if len(every) > TAGS_A_VIDEO:
+        warnings.append(f"The script has {len(every)} tags: keep it to {TAGS_A_VIDEO} or fewer, or they sound put on")
+    if every and narrator is not None and narrator not in TAGS:
+        warnings.append(
+            f"The tags are left out for {narrator or 'a video without a voice'}: only OmniVoice performs them"
+        )

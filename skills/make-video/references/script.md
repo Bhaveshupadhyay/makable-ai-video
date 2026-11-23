@@ -120,6 +120,54 @@ narrating (the `-tight` one).
 
 Write everything that's said, the title and the description in the run's language.
 
+### Tags: a laugh, a sigh, a "wow"
+
+With OmniVoice as the narrator (`narrator_model` "omnivoice", the voice API's own), a tag in square brackets
+says how a line is said, not only what's said:
+
+```json
+{"text": "[laughter] सोचो, एक छोटा सा नारियल और आपकी खोपड़ी!", "footage": "demo", "start": 0, "end": 4}
+```
+
+| Tag | What you hear |
+|---|---|
+| `[laughter]` | a short laugh |
+| `[sigh]` | a breath out, before the words |
+| `[surprise-wa]` | a surprised "वा!" |
+
+The captions show only the words, and the tags don't count toward the scene's length.
+
+- **Where they help:** a laugh after the punchline, a sigh before the "but…", surprise on the big number.
+  A tag works best at the start of a line, or of a sentence in it.
+- **At most 2 or 3 a video.** Used sparingly, a tag lands; on every line, it sounds put on.
+- **Never in a filmed intro or outro line** (Omni, HeyGen or your own clip): the avatar would say them out
+  loud. A title card's or an end card's line is spoken by the narrator, so a tag works there.
+- **Never a line of only tags:** the captions need its words.
+- **Only with OmniVoice.** Chatterbox, ElevenLabs and Kokoro are given the line without its tags, so none of
+  them reads one out, but you won't hear them either.
+- Only the tags above: `check-script` says any other is an error, since OmniVoice would read it out.
+
+#### A tag OmniVoice doesn't perform
+
+The user may write a tag that isn't above, in a script they give you or in what they ask for: `[whisper]`,
+`[excited]`, `[giggle]`, or one spelled wrong, like `[lugh]`. Don't stop at the error. Rewrite the script yourself,
+going by what the tag means, not how it's spelled:
+
+- **Swap it for the tag closest in meaning**, if one is close: `[laugh]`, `[lugh]`, `[giggle]` → `[laughter]`;
+  `[wow]`, `[excited]`, `[amazed]` → `[surprise-wa]`; `[sighs]`, `[tired]` → `[sigh]`.
+- **Remove it** if none is: `[whisper]`, `[angry]`, `[sad]`, `[shout]`. A tag is a single sound at its spot, a
+  laugh or a breath, and none of them changes how the words after it are said, so a whole whispered or excited
+  line can't be done with one. Don't swap in a tag that means something else (a `[sigh]` for a whisper).
+- **Write the words as they were.** Only the tags change. If a removed tag left the line's feeling unsaid and the
+  user wants it, say so in the words instead ("और अब, धीरे से…").
+- **Tell the user what you changed**, one line a tag, before you bring the script in:
+  > Scene 1: [lugh] is now [laughter]. Scene 2: removed [whisper], OmniVoice can't whisper. Scene 3: [excited] is now
+  > [surprise-wa], a surprised "वा!".
+
+Then run `check-script` again. Do this whoever the narrator is: a tag OmniVoice doesn't perform is an error with
+every narrator. With a narrator other than OmniVoice, the tags above are left out (`check-script` warns): leave
+those as they are and tell the user that once.
+
 ## The format
 
 For a website builder, say:

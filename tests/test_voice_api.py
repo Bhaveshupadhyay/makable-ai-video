@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from services.voice.api import FolderVoices, create_app  # noqa: E402
 from shorts.media import duration  # noqa: E402
 from shorts.speech_api import SpeechAPI, SpeechAPIError  # noqa: E402
+from shorts.voice import ApiVoice  # noqa: E402
 
 from .conftest import speech  # noqa: E402
 
@@ -158,3 +159,17 @@ def test_redirects_are_followed_on_the_apis_host_only() -> None:
         api.request("GET", "/elsewhere")
     assert not any("another.example" in url for url, _ in seen)  # the key never went there
     assert SpeechAPI("http://voice", KEY).http.follow_redirects is False  # its own client leaves them to `send`
+
+
+@api_needs_ffmpeg
+def test_omnivoice_is_sent_the_tags_and_chatterbox_isnt(server: TestClient, tone: Tone, tmp_path: Path) -> None:
+    chatterbox = Tone()
+    app = create_app(FolderVoices(tmp_path / "voices"), {"omnivoice": tone, "chatterbox": chatterbox}, key=KEY)
+    api = SpeechAPI("http://voice", KEY, client=TestClient(app, base_url="http://voice"))
+    sample = speech(tmp_path / "sample.wav", 3)
+    for model in ("omnivoice", "chatterbox"):
+        voice = ApiVoice(sample, "hi", model, "Hi there.", api=api)
+        voice.say("[laughter] Think, a coconut, [sigh] and your skull!", tmp_path / f"{model}.wav")
+        voice.close()
+    assert tone.asked[0][0] == "[laughter] Think, a coconut, [sigh] and your skull!"
+    assert chatterbox.asked[0][0] == "Think, a coconut, and your skull!"

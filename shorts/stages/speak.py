@@ -96,7 +96,10 @@ class Speak(Stage):
         try:
             for path, text in narrated(run.script(), run.settings()):
                 if path in paths:
-                    print(f"{CARDS.get(path) or f'Scene {int(Path(path).stem)}'}: {text}")
+                    what = CARDS.get(path) or f"Scene {int(Path(path).stem)}"
+                    if not voice.spoken(text).strip():  # only tags this narrator leaves out, say
+                        raise NotReady(f"{what} has nothing for {voice.name} to say: {text!r}")
+                    print(f"{what}: {text}")
                     with writing(run.path(path)) as out:
                         voice.say(text, out)
         except failed as error:

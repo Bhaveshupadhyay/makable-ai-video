@@ -241,6 +241,8 @@ It's the Chrome browser-use records with (`shorts/signin.py`), so the profile su
 
 Our API has the shape of ElevenLabs' (the same paths, `xi-api-key` header and formats), so one client (`shorts/speech_api.py`) talks to either. The voice is cloned when the first scene is spoken, and deleted once they're all spoken. Each scene is a request of its own, so only the scenes whose text changed are spoken again.
 
+With OmniVoice, a scene can say how it's said, too: `[laughter]`, `[sigh]` or `[surprise-wa]` in its text is a laugh, a sigh or a surprised "wow", not words (`shorts/tags.py`). The captions show only the words, and every other narrator is given the line without its tags, so none reads one out. `check-script` says when a tag isn't one of these, is in a filmed intro or outro line, or is all a line says.
+
 ### Kokoro, on your own machine, for nothing
 
 `kokoro` speaks the narration on your own machine's CPU, with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M): a small open text-to-speech model (82M parameters, Apache-2.0). It needs no key, no account and no GPU, and costs nothing. It can't clone a voice, so it's for demos without an avatar, in one of its own voices: run.json's `kokoro_voice` (`me --kokoro-voice`), or by default `af_heart` in English and `hf_alpha` in Hindi. Others: `am_michael`, `bf_emma`, `bm_george`, `hm_omega`, and the rest of [its list](https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md) for American and British English and Hindi. `narrator_options` takes its `speed` (1 by default).
