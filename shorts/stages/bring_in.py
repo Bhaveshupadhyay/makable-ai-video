@@ -36,6 +36,7 @@ from ..run import (
     CARD_NARRATION,
     FILMED_INTRO,
     FILMED_OUTRO,
+    NARRATOR_MODELS,
     SCRIPT,
     Run,
     Settings,
@@ -133,7 +134,7 @@ def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     cards = [part for part in ("intro", "outro") if getattr(settings, part) == "card"]
     silent = settings.narrator == "none"
     # who speaks the narration: an API's model, or Kokoro, or no one
-    narrator = "" if silent else settings.narration_model or settings.narrator
+    narrator = "" if silent else settings.narration_model if settings.narrator in NARRATOR_MODELS else settings.narrator
     return check(
         script, *footage_lengths(run), outro=settings.outro != "none", cards=cards, silent=silent, narrator=narrator
     )

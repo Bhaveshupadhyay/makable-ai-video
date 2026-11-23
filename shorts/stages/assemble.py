@@ -36,7 +36,7 @@ from ..run import (
     writing,
 )
 from ..script import WORDS_PER_SECOND, Script, on_screen, words
-from ..tags import without
+from ..tags import found, without
 from .base import NotReady, Stage, read_script
 
 FILMED = ("omni", "heygen", "import")  # an intro or outro that's a clip of you
@@ -99,7 +99,12 @@ class Assemble(Stage):
             if silent or "card" in (settings.intro, settings.outro)
             else ()
         )
-        source = fingerprint(script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind)
+        # (and for a script with tags, that the captions leave them out: so a video made before they did is made again)
+        said = [script.intro_line, script.outro_line, *(scene.text for scene in script.scenes)]
+        tagged = ("captions without tags",) if any(found(text) for text in said) else ()
+        source = fingerprint(
+            script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind, *tagged
+        )
         return {FINAL: source, METADATA: source}
 
     def card(self, run: Run, settings: Settings, text: str, footage: Path, at: float, out: Path, said: str) -> Part:

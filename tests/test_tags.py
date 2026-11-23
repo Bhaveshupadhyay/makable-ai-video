@@ -1,6 +1,7 @@
 """Tags in the narration ("[laughter]"): found, left out of the captions, and given to each narrator as it takes them."""
 
 from shorts.tags import OMNIVOICE, TAGS, for_model, found, known, without
+from shorts.voice import ApiVoice, respelled
 
 LINE = "[laughter] सोचो, एक छोटा सा नारियल और आपकी खोपड़ी!"
 
@@ -49,3 +50,9 @@ def test_a_tag_no_narrator_performs_is_left_out() -> None:
 def test_the_tags_omnivoice_performs_are_its_own() -> None:
     assert TAGS["omnivoice"] <= OMNIVOICE
     assert len(OMNIVOICE) == 13
+
+
+def test_pronounce_respells_the_words_and_not_the_tags() -> None:
+    assert respelled("[sigh] A sigh, [laughter]. Sigh!", {"sigh": "sai"}) == "[sigh] A sai, [laughter]. Sai!"
+    voice = ApiVoice("sample.wav", model="omnivoice", pronounce={"laughter": "laafter"})
+    assert voice.spoken("[laugh] Laughter.") == "[laughter] Laafter."

@@ -140,8 +140,9 @@ The captions show only the words, and the tags don't count toward the scene's le
 - **Where they help:** a laugh after the punchline, a sigh before the "but…", surprise on the big number.
   A tag works best at the start of a line, or of a sentence in it.
 - **At most 2 or 3 a video.** Used sparingly, a tag lands; on every line, it sounds put on.
-- **Never in a filmed intro or outro line:** Omni films those, and they'd be said out loud. A title card's or
-  an end card's line is spoken by the narrator, so a tag works there.
+- **Never in a filmed intro or outro line** (Omni, HeyGen or your own clip): the avatar would say them out
+  loud. A title card's or an end card's line is spoken by the narrator, so a tag works there.
+- **Never a line of only tags:** the captions need its words.
 - **Only with OmniVoice.** Chatterbox, ElevenLabs and Kokoro are given the line without its tags, so none of
   them reads one out, but you won't hear them either.
 - Only the tags above: `check-script` says any other is an error, since OmniVoice would read it out.

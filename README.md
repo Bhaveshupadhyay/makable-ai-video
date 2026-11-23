@@ -241,7 +241,7 @@ It's the Chrome browser-use records with (`shorts/signin.py`), so the profile su
 
 Our API has the shape of ElevenLabs' (the same paths, `xi-api-key` header and formats), so one client (`shorts/speech_api.py`) talks to either. The voice is cloned when the first scene is spoken, and deleted once they're all spoken. Each scene is a request of its own, so only the scenes whose text changed are spoken again.
 
-With OmniVoice, a scene can say how it's said, too: `[laughter]`, `[sigh]` or `[surprise-wa]` in its text is a laugh, a sigh or a surprised "wow", not words (`shorts/tags.py`). The captions show only the words, and every other narrator is given the line without its tags, so none reads one out. `check-script` says when a tag isn't one of these, or is in a line Omni films.
+With OmniVoice, a scene can say how it's said, too: `[laughter]`, `[sigh]` or `[surprise-wa]` in its text is a laugh, a sigh or a surprised "wow", not words (`shorts/tags.py`). The captions show only the words, and every other narrator is given the line without its tags, so none reads one out. `check-script` says when a tag isn't one of these, is in a filmed intro or outro line, or is all a line says.
 
 ### Kokoro, on your own machine, for nothing
 

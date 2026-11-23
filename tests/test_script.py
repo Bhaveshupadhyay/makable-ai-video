@@ -6,7 +6,7 @@ import pytest
 
 from shorts.run import Run
 from shorts.script import Scene, Script, check, speed
-from shorts.stages.bring_in import bring_in
+from shorts.stages.bring_in import bring_in, check_script
 
 from .conftest import needs_ffmpeg, video
 
@@ -111,7 +111,10 @@ def test_a_tag_no_narrator_performs_or_in_a_filmed_line_is_an_error() -> None:
     script.intro_line = "[laughter] " + script.intro_line
     errors, _ = check(script, {"demo": 20.0}, timed={"demo"})
     filmed, unknown = errors
-    assert filmed == "The intro line has [laughter]: Omni films the intro, and only the narrator performs tags"
+    assert filmed == (
+        "The intro line has [laughter]: the intro is filmed (Omni, HeyGen or your own clip), "
+        "and only the narrator performs tags"
+    )
     assert unknown.startswith("Scene 2 has [laff], which no narrator performs: use one of ")
     assert "[laughter]" in unknown and "[laugh]" in unknown  # the tags and the friendlier names
     # A title card's line is said by the narrator: its tags are performed.
@@ -127,3 +130,20 @@ def test_too_many_tags_or_a_narrator_that_drops_them_warns() -> None:
     assert warnings == ["The script has 6 tags: keep it to 3 or fewer, or they sound put on"]
     _, warnings = check(script, {"demo": 20.0}, timed={"demo"}, narrator="chatterbox")
     assert "The tags are left out for chatterbox: only OmniVoice performs them" in warnings
+
+
+def test_a_line_of_only_tags_is_an_error_and_an_unused_outro_isnt_checked() -> None:
+    script = written(scene(0, 6), scene(6, 12), scene(12, 18), outro="[sigh] Bye.")
+    script.scenes[1].text = "[laughter]"
+    errors, _ = check(script, {"demo": 20.0}, timed={"demo"})  # run.json's outro is "none"
+    assert errors == ["Scene 2 has only [laughter]: it needs words too, for the captions"]
+    errors, _ = check(script, {"demo": 20.0}, timed={"demo"}, outro=True)
+    assert len(errors) == 2 and errors[1].startswith("The outro line has [sigh]: the outro is filmed")
+
+
+def test_kokoro_leaves_tags_out_even_with_an_api_model_set(run: Run) -> None:
+    run.save_settings(run.settings().model_copy(update={"narrator": "kokoro", "narrator_model": "omnivoice"}))
+    script = written(scene(None, None), scene(None, None), scene(None, None))
+    script.scenes[0].text = "[laughter] " + script.scenes[0].text
+    _, warnings = check_script(run, script)
+    assert "The tags are left out for kokoro: only OmniVoice performs them" in warnings

@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 from .media import ffmpeg
-from .tags import for_model, without
+from .tags import TAG, for_model, without
 
 
 def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: float = 20.0) -> Path:
@@ -32,15 +32,18 @@ def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: floa
 
 
 def respelled(text: str, pronounce: dict[str, str]) -> str:
-    """`text` as a model reads it: the words in `pronounce` respelled, keeping a capital letter."""
-    for word, said in pronounce.items():
-        text = re.sub(
-            rf"\b{re.escape(word)}\b",
-            lambda match, said=said: said[:1].upper() + said[1:] if match[0][0].isupper() else said,
-            text,
-            flags=re.IGNORECASE,
-        )
-    return text
+    """`text` as a model reads it: the words in `pronounce` respelled, keeping a capital letter. Its tags
+    ("[sigh]") are left as they are, even when a word in `pronounce` is in one."""
+    parts = re.split(f"({TAG.pattern})", text)  # the words, then a tag, then words...
+    for index in range(0, len(parts), 2):
+        for word, said in pronounce.items():
+            parts[index] = re.sub(
+                rf"\b{re.escape(word)}\b",
+                lambda match, said=said: said[:1].upper() + said[1:] if match[0][0].isupper() else said,
+                parts[index],
+                flags=re.IGNORECASE,
+            )
+    return "".join(parts)
 
 
 class ApiVoice:
@@ -87,6 +90,11 @@ class ApiVoice:
         self.api = api
         self.narrator = narrator
         self.voice_id: str | None = None
+
+    @property
+    def name(self) -> str:
+        """Who speaks: the model."""
+        return self.model
 
     @property
     def settings(self) -> str:
@@ -160,6 +168,10 @@ class KokoroVoice:
         self.pronounce = pronounce or {}
         self.tts_options = settings
         self.pipeline = None
+
+    @property
+    def name(self) -> str:
+        return "Kokoro"
 
     @property
     def settings(self) -> str:

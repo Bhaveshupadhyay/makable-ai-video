@@ -171,17 +171,24 @@ def check(
         warnings.append(f"Something that's said has an emoji or a hashtag, which {cant}")
     if silent and any(not scene.text.strip() for scene in script.scenes):
         warnings.append("A scene has no text: without a voice, the captions are all that says what's happening")
-    check_tags(script, errors, warnings, cards=cards, narrator=narrator)
+    check_tags(script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards)
     return errors, warnings
 
 
 def check_tags(
-    script: Script, errors: list[str], warnings: list[str], *, cards: Collection[str], narrator: str | None
+    script: Script,
+    errors: list[str],
+    warnings: list[str],
+    *,
+    cards: Collection[str],
+    narrator: str | None,
+    outro: bool = True,
 ) -> None:
-    """What's wrong with the script's tags ("[laughter]"), added to `errors` and `warnings` (see `check`)."""
+    """What's wrong with the script's tags ("[laughter]"), added to `errors` and `warnings` (see `check`). The outro
+    line is checked only if the video has an outro."""
     lines = [("The intro line", script.intro_line, "intro")]
     lines += [(f"Scene {number}", scene.text, "") for number, scene in enumerate(script.scenes, 1)]
-    lines += [("The outro line", script.outro_line, "outro")]
+    lines += [("The outro line", script.outro_line, "outro")] if outro else []
     choices = ", ".join(sorted(performed() | set(ALIASES)))
     every = []
     for where, text, part in lines:
@@ -189,8 +196,13 @@ def check_tags(
         every += tags
         for tag in dict.fromkeys(tag for tag in tags if not known(tag)):
             errors.append(f"{where} has {tag}, which no narrator performs: use one of {choices}")
+        if tags and not without(text).strip():
+            errors.append(f"{where} has only {', '.join(tags)}: it needs words too, for the captions")
         if tags and part and part not in cards:
-            errors.append(f"{where} has {', '.join(tags)}: Omni films the {part}, and only the narrator performs tags")
+            errors.append(
+                f"{where} has {', '.join(tags)}: the {part} is filmed (Omni, HeyGen or your own clip), "
+                "and only the narrator performs tags"
+            )
     if len(every) > TAGS_A_VIDEO:
         warnings.append(f"The script has {len(every)} tags: keep it to {TAGS_A_VIDEO} or fewer, or they sound put on")
     if every and narrator is not None and narrator not in TAGS:
