@@ -195,7 +195,10 @@ def check_tags(
         tags = found(text)
         every += tags
         for tag in dict.fromkeys(tag for tag in tags if not known(tag)):
-            errors.append(f"{where} has {tag}, which no narrator performs: use one of {choices}")
+            errors.append(
+                f"{where} has {tag}, which no narrator performs: swap it for the closest in meaning of {choices}, "
+                "or remove it, and tell the user"
+            )
         if tags and not without(text).strip():
             errors.append(f"{where} has only {', '.join(tags)}: it needs words too, for the captions")
         if tags and part and part not in cards:

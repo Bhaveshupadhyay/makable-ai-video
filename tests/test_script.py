@@ -115,7 +115,7 @@ def test_a_tag_no_narrator_performs_or_in_a_filmed_line_is_an_error() -> None:
         "The intro line has [laughter]: the intro is filmed (Omni, HeyGen or your own clip), "
         "and only the narrator performs tags"
     )
-    assert unknown.startswith("Scene 2 has [laff], which no narrator performs: use one of ")
+    assert unknown.startswith("Scene 2 has [laff], which no narrator performs: swap it for the closest in meaning of ")
     assert "[laughter]" in unknown and "[laugh]" in unknown  # the tags and the friendlier names
     # A title card's line is said by the narrator: its tags are performed.
     assert check(script, {"demo": 20.0}, timed={"demo"}, cards=["intro"])[0] == [unknown]

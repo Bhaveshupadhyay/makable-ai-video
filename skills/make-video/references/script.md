@@ -147,6 +147,26 @@ The captions show only the words, and the tags don't count toward the scene's le
   them reads one out, but you won't hear them either.
 - Only the tags above: `check-script` says any other is an error, since OmniVoice would read it out.
 
+#### A tag OmniVoice doesn't perform
+
+The user may write a tag that isn't above, in a script they give you or in what they ask for: `[whisper]`,
+`[excited]`, `[giggle]`, or one spelled wrong, like `[lugh]`. Don't stop at the error. Rewrite the script yourself,
+going by what the tag means, not how it's spelled:
+
+- **Swap it for the tag closest in meaning**, if one is close: `[lugh]`, `[giggle]`, `[haha]` → `[laughter]`;
+  `[excited]`, `[amazed]`, `[shocked]` → `[surprise-wa]`; `[tired]`, `[disappointed]` → `[sigh]`.
+- **Remove it** if none is: `[whisper]`, `[angry]`, `[sad]`, `[shout]`. A tag is a single sound at its spot, a
+  laugh or a breath, and none of them changes how the words after it are said, so a whole whispered or excited
+  line can't be done with one. Don't swap in a tag that means something else (a `[sigh]` for a whisper).
+- **Write the words as they were.** Only the tags change. If a removed tag left the line's feeling unsaid and the
+  user wants it, say so in the words instead ("और अब, धीरे से…").
+- **Tell the user what you changed**, one line a tag, before you bring the script in:
+  > Scene 1: [lugh] is now [laughter]. Scene 2: removed [whisper], OmniVoice can't whisper. Scene 3: [excited] is now
+  > [surprise-wa], a surprised "वा!".
+
+Then run `check-script` again. With a narrator other than OmniVoice, every tag is left out anyway (`check-script`
+warns): tell the user that once, rather than rewriting each one.
+
 ## The format
 
 For a website builder, say:
