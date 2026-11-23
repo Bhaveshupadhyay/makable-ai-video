@@ -120,6 +120,32 @@ narrating (the `-tight` one).
 
 Write everything that's said, the title and the description in the run's language.
 
+### Tags: a laugh, a sigh, a "wow"
+
+With OmniVoice as the narrator (`narrator_model` "omnivoice", the voice API's own), a tag in square brackets
+says how a line is said, not only what's said:
+
+```json
+{"text": "[laughter] सोचो, एक छोटा सा नारियल और आपकी खोपड़ी!", "footage": "demo", "start": 0, "end": 4}
+```
+
+| Tag | You may also write | What you hear |
+|---|---|---|
+| `[laughter]` | `[laugh]`, `[laughs]` | a short laugh |
+| `[sigh]` | `[sighs]` | a breath out, before the words |
+| `[surprise-wa]` | `[wow]` | a surprised "वा!" |
+
+The captions show only the words, and the tags don't count toward the scene's length.
+
+- **Where they help:** a laugh after the punchline, a sigh before the "but…", surprise on the big number.
+  A tag works best at the start of a line, or of a sentence in it.
+- **At most 2 or 3 a video.** Used sparingly, a tag lands; on every line, it sounds put on.
+- **Never in a filmed intro or outro line:** Omni films those, and they'd be said out loud. A title card's or
+  an end card's line is spoken by the narrator, so a tag works there.
+- **Only with OmniVoice.** Chatterbox, ElevenLabs and Kokoro are given the line without its tags, so none of
+  them reads one out, but you won't hear them either.
+- Only the tags above: `check-script` says any other is an error, since OmniVoice would read it out.
+
 ## The format
 
 For a website builder, say:

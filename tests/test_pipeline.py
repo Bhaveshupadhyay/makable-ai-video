@@ -8,6 +8,7 @@ import pytest
 from shorts.media import duration
 from shorts.orchestrator import run_all, status
 from shorts.run import FINAL, Run, narration_file
+from shorts.stages.assemble import Assemble
 from shorts.stages.base import CURRENT, STALE
 from shorts.stages.bring_in import bring_in, in_order, without_copies
 
@@ -69,3 +70,17 @@ def test_the_video_from_files_made_elsewhere(run: Run, tmp_path: Path) -> None:
     entries = {entry.product: entry for entry in status(run)}
     assert entries["narration"].files == {narration_file(0): CURRENT, narration_file(1): STALE}
     assert not run_all(run)
+
+
+@needs_ffmpeg
+def test_the_captions_of_a_tagged_scene_show_only_its_words(run: Run, tmp_path: Path) -> None:
+    tagged = script((0, 4), (6, 9))
+    tagged.scenes[0].text = "[laughter] Scene 1, [sigh] says this."
+    (tmp_path / "script.json").write_text(tagged.model_dump_json())
+    bring_in(run, "footage", [video(tmp_path / "recording.mp4", 12)], name="demo")
+    bring_in(run, "script", [tmp_path / "script.json"])
+    bring_in(run, "intro", [video(tmp_path / "intro.mp4", 3, tone=330)])
+    bring_in(run, "narration", [speech(tmp_path / "1.wav", 1.5), speech(tmp_path / "2.wav", 1)])
+
+    parts = Assemble().parts(run, run.settings(), run.script(), tmp_path)
+    assert [part.text for part in parts] == ["Hi there.", "Scene 1, says this.", "Scene 2 says this."]

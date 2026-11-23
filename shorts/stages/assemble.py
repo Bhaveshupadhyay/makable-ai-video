@@ -36,6 +36,7 @@ from ..run import (
     writing,
 )
 from ..script import WORDS_PER_SECOND, Script, on_screen, words
+from ..tags import without
 from .base import NotReady, Stage, read_script
 
 FILMED = ("omni", "heygen", "import")  # an intro or outro that's a clip of you
@@ -107,6 +108,7 @@ class Assemble(Stage):
         from ..cards import card
 
         frame = still(footage, at, out.with_suffix(".still.png"))
+        text = without(text)  # the narrator performs the tags: the card and the captions show only the words
         if settings.narrator == "none":
             picture = card(text, frame, out, FONT_CACHE, even(settings.size))
             return Part(picture, whole_frames(max(CARD_SHORTEST, words(text) / WORDS_PER_SECOND + GAP)))
@@ -131,17 +133,19 @@ class Assemble(Stage):
             ]
         else:
             intro = files["the intro"]
-            parts = [Part(intro, whole_frames(duration(intro)), intro, script.intro_line, speech_span(intro))]
+            parts = [Part(intro, whole_frames(duration(intro)), intro, without(script.intro_line), speech_span(intro))]
         played: dict[str, float] = {}  # how far into each recording the scenes without a stretch got
         for index, scene in enumerate(script.scenes):
             footage = run.path(footage_file(scene.footage))
             tail = TAIL if index == len(script.scenes) - 1 else 0
             if silent:  # read in the captions, all of it at once, across the scene
-                part = Part(footage, whole_frames(on_screen(scene, silent) + tail), text=scene.text, whole=True)
+                part = Part(
+                    footage, whole_frames(on_screen(scene, silent) + tail), text=without(scene.text), whole=True
+                )
             else:
                 speech = run.path(narration_file(index))
                 length = whole_frames(duration(speech) + GAP + tail)
-                part = Part(footage, length, speech, scene.text, speech_span(speech))
+                part = Part(footage, length, speech, without(scene.text), speech_span(speech))  # the words alone
             if scene.start is not None and scene.end is not None:
                 part.start, part.end = scene.start, min(scene.end, duration(footage))
                 if part.end - part.start < 0.1:
@@ -164,7 +168,8 @@ class Assemble(Stage):
             parts.append(self.card(run, settings, script.outro_line, footage, at, end, CARD_NARRATION["outro"]))
         elif "the outro" in files:
             outro = files["the outro"]
-            parts.append(Part(outro, whole_frames(duration(outro)), outro, script.outro_line, speech_span(outro)))
+            outro_line = without(script.outro_line)
+            parts.append(Part(outro, whole_frames(duration(outro)), outro, outro_line, speech_span(outro)))
         return parts
 
     def make(self, run: Run, paths: list[str]) -> None:

@@ -132,7 +132,11 @@ def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     settings = run.settings()
     cards = [part for part in ("intro", "outro") if getattr(settings, part) == "card"]
     silent = settings.narrator == "none"
-    return check(script, *footage_lengths(run), outro=settings.outro != "none", cards=cards, silent=silent)
+    # who speaks the narration: an API's model, or Kokoro, or no one
+    narrator = "" if silent else settings.narration_model or settings.narrator
+    return check(
+        script, *footage_lengths(run), outro=settings.outro != "none", cards=cards, silent=silent, narrator=narrator
+    )
 
 
 def fetched(run: Run, file: str | Path) -> Path:

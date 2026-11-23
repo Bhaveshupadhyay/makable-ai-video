@@ -96,3 +96,34 @@ def test_a_video_with_an_outro_needs_its_line() -> None:
     errors, _ = check(script, {"demo": 20.0}, timed={"demo"}, outro=True)
     assert errors == ['The outro line is empty, and run.json wants an outro (or set its outro to "none")']
     assert check(script, {"demo": 20.0}, timed={"demo"})[0] == []  # run.json's outro is "none"
+
+
+def test_tags_arent_counted_as_words() -> None:
+    tagged = scene(0, 6.35)
+    tagged.text = "[laughter] " + tagged.text
+    assert speed(tagged) == pytest.approx(1.0)  # still 15 words
+    assert check(written(tagged, scene(6.35, 12), scene(12, 18)), {"demo": 20.0}, timed={"demo"}) == ([], [])
+
+
+def test_a_tag_no_narrator_performs_or_in_a_filmed_line_is_an_error() -> None:
+    script = written(scene(0, 6), scene(6, 12), scene(12, 18))
+    script.scenes[1].text += " [laff]"
+    script.intro_line = "[laughter] " + script.intro_line
+    errors, _ = check(script, {"demo": 20.0}, timed={"demo"})
+    filmed, unknown = errors
+    assert filmed == "The intro line has [laughter]: Omni films the intro, and only the narrator performs tags"
+    assert unknown.startswith("Scene 2 has [laff], which no narrator performs: use one of ")
+    assert "[laughter]" in unknown and "[laugh]" in unknown  # the tags and the friendlier names
+    # A title card's line is said by the narrator: its tags are performed.
+    assert check(script, {"demo": 20.0}, timed={"demo"}, cards=["intro"])[0] == [unknown]
+
+
+def test_too_many_tags_or_a_narrator_that_drops_them_warns() -> None:
+    script = written(scene(0, 6), scene(6, 12), scene(12, 18))
+    for tagged in script.scenes:
+        tagged.text = f"[laugh] {tagged.text} [sigh]"
+    errors, warnings = check(script, {"demo": 20.0}, timed={"demo"}, narrator="omnivoice")
+    assert errors == []
+    assert warnings == ["The script has 6 tags: keep it to 3 or fewer, or they sound put on"]
+    _, warnings = check(script, {"demo": 20.0}, timed={"demo"}, narrator="chatterbox")
+    assert "The tags are left out for chatterbox: only OmniVoice performs them" in warnings

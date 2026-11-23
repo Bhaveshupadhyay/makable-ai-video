@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 from .media import ffmpeg
+from .tags import for_model, without
 
 
 def voice_sample(recording: Path, out: Path, *, start: float = 0.0, length: float = 20.0) -> Path:
@@ -93,8 +94,9 @@ class ApiVoice:
         return repr(("api", self.model, self.language, self.transcript, sorted(self.tts_options.items())))
 
     def spoken(self, text: str) -> str:
-        """`text` as the model reads it: the words in `pronounce` respelled, keeping a capital letter."""
-        return respelled(text, self.pronounce)
+        """`text` as the model reads it: its tags as the model takes them (`tags.for_model`: OmniVoice performs
+        them, other models get none), and the words in `pronounce` respelled, keeping a capital letter."""
+        return respelled(for_model(text, self.model), self.pronounce)
 
     def say(self, text: str, out: Path) -> Path:
         """Speaks `text` in the sample's voice, through the API, and saves it as WAV."""
@@ -165,7 +167,8 @@ class KokoroVoice:
         return repr(("kokoro", self.voice, sorted(self.tts_options.items())))
 
     def spoken(self, text: str) -> str:
-        return respelled(text, self.pronounce)
+        """`text` as Kokoro reads it: without tags, which it would read out, and with `pronounce`'s words."""
+        return respelled(without(text), self.pronounce)
 
     def say(self, text: str, out: Path) -> Path:
         """Speaks `text` in its voice, and saves it as WAV."""
