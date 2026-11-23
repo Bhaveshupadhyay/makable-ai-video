@@ -8,7 +8,7 @@ LINE = "[laughter] सोचो, एक छोटा सा नारियल �
 
 def test_the_tags_in_a_line() -> None:
     assert found(LINE) == ["[laughter]"]
-    assert found("Wait, [sigh] it's [laugh] done.") == ["[sigh]", "[laugh]"]
+    assert found("Wait, [sigh] it's [laughter] done.") == ["[sigh]", "[laughter]"]
     assert found("A [link](https://x.y), [1], [Laughter], [ laughter ], [laughter-]") == []  # not tags
 
 
@@ -33,13 +33,10 @@ def test_omnivoice_performs_its_tags_and_other_narrators_get_none() -> None:
     assert for_model(LINE, "eleven_multilingual_v2") == without(LINE)
 
 
-def test_friendlier_names_are_omnivoices_own() -> None:
-    assert (
-        for_model("[laughs] Yes, [sighs] fine, [wow] look.", "omnivoice")
-        == "[laughter] Yes, [sigh] fine, [surprise-wa] look."
-    )
-    assert for_model("[laugh] Yes.", "chatterbox") == "Yes."
-    assert known("[laugh]") and known("[laughter]")
+def test_only_omnivoices_own_names_are_known() -> None:
+    assert known("[laughter]") and known("[surprise-wa]")
+    assert not known("[laugh]") and not known("[wow]")  # Claude swaps these by meaning, not the code
+    assert for_model("[laugh] Yes, [sigh] fine.", "omnivoice") == "Yes, [sigh] fine."
 
 
 def test_a_tag_no_narrator_performs_is_left_out() -> None:
@@ -55,4 +52,4 @@ def test_the_tags_omnivoice_performs_are_its_own() -> None:
 def test_pronounce_respells_the_words_and_not_the_tags() -> None:
     assert respelled("[sigh] A sigh, [laughter]. Sigh!", {"sigh": "sai"}) == "[sigh] A sai, [laughter]. Sai!"
     voice = ApiVoice("sample.wav", model="omnivoice", pronounce={"laughter": "laafter"})
-    assert voice.spoken("[laugh] Laughter.") == "[laughter] Laafter."
+    assert voice.spoken("[laughter] Laughter.") == "[laughter] Laafter."

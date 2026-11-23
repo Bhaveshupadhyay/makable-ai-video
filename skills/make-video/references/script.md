@@ -129,11 +129,11 @@ says how a line is said, not only what's said:
 {"text": "[laughter] सोचो, एक छोटा सा नारियल और आपकी खोपड़ी!", "footage": "demo", "start": 0, "end": 4}
 ```
 
-| Tag | You may also write | What you hear |
-|---|---|---|
-| `[laughter]` | `[laugh]`, `[laughs]` | a short laugh |
-| `[sigh]` | `[sighs]` | a breath out, before the words |
-| `[surprise-wa]` | `[wow]` | a surprised "वा!" |
+| Tag | What you hear |
+|---|---|
+| `[laughter]` | a short laugh |
+| `[sigh]` | a breath out, before the words |
+| `[surprise-wa]` | a surprised "वा!" |
 
 The captions show only the words, and the tags don't count toward the scene's length.
 
@@ -153,8 +153,8 @@ The user may write a tag that isn't above, in a script they give you or in what 
 `[excited]`, `[giggle]`, or one spelled wrong, like `[lugh]`. Don't stop at the error. Rewrite the script yourself,
 going by what the tag means, not how it's spelled:
 
-- **Swap it for the tag closest in meaning**, if one is close: `[lugh]`, `[giggle]`, `[haha]` → `[laughter]`;
-  `[excited]`, `[amazed]`, `[shocked]` → `[surprise-wa]`; `[tired]`, `[disappointed]` → `[sigh]`.
+- **Swap it for the tag closest in meaning**, if one is close: `[laugh]`, `[lugh]`, `[giggle]` → `[laughter]`;
+  `[wow]`, `[excited]`, `[amazed]` → `[surprise-wa]`; `[sighs]`, `[tired]` → `[sigh]`.
 - **Remove it** if none is: `[whisper]`, `[angry]`, `[sad]`, `[shout]`. A tag is a single sound at its spot, a
   laugh or a breath, and none of them changes how the words after it are said, so a whole whispered or excited
   line can't be done with one. Don't swap in a tag that means something else (a `[sigh]` for a whisper).

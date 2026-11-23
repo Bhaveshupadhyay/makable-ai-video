@@ -169,7 +169,7 @@ def test_omnivoice_is_sent_the_tags_and_chatterbox_isnt(server: TestClient, tone
     sample = speech(tmp_path / "sample.wav", 3)
     for model in ("omnivoice", "chatterbox"):
         voice = ApiVoice(sample, "hi", model, "Hi there.", api=api)
-        voice.say("[laugh] Think, a coconut, [sighs] and your skull!", tmp_path / f"{model}.wav")
+        voice.say("[laughter] Think, a coconut, [sigh] and your skull!", tmp_path / f"{model}.wav")
         voice.close()
     assert tone.asked[0][0] == "[laughter] Think, a coconut, [sigh] and your skull!"
     assert chatterbox.asked[0][0] == "Think, a coconut, and your skull!"

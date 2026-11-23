@@ -116,7 +116,7 @@ def test_a_tag_no_narrator_performs_or_in_a_filmed_line_is_an_error() -> None:
         "and only the narrator performs tags"
     )
     assert unknown.startswith("Scene 2 has [laff], which no narrator performs: swap it for the closest in meaning of ")
-    assert "[laughter]" in unknown and "[laugh]" in unknown  # the tags and the friendlier names
+    assert "[laughter]" in unknown and "[sigh]" in unknown  # the tags it may be swapped for
     # A title card's line is said by the narrator: its tags are performed.
     assert check(script, {"demo": 20.0}, timed={"demo"}, cards=["intro"])[0] == [unknown]
 
@@ -124,7 +124,7 @@ def test_a_tag_no_narrator_performs_or_in_a_filmed_line_is_an_error() -> None:
 def test_too_many_tags_or_a_narrator_that_drops_them_warns() -> None:
     script = written(scene(0, 6), scene(6, 12), scene(12, 18))
     for tagged in script.scenes:
-        tagged.text = f"[laugh] {tagged.text} [sigh]"
+        tagged.text = f"[laughter] {tagged.text} [sigh]"
     errors, warnings = check(script, {"demo": 20.0}, timed={"demo"}, narrator="omnivoice")
     assert errors == []
     assert warnings == ["The script has 6 tags: keep it to 3 or fewer, or they sound put on"]

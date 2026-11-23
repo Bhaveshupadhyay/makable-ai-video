@@ -21,14 +21,12 @@ OMNIVOICE = frozenset({
     "[laughter]", "[sigh]", "[confirmation-en]", "[question-en]", "[question-ah]", "[question-oh]", "[question-ei]",
     "[question-yi]", "[surprise-ah]", "[surprise-oh]", "[surprise-wa]", "[surprise-yo]", "[dissatisfaction-hnn]",
 })  # fmt: skip
-# Friendlier names Claude or you may write, for the model's own
-ALIASES = {"[laugh]": "[laughter]", "[laughs]": "[laughter]", "[sighs]": "[sigh]", "[wow]": "[surprise-wa]"}
 TAG = re.compile(r"[ \t]*\[[a-z]+(?:-[a-z]+)*\](?!\()[ \t]*")  # with the spaces around it: not a [link](...)
 CLOSES = ",.!?;:।…)\"'”’"  # what a line goes on with right after a word, with no space before it
 
 
 def found(text: str) -> list[str]:
-    """Every tag in `text`, in order, as written: "[laugh]", not "[laughter]"."""
+    """Every tag in `text`, in order."""
     return [match.group().strip(" \t") for match in TAG.finditer(text)]
 
 
@@ -38,8 +36,9 @@ def performed() -> set[str]:
 
 
 def known(tag: str) -> bool:
-    """Whether a tag is one some narrator performs, or an alias for one."""
-    return ALIASES.get(tag, tag) in performed()
+    """Whether a tag is one some narrator performs. Any other, misspelt or not, Claude swaps by its meaning (the
+    make-video skill)."""
+    return tag in performed()
 
 
 def _replaced(text: str, keep: Callable[[str], str]) -> str:
@@ -68,7 +67,6 @@ def without(text: str) -> str:
 
 
 def for_model(text: str, model: str) -> str:
-    """`text` as `model` should be given it: aliases as the model's own tags, those it performs kept, every other
-    tag dropped."""
+    """`text` as `model` should be given it: the tags it performs kept, every other tag dropped."""
     performs = TAGS.get(model, frozenset())
-    return _replaced(text, lambda tag: ALIASES.get(tag, tag) if ALIASES.get(tag, tag) in performs else "")
+    return _replaced(text, lambda tag: tag if tag in performs else "")

@@ -12,7 +12,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from .compose import GAP
-from .tags import ALIASES, TAGS, found, known, performed, without
+from .tags import TAGS, found, known, performed, without
 
 WORDS_PER_SECOND = 2.5  # how fast the narration is spoken, near enough, and the captions read without it
 NARRATION = 50  # seconds of narrated recording, between the intro and the outro
@@ -189,7 +189,7 @@ def check_tags(
     lines = [("The intro line", script.intro_line, "intro")]
     lines += [(f"Scene {number}", scene.text, "") for number, scene in enumerate(script.scenes, 1)]
     lines += [("The outro line", script.outro_line, "outro")] if outro else []
-    choices = ", ".join(sorted(performed() | set(ALIASES)))
+    choices = ", ".join(sorted(performed()))
     every = []
     for where, text, part in lines:
         tags = found(text)
