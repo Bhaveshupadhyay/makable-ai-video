@@ -9,7 +9,11 @@ scenes spoken by another tool).
     run.json                         the settings: what the video is made from (yours to edit)
     me/face.png, music.mp3, ...      your photo, music and voice, copied in from `me`'s as the run was made
     footage/<name>.mp4               each recording the scenes are said over, and
-    footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known
+    footage/<name>.steps.json        what happens in it when (browser-use's steps), if that's known: or in an
+                                     animated Short, each shot's clip (footage/shot-01.mp4, ...), animated from
+    cast/<name>.png                  its characters' sheets, and its stills (shorts.stages.animate)
+    stills/<shot>.png
+    animations/<take>/<shot>.mp4     each take of each shot, to compare and choose from (picks.json notes which)
     script.json                      what's said (`script.Script`): the intro and outro lines, and each scene
     intro/filmed.mp4                 a clip of you saying the intro line (Omni's, HeyGen's), used as filmed
     outro/filmed.mp4                 and the outro line (a video without an avatar has cards instead, which
@@ -51,8 +55,35 @@ FINAL = "final.mp4"
 METADATA = "metadata.json"
 RECORDS = ".records"
 
-# What each stage makes, in the order they're made.
+PICKS = "picks.json"
+
+# What each stage makes, in the order they're made: an animated Short's footage is drawn from its script, and
+# animated as long as its narration.
 PRODUCTS = ("footage", "script", "intro", "outro", "avatar-voice", "narration", "video")
+ANIMATED_PRODUCTS = ("script", "cast", "stills", "intro", "outro", "avatar-voice", "narration", "footage", "video")
+
+
+def products(settings: "Settings") -> tuple[str, ...]:
+    """The products, in the order they're made for a run of this kind."""
+    return ANIMATED_PRODUCTS if settings.kind == "animated" else PRODUCTS
+
+
+def cast_file(name: str) -> str:
+    """A character's sheet, the one every still is drawn from."""
+    return f"cast/{name}.png"
+
+
+def cast_take_file(name: str, number: int) -> str:
+    return f"cast/{name}-take-{number}.png"
+
+
+def still_file(shot: str, *, end: bool = False) -> str:
+    """A shot's still (its first frame), or its end still (its last)."""
+    return f"stills/{shot}{'-end' if end else ''}.png"
+
+
+def animation_file(take: str, shot: str) -> str:
+    return f"animations/{take}/{shot}.mp4"
 
 
 def footage_file(name: str) -> str:
@@ -76,12 +107,16 @@ NARRATOR_MODELS = {"modal": "omnivoice", "elevenlabs": "eleven_multilingual_v2"}
 class Settings(BaseModel):
     """What a video is made from (run.json). Paths are relative to the run folder, or absolute."""
 
+    # What kind of video (one of script.KINDS): a product demo, said over recordings, or an animated Short, whose
+    # footage is drawn and animated shot by shot (cast, stills, animate, choose: shorts.stages.animate)
+    kind: Literal["demo", "animated"] = "demo"
     language: str = "en"  # what the script is written and spoken in: one of script.LANGUAGES
     tone: str = "friendly"  # how the script sounds: one of script.TONES
     footage: dict[str, str] = {}  # each recording, by name: a file to copy in (drive brings its recordings in)
     # intro/filmed.mp4: who films it (shorts.filmers: Gemini Omni, HeyGen; about $1 a clip), or you bring it in. Or
-    # no avatar: a title card, the intro line in big letters over a still of the recording (shorts.cards).
-    intro: Literal["omni", "heygen", "import", "card"] = "omni"
+    # no avatar: a title card, the intro line in big letters over a still of the recording (shorts.cards). Or none:
+    # the video opens on its first scene, as an animated Short does.
+    intro: Literal["omni", "heygen", "import", "card", "none"] = "omni"
     # outro/filmed.mp4: the same, an end card with the outro line, or no outro
     outro: Literal["omni", "heygen", "import", "card", "none"] = "omni"
     filmer_voice: str | None = None  # the voice the filmer gives you, for one that takes one: HeyGen's voice_id
@@ -101,6 +136,13 @@ class Settings(BaseModel):
     voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
+    # An animated Short's: the model that draws the characters and the stills (shorts.images), how many takes of each
+    # character's sheet it draws to choose from, and who animates the stills (shorts.animators; "import": you do,
+    # elsewhere), with which of its versions (None: its own)
+    image_model: str = "gemini-nano-banana-2.1"
+    cast_takes: int = 3
+    animator: Literal["omni", "import"] = "omni"
+    animator_model: str | None = None
     captions: bool = True
 
     @property
@@ -218,7 +260,8 @@ class Run:
         if "filmer" in choices:  # no one: no avatar, but cards
             filmed = "card" if choices["filmer"] == "none" else choices["filmer"]
             yours |= {"intro": filmed, "outro": filmed}
-        yours |= {name: choices[name] for name in ("filmer_voice", "narrator", "kokoro_voice") if name in choices}
+        kept = ("filmer_voice", "narrator", "kokoro_voice", "image_model", "animator")
+        yours |= {name: choices[name] for name in kept if name in choices}
         if choices.get("filmer") == "none" and choices.get("narrator") in NARRATOR_MODELS:
             yours["narration_voice"] = "sample"  # there's no avatar to take a voice from: it's yours
         return Settings(**yours)

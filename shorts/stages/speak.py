@@ -37,7 +37,11 @@ class Speak(Stage):
         return "kokoro" if settings.narrator == "kokoro" else self.extra
 
     def requires(self, settings: Settings) -> tuple[str, ...]:
-        intro = settings.narrator != "kokoro" and settings.narration_voice == "intro" and settings.intro != "card"
+        intro = (
+            settings.narrator != "kokoro"
+            and settings.narration_voice == "intro"
+            and settings.intro not in ("card", "none")
+        )
         return self.needs + (("avatar-voice",) if intro else ())
 
     def packages(self, settings: Settings) -> list[str]:
@@ -47,7 +51,7 @@ class Speak(Stage):
         """The voice an API speaks the narration in."""
         if settings.narration_voice == "sample":
             return voice_sample(run, settings)
-        if settings.intro == "card":
+        if settings.intro in ("card", "none"):
             raise NotReady(
                 f"there's no avatar in this video to take its voice from: narrate in yours ({COMMAND} new RUN "
                 f"--narration-voice sample, with {COMMAND} me --voice SAMPLE), or with Kokoro (--narrator kokoro)"

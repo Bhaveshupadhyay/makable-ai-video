@@ -1,8 +1,9 @@
-"""The script: what's said and shown (script.json), as Claude writes it (the make-video skill), and the check it
-passes before the video is made from it.
+"""The script: what's said and shown (script.json), as Claude writes it (the make-video or make-animation skill),
+and the check it passes before the video is made from it.
 
-How to write one is in skills/make-video/references/script.md: these are the format and the numbers the
-check holds it to.
+How to write one is in skills/make-video/references/script.md, and for an animated Short, with its storyboard (the
+style, the characters and each scene's shot), in skills/make-animation/references/script.md: these are the format
+and the numbers the check holds it to.
 """
 
 import re
@@ -20,6 +21,25 @@ LANGUAGES = ("en", "hi")  # what a script can be written and spoken in
 TONES = ("friendly", "hype")  # how it sounds: like a person talking, or excited, like a Short
 
 
+class Character(BaseModel):
+    """Someone who appears in an animated Short's shots, drawn once (`cast`) and the same in every still."""
+
+    name: str  # how the shots name them: "man"
+    look: str  # what they look like, in a phrase: "bald cartoon man, round face, plain blue t-shirt, grey shorts"
+
+
+class Shot(BaseModel):
+    """What an animated Short shows while a scene is said: a still image, then a video model's clip made from it."""
+
+    still: str  # what the image shows: who, where, doing what, from which angle
+    motion: str  # what the video model does with it: one action, and the camera's move
+    characters: list[str] = []  # who's in it, by name: their character sheets are its references
+    follows: bool = False  # it follows on from the shot before, in the same place: that still is a reference too
+    # What the last frame shows, for a model that takes one: so the shot ends exactly there. Omni takes only a first
+    # frame, so with it this is left out.
+    end_still: str | None = None
+
+
 class Scene(BaseModel):
     # What the narrator says over its stretch of a recording, one or two short sentences: or in a video without a
     # voice, what the captions say
@@ -29,11 +49,14 @@ class Scene(BaseModel):
     # before on it stopped.
     start: float | None = None
     end: float | None = None
+    shot: Shot | None = None  # in an animated Short: what's shown, drawn and animated into its footage
 
 
 class Script(BaseModel):
-    intro_line: str  # what the avatar says to the camera, 14 to 20 words: or what a title card says, in fewer
-    intro_setting: str  # the intro's shot in one sentence: place, light, framing ("" for a card)
+    # What the avatar says to the camera, 14 to 20 words: or what a title card says, in fewer. An animated Short has
+    # none: its first scene is the hook.
+    intro_line: str = ""
+    intro_setting: str = ""  # the intro's shot in one sentence: place, light, framing ("" for a card or none)
     scenes: list[Scene]
     title: str
     description: str
@@ -42,6 +65,13 @@ class Script(BaseModel):
     outro_line: str = ""
     outro_setting: str = ""
     language: str = "en"  # what it's written in (one of LANGUAGES), so it's spoken in it
+    # An animated Short's storyboard: the look of every image, in a sentence, and who appears in its shots
+    style: str = ""
+    characters: list[Character] = []
+    # Other versions of the opening line, by an id of their own ("H2": ...), for testing hooks, and the id of the one
+    # this video opens with ("H1"), which metadata.json notes for the insights to compare
+    hooks: dict[str, str] = {}
+    hook: str = ""
 
 
 def recording_length(steps: list[dict[str, Any]]) -> float:
@@ -54,6 +84,16 @@ INTRO_WORDS = (14, 20)  # the intro line, to fit Omni's 10-second clip
 OUTRO_WORDS = 20  # at most, for the outro's clip
 CARD_WORDS = 12  # at most, for a title card or an end card to read at a glance
 SCENES = (3, 8)
+KINDS = ("demo", "animated")  # a product demo said over recordings, or an animated Short drawn shot by shot
+# An animated Short's numbers: its shots, the narration in all, and each shot's, which its clip is made to fit (the
+# lengths Omni makes, and pays for by the second)
+SHOTS = (4, 6)
+ANIMATED_NARRATION = 30
+SHOT_SECONDS = (4.0, 8.0)
+# What a shot's image or clip mustn't be asked for: the models are already told no text or logos, and spell them wrong
+NOT_SHOWN = re.compile(
+    r"\b(logos?|watermarks?|brand(?:s|ed)?|trademarks?|captions?|subtitles?|text|lettering|written|typography)\b", re.I
+)
 SPEEDS = (0.6, 2.5)  # how much slower or faster than real time a stretch can play and still look right
 SHORTEST = 1.0  # seconds: the shortest stretch of a recording a scene can be said over
 SAID = re.compile(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]|#\w")  # emoji and hashtags, which aren't said
@@ -93,6 +133,7 @@ def check(
     cards: Collection[str] = (),
     silent: bool = False,
     narrator: str | None = None,
+    kind: str = "demo",
 ) -> tuple[list[str], list[str]]:
     """What's wrong with a script, checked against the recordings it's said over: errors (the video can't be
     made from it as it is) and warnings (it can, but it may not look or sound right).
@@ -107,10 +148,18 @@ def check(
         silent: Whether the video has no voice: its scenes are read, in the captions, not heard.
         narrator: The model that speaks the narration ("omnivoice", "chatterbox", "kokoro", "" for none), so tags
             it would leave out are warned about (None: not checked).
+        kind: The run's kind (one of KINDS): an animated Short's storyboard is checked too (`check_storyboard`), and
+            it has no intro, opening on its first shot.
     """
     errors: list[str] = []
     warnings: list[str] = []
-    if not script.intro_line.strip():
+    animated = kind == "animated"
+    if animated:
+        if script.intro_line.strip():
+            warnings.append(
+                "The intro line isn't used: an animated Short opens on its first shot, so the hook is its text"
+            )
+    elif not script.intro_line.strip():
         errors.append("The intro line is empty")
     elif "intro" in cards:
         if words(script.intro_line) > CARD_WORDS:
@@ -123,7 +172,9 @@ def check(
         warnings.append(f"The end card's line has {words(script.outro_line)} words: keep it to {CARD_WORDS}")
     elif words(script.outro_line) > OUTRO_WORDS:
         warnings.append(f"The outro line has {words(script.outro_line)} words: keep it to {OUTRO_WORDS} or fewer")
-    if not SCENES[0] <= len(script.scenes) <= SCENES[1]:
+    if animated and not SHOTS[0] <= len(script.scenes) <= SHOTS[1]:
+        warnings.append(f"The script has {len(script.scenes)} shots: {SHOTS[0]} to {SHOTS[1]} tell a 30-second story")
+    elif not animated and not SCENES[0] <= len(script.scenes) <= SCENES[1]:
         warnings.append(f"The script has {len(script.scenes)} scenes: {SCENES[0]} to {SCENES[1]} tell a minute's story")
 
     stretches: dict[str, list[tuple[float, float, int]]] = {}  # each recording's stretches so far, and their scenes
@@ -154,7 +205,7 @@ def check(
         before.append((scene.start, scene.end, number))
 
     known = [length for length in lengths.values() if length is not None]
-    target = min(NARRATION, sum(known)) if known else NARRATION
+    target = ANIMATED_NARRATION if animated else min(NARRATION, sum(known)) if known else NARRATION
     if silent:
         seconds = sum(on_screen(scene, silent) for scene in script.scenes)
         long = f"The scenes last about {seconds:.0f} s"
@@ -171,8 +222,64 @@ def check(
         warnings.append(f"Something that's said has an emoji or a hashtag, which {cant}")
     if silent and any(not scene.text.strip() for scene in script.scenes):
         warnings.append("A scene has no text: without a voice, the captions are all that says what's happening")
-    check_tags(script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards)
+    check_tags(
+        script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards, intro=not animated
+    )
+    if animated:
+        check_storyboard(script, errors, warnings)
     return errors, warnings
+
+
+def shot_seconds(scene: Scene) -> float:
+    """How long a shot is on screen, near enough: its narration and a pause (`on_screen`)."""
+    return on_screen(scene)
+
+
+def check_storyboard(script: Script, errors: list[str], warnings: list[str]) -> None:
+    """What's wrong with an animated Short's storyboard, added to `errors` and `warnings` (see `check`): its style,
+    its characters, and each scene's shot."""
+    if not script.style.strip():
+        errors.append('The storyboard has no style: one sentence on how every image looks ("Stylized 3D CGI, ...")')
+    names = [character.name for character in script.characters]
+    for name in dict.fromkeys(name for name in names if names.count(name) > 1):
+        errors.append(f"Two characters are called {name!r}: each needs a name of its own")
+    for character in script.characters:
+        if not character.name.strip() or not character.look.strip():
+            errors.append(f"The character {character.name!r} needs a name and a look")
+    asked = [("The style", script.style)]
+    asked += [(f"The character {character.name!r}", character.look) for character in script.characters]
+    shots: dict[str, int] = {}
+    for number, scene in enumerate(script.scenes, 1):
+        shot = scene.shot
+        if shot is None:
+            errors.append(f"Scene {number} has no shot: what it shows (still) and how it moves (motion)")
+            continue
+        if scene.footage in shots:
+            errors.append(
+                f"Scenes {shots[scene.footage]} and {number} are both {scene.footage!r}: each shot is its own clip"
+            )
+        shots.setdefault(scene.footage, number)
+        if not shot.still.strip() or not shot.motion.strip():
+            errors.append(f"Scene {number}'s shot needs both a still and a motion")
+        for name in dict.fromkeys(name for name in shot.characters if name not in names):
+            errors.append(
+                f"Scene {number}'s shot has {name!r}, who isn't one of the characters ({', '.join(names) or 'none'})"
+            )
+        asked += [(f"Scene {number}'s {part}", text or "") for part, text in
+                  (("still", shot.still), ("motion", shot.motion), ("end still", shot.end_still))]  # fmt: skip
+        seconds = shot_seconds(scene)
+        if not SHOT_SECONDS[0] <= seconds <= SHOT_SECONDS[1]:
+            fix = "say more over it, or join it to the next" if seconds < SHOT_SECONDS[0] else "say less, or split it"
+            warnings.append(
+                f"Scene {number}'s shot is about {seconds:.1f} s: {SHOT_SECONDS[0]:g} to {SHOT_SECONDS[1]:g} s fits the "
+                f"clips a video model makes ({fix})"
+            )
+    for where, text in asked:
+        if match := NOT_SHOWN.search(text):
+            errors.append(
+                f"{where} mentions {match.group(0)!r}: describe only pictures. The models are already told to show no "
+                "text, captions or logos, and draw them wrong if asked"
+            )
 
 
 def check_tags(
@@ -183,10 +290,11 @@ def check_tags(
     cards: Collection[str],
     narrator: str | None,
     outro: bool = True,
+    intro: bool = True,
 ) -> None:
-    """What's wrong with the script's tags ("[laughter]"), added to `errors` and `warnings` (see `check`). The outro
-    line is checked only if the video has an outro."""
-    lines = [("The intro line", script.intro_line, "intro")]
+    """What's wrong with the script's tags ("[laughter]"), added to `errors` and `warnings` (see `check`). The intro
+    line is checked only if the video has an intro, and the outro line only if it has an outro."""
+    lines = [("The intro line", script.intro_line, "intro")] if intro else []
     lines += [(f"Scene {number}", scene.text, "") for number, scene in enumerate(script.scenes, 1)]
     lines += [("The outro line", script.outro_line, "outro")] if outro else []
     choices = ", ".join(sorted(performed()))

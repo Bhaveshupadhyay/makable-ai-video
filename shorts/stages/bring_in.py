@@ -135,8 +135,17 @@ def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
     silent = settings.narrator == "none"
     # who speaks the narration: an API's model, or Kokoro, or no one
     narrator = "" if silent else settings.narration_model if settings.narrator in NARRATOR_MODELS else settings.narrator
+    animated = settings.kind == "animated"  # its footage is drawn from the script, not recorded first
+    lengths, timed = ({}, set()) if animated else footage_lengths(run)
     return check(
-        script, *footage_lengths(run), outro=settings.outro != "none", cards=cards, silent=silent, narrator=narrator
+        script,
+        lengths,
+        timed,
+        outro=settings.outro != "none",
+        cards=cards,
+        silent=silent,
+        narrator=narrator,
+        kind=settings.kind,
     )
 
 

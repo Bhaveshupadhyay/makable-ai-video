@@ -10,6 +10,7 @@
     python -m shorts deploy-voice              the voice API, on your own Modal account (see shorts/deploy.py)
     python -m shorts signin --url URL          sign in to a site by hand, once, for recordings --signed-in
     python -m shorts new RUN [--face PHOTO] [--music FILE] [--language hi] [--tone hype]   a run, with your files
+                [--kind demo|animated]         a product demo, or an animated Short (no avatar: it opens on shot 1)
     python -m shorts drive RUN start|look|click|type|...|stop   footage recorded by driving Chrome a command
                                                at a time, as Claude Code does (see shorts/drive.py)
     python -m shorts import RUN PRODUCT FILE ...   files made elsewhere, or links to them: the script (always),
@@ -17,8 +18,13 @@
     python -m shorts voices [--gender male]    HeyGen's voices, for run.json's filmer_voice
     python -m shorts status RUN
     python -m shorts run RUN [--paid]          every stage that's due, each in a process of its own
-    python -m shorts <stage> RUN [--force]     one stage, here: record, film-intro, film-outro, take-voice,
-                                               speak, assemble
+    python -m shorts <stage> RUN [--force]     one stage, here: record, cast, stills, film-intro, film-outro,
+                                               take-voice, speak, animate, assemble
+    python -m shorts animate RUN --with omni-1.1,omni-1.2 [--takes 2]   an animated Short's shots in more takes
+    python -m shorts compare RUN               every take of every shot side by side (animations/compare.mp4)
+    python -m shorts choose RUN SHOT|all TAKE  a take's clip as a shot's footage; or choose RUN CHARACTER 2, a
+                                               character sheet's take (see shorts/stages/animate.py)
+    python -m shorts prompts RUN               each still and its motion prompt, to animate elsewhere
     python -m shorts check-script RUN [FILE]   what each scene says over which stretch, and what's wrong
     python -m shorts frames RUN NAME [--every SECONDS | --at SECONDS ...]   a recording's frames, labelled
                                                with their times, in contact sheets (RUN/frames/NAME-1.png, ...)
@@ -41,13 +47,30 @@ import sys
 from pathlib import Path
 
 from . import COMMAND
+from .animators import ANIMATORS
 from .filmers import FILMERS, heygen_voices
-from .home import MINE, choose, chosen, home, keep, mine, products, runs, signed_in_sites, site
+from .home import (
+    MINE,
+    character,
+    choose,
+    chosen,
+    home,
+    keep,
+    keep_character,
+    mine,
+    products,
+    runs,
+    signed_in_sites,
+    site,
+)
+from .images import IMAGE_MODELS
 from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
 from .orchestrator import PACKAGE_ROOT, advice, elsewhere, run_all, run_stage, shorts_in, status
 from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
-from .script import LANGUAGES, TONES, Script, speed, words
+from .script import KINDS, LANGUAGES, TONES, Script, shot_seconds, speed, words
 from .stages import STAGES, NotReady, bring_in
+from .stages.animate import choose as choose_take
+from .stages.animate import compare, more_takes, prompts
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
 from .voice import KOKORO_VOICES
@@ -106,8 +129,11 @@ def new(run: Run, args: argparse.Namespace) -> None:
         }
     if args.respellings:
         updates["pronounce"] = {**(settings.pronounce or {}), **dict(args.respellings)}
+    if updates.get("kind") == "animated" and settings.kind != "animated":  # no avatar: it opens on its first shot
+        updates.setdefault("intro", "none")
+        updates.setdefault("outro", "none")
     changed = settings.model_copy(update=updates)
-    if changed.intro == "card" and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
+    if changed.intro in ("card", "none") and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
         updates["narration_voice"] = "sample"  # no avatar to take a voice from: an API speaks in yours
     run.save_settings(settings.model_copy(update=updates))
     print(run.path(SETTINGS).read_text())
@@ -126,6 +152,11 @@ NARRATED_BY = {
     "kokoro": "Kokoro, on this machine, for nothing",
     "none": "no one: no voice, the captions say it",
 }
+ANIMATED_BY = {
+    "omni": "Gemini Omni, in your Google Cloud project ($0.07 a second)",
+    "import": "you, elsewhere (the Gemini website, for free), bringing each clip in",
+}
+IMAGE_MODEL_DEFAULT = Settings.model_fields["image_model"].default
 CHOOSE = f"{COMMAND} me --filmer {'|'.join(FILMED_BY)} --narrator {'|'.join(NARRATED_BY)}"
 UNASKED = ("SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY")  # the keys deploy-voice sets, not you
 
@@ -142,11 +173,18 @@ def show_me(args: argparse.Namespace) -> None:
                 keep(kind, Path(file) if file else None)
         except ValueError as problem:
             sys.exit(f"me: {problem}")
+    for name, file in args.characters or []:
+        try:
+            keep_character(name, Path(file) if file else None)
+        except (ValueError, FileNotFoundError) as problem:
+            sys.exit(f"me: {problem}")
     given = {
         "filmer": args.filmer,
         "filmer_voice": args.filmer_voice,
         "narrator": args.narrator,
         "kokoro_voice": args.kokoro_voice,
+        "image_model": args.image_model,
+        "animator": args.animator,
     }
     choices = choose(**given) if any(value is not None for value in given.values()) else chosen()
     kept = mine()
@@ -168,6 +206,13 @@ def show_me(args: argparse.Namespace) -> None:
         narrated += ", in your voice sample's" if filmer == "none" else ", in your avatar's voice"
     print(f"  {'filmer':10} {filmed}")
     print(f"  {'narrator':10} {narrated}")
+    drawn, animator = choices.get("image_model"), choices.get("animator")  # for an animated Short
+    if drawn or animator:
+        print(f"  {'images':10} {drawn or IMAGE_MODEL_DEFAULT}")
+        print(f"  {'animator':10} {ANIMATED_BY.get(animator or 'omni')}")
+    mascots = sorted((home() / "me" / "characters").glob("*.png"))
+    if mascots:
+        print(f"  {'mascots':10} {', '.join(sheet.stem for sheet in mascots if character(sheet.stem))}")
     notes = products() or {"(none)": ""}  # each product's notes, with where they are: in SHORTS_HOME or the project
     width = max(map(len, notes))
     for line, (name, path) in enumerate(notes.items()):
@@ -244,11 +289,20 @@ def show_check(run: Run, file: Path | None) -> bool:
         ("Title card" if settings.intro == "card" else "Intro"),
         ("End card" if settings.outro == "card" else "Outro"),
     )
-    print(f"{intro}, {words(script.intro_line)} words: {script.intro_line}")
+    if settings.intro != "none":
+        print(f"{intro}, {words(script.intro_line)} words: {script.intro_line}")
+    if script.style:
+        print(f"Style: {script.style}")
+    for one in script.characters:
+        print(f"Character {one.name}: {one.look}")
     for number, scene in enumerate(script.scenes, 1):
         rate = speed(scene, silent=settings.narrator == "none")
         where = f"{scene.start:5.1f}-{scene.end:5.1f} s at {rate:.1f}x" if rate is not None else "(no stretch)"
+        if settings.kind == "animated":
+            where = f"about {shot_seconds(scene):.1f} s"
         print(f"Scene {number}: {scene.footage} {where}, {words(scene.text)} words: {scene.text}")
+        if scene.shot and settings.kind == "animated":
+            print(f"  still: {scene.shot.still}\n  motion: {scene.shot.motion}")
     if script.outro_line:
         print(f"{outro}, {words(script.outro_line)} words: {script.outro_line}")
     errors, warnings = check_script(run, script)
@@ -265,9 +319,9 @@ def show_frames(run: Run, name: str, times: list[float] | None, every: float, wi
     from .sheet import contact_sheet, times_every
 
     footage = run.settings().footage
-    if name not in footage:
+    video = run.path(footage_file(name))  # recorded, or an animated Short's shot
+    if name not in footage and not video.exists():
         raise NotReady(f"run.json has no footage {name!r}: {', '.join(footage) or 'it names none'}")
-    video = run.path(footage_file(name))
     video = video if video.exists() else run.resolve(footage[name])
     if not video.exists():
         raise NotReady(f"the footage {name!r} isn't there yet: {video}")
@@ -351,9 +405,16 @@ def main() -> None:
     setup.add_argument("--face", help="a photo of you, for Omni")
     setup.add_argument("--voice", help="a sample of you talking, for --narration-voice sample")
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
+    setup.add_argument("--kind", choices=KINDS, help="a product demo (the default), or an animated Short")
+    setup.add_argument("--image-model", choices=IMAGE_MODELS, help="what draws an animated Short's images")
+    setup.add_argument("--cast-takes", type=int, help="how many takes of each character's sheet to draw (3)")
+    setup.add_argument("--animator", choices=ANIMATED_BY, help="who animates the stills: omni, or you (import)")
+    setup.add_argument("--animator-model", help=f"the animator's version: {', '.join(ANIMATORS['omni'].versions)}")
     setup.add_argument("--language", choices=LANGUAGES)
     setup.add_argument("--tone", choices=TONES)
-    setup.add_argument("--intro", choices=[*FILMERS, "import", "card"], help="who films the intro, or a title card")
+    setup.add_argument(
+        "--intro", choices=[*FILMERS, "import", "card", "none"], help="who films the intro, a title card, or none"
+    )
     setup.add_argument(
         "--outro", choices=[*FILMERS, "import", "card", "none"], help="who films the outro, a card, or none"
     )
@@ -380,6 +441,16 @@ def main() -> None:
     me.add_argument("--filmer-voice", metavar="ID", help=f"HeyGen's voice to film you in ({COMMAND} voices)")
     me.add_argument("--narrator", choices=NARRATED_BY, help="who speaks the narration, or none")
     me.add_argument("--kokoro-voice", metavar="VOICE", help='Kokoro\'s voice, such as am_michael ("" for its own)')
+    me.add_argument("--image-model", choices=IMAGE_MODELS, help="what draws an animated Short's characters and stills")
+    me.add_argument("--animator", choices=ANIMATED_BY, help="who animates an animated Short's stills")
+    me.add_argument(
+        "--character",
+        dest="characters",
+        type=lambda text: tuple(text.split("=", 1)) if "=" in text else (text, ""),
+        action="append",
+        metavar="NAME=SHEET",
+        help="a mascot's character sheet (a PNG), for every animated Short it's in (\"NAME=\" to forget it)",
+    )
 
     keyed = commands.add_parser("keys", help="add the keys your choices need to your .env, for you to fill in")
     keyed.add_argument("--open", action="store_true", help="open it in your text editor, if there's a key to fill in")
@@ -394,7 +465,18 @@ def main() -> None:
 
     everything = commands.add_parser("run", help="every stage that's due, each in a process of its own")
     everything.add_argument("run", type=Path)
-    everything.add_argument("--paid", action="store_true", help="film the intro and outro too, if due (about $1 each)")
+    everything.add_argument(
+        "--paid", action="store_true", help="film the intro and outro, or animate the shots, too, if due"
+    )
+
+    chose = commands.add_parser("choose", help="a take as the one used: a shot's clip, or a character's sheet")
+    chose.add_argument("run", type=Path)
+    chose.add_argument("what", help="a shot (shot-01), all of them (all), or a character (man)")
+    chose.add_argument("pick", help="the take: omni-1.2 for a shot, a number for a character's sheet")
+    commands.add_parser("compare", help="every take of every shot, side by side").add_argument("run", type=Path)
+    commands.add_parser("prompts", help="each still and its motion prompt, to animate elsewhere").add_argument(
+        "run", type=Path
+    )
 
     imported = commands.add_parser("import", help="bring in files made elsewhere")
     imported.add_argument("run", type=Path)
@@ -470,6 +552,11 @@ def main() -> None:
         one = commands.add_parser(name, help=f"make the {stage.product}, here")
         one.add_argument("run", type=Path)
         one.add_argument("--force", action="store_true", help="make every file again, edited ones too")
+        if name == "animate":
+            one.add_argument(
+                "--with", dest="with_takes", metavar="TAKES", help="more takes to compare: omni-1.1,omni-1.2"
+            )
+            one.add_argument("--takes", type=int, default=1, help="how many takes of each, with --with")
 
     args = parser.parse_args()
     if args.command == "me":
@@ -518,6 +605,14 @@ def main() -> None:
             bring_in(run, args.product, args.files, name=args.name, as_given=args.as_given)
         elif args.command == "check-script":
             sys.exit(0 if show_check(run, args.file) else 1)
+        elif args.command == "choose":
+            choose_take(run, args.what, args.pick)
+        elif args.command == "compare":
+            compare(run)
+        elif args.command == "prompts":
+            print("\n".join(prompts(run)))
+        elif args.command == "animate" and args.with_takes:
+            more_takes(run, [name.strip() for name in args.with_takes.split(",") if name.strip()], args.takes)
         elif args.command == "frames":
             show_frames(run, args.name, args.at, args.every, args.width)
         elif args.command == "drive":

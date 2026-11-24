@@ -3,6 +3,7 @@
     .env                 your keys (KEY=value lines), for what the environment doesn't set (`shorts.keys`)
     me/face.png          a photo of you, for whoever films you; me/music.mp3, played under the video; and
     me/voice.wav         a sample of you talking (`python -m shorts me` keeps them)
+    me/characters/<name>.png   a mascot's character sheet, for every animated Short it's in (`me --character`)
     choices.json         who films you (Gemini Omni, HeyGen, clips you bring in, or no one: a video without an
                          avatar) and who speaks the narration (ElevenLabs, your own voice API on Modal, Kokoro on
                          this machine, or no one: a video without a voice): `python -m shorts me --filmer --narrator`
@@ -27,7 +28,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 MINE = ("face", "music", "voice")  # what `me` keeps: run.json's settings of the same names
-CHOICES = ("filmer", "filmer_voice", "narrator", "kokoro_voice")  # and what it keeps of your choices (`chosen`)
+# and what it keeps of your choices (`chosen`): an animated Short's image model and animator too
+CHOICES = ("filmer", "filmer_voice", "narrator", "kokoro_voice", "image_model", "animator")
 
 
 def home() -> Path:
@@ -82,6 +84,27 @@ def keep(kind: str, file: Path | None) -> Path | None:
         if old != kept:
             old.unlink()
     return kept
+
+
+def character(name: str) -> Path | None:
+    """A mascot's character sheet, if one's kept by that name."""
+    sheet = home() / "me" / "characters" / f"{name}.png"
+    return sheet if sheet.exists() else None
+
+
+def keep_character(name: str, file: Path | None) -> Path | None:
+    """Keeps a copy of `file` (a PNG) as the mascot `name`'s character sheet, or forgets it (None)."""
+    if not re.fullmatch(r"[\w-]+", name):
+        raise ValueError(f"{name!r} isn't a name a character can have: letters, digits, - and _")
+    sheet = home() / "me" / "characters" / f"{name}.png"
+    if file is None:
+        sheet.unlink(missing_ok=True)
+        return None
+    sheet.parent.mkdir(parents=True, exist_ok=True)
+    part = sheet.with_name(f".{sheet.name}.part")
+    shutil.copyfile(Path(file).expanduser(), part)
+    part.replace(sheet)
+    return sheet
 
 
 def chosen() -> dict[str, str]:
