@@ -214,8 +214,12 @@ class VolumeVideos:
                 return None
             handle, name = tempfile.mkstemp(suffix=".mp4")
             os.close(handle)
-            shutil.copyfile(path, name)
-            return Path(name)
+            try:
+                shutil.copyfile(path, name)
+            except BaseException:  # a part-written copy: the response never gets it to clean up
+                Path(name).unlink(missing_ok=True)
+                raise
+            return Path(name)  # the response deletes it once sent
 
     def delete(self, job_id: str) -> None:
         with self.lock:
