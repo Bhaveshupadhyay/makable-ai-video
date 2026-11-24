@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from .h3 import Media
+from .h3 import CONVERTED, Media, unprefixed
 
 CANCEL_WAIT = 300  # seconds to let a cancelled WanGP job stop (a step of a 720p, 15 s clip takes about a minute)
 
@@ -29,7 +29,7 @@ class Engine:
     """WanGP at `root` (a checkout), with its checkpoints and LoRAs in `models` and its MP4s in `outputs`."""
 
     def __init__(self, root: Path, models: Path, outputs: Path, config: dict, cli_args: list[str]) -> None:
-        self.root, self.outputs = Path(root), Path(outputs)
+        self.root, self.outputs, self.models = Path(root), Path(outputs), Path(models)
         self.outputs.mkdir(parents=True, exist_ok=True)
         (models / "loras").mkdir(parents=True, exist_ok=True)
         loras = self.root / "loras"  # WanGP keeps LoRAs (the URLs it downloads too) under <root>/loras/<family>
@@ -60,6 +60,9 @@ class Engine:
             Cancelled: `cancelled()` said so.
             RuntimeError: WanGP failed: what it said.
         """
+        for name in settings.get("activated_loras", []):
+            if name in CONVERTED:
+                self.convert(name)
         task = {**self.session.get_default_settings(settings["model_type"]), **settings}
         timings: dict[str, float] = {}
         state = {"phase": None, "since": time.time(), "job": None, "checked": 0.0}
@@ -103,6 +106,26 @@ class Engine:
         if not videos:
             raise RuntimeError(f"WanGP made no MP4 (it made {result.generated_files})")
         return videos[-1], timings
+
+
+    def convert(self, name: str) -> Path:
+        """CONVERTED's LoRA `name`, in WanGP's H3 LoRA folder: downloaded and saved with its keys renamed, once."""
+        out = self.models / "loras" / "minimax_h3" / name
+        if out.exists():
+            return out
+        from huggingface_hub import hf_hub_download
+        from safetensors.torch import load_file, save_file
+
+        url, prefix = CONVERTED[name]
+        repo, file = url.removeprefix("https://huggingface.co/").split("/resolve/main/")
+        source = hf_hub_download(repo_id=repo, filename=file)
+        tensors = load_file(source)
+        renamed = {new: tensors[old] for old, new in unprefixed(tensors, prefix).items()}
+        out.parent.mkdir(parents=True, exist_ok=True)
+        partial = out.with_suffix(".partial")
+        save_file(renamed, str(partial))
+        partial.replace(out)
+        return out
 
 
 def write_media(work: Path, files: dict) -> Media:

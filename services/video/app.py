@@ -182,16 +182,16 @@ class GpuRunner:
         modal.FunctionCall.from_id(handle).cancel()
 
     def ended(self, handle: str) -> str | None:
-        from modal.exception import FunctionTimeoutError, OutputExpiredError, TimeoutError
+        from modal.exception import FunctionTimeoutError, OutputExpiredError
 
         try:
             modal.FunctionCall.from_id(handle).get(timeout=0)
-        except FunctionTimeoutError:  # both subclass TimeoutError, which only means "not yet": first
+        except FunctionTimeoutError:  # modal.exception.TimeoutError's: the call hit TIMEOUT
             return f"It ran past the GPU's limit of {TIMEOUT // 60} minutes"
         except OutputExpiredError:
             return "Its GPU call ended long ago without saying how"
-        except TimeoutError:
-            return None  # queued or still running
+        except TimeoutError:  # Python's own, which get(timeout=0) raises while the call is queued or running
+            return None
         except Exception as error:
             return f"Its GPU call failed: {error}"[:2000]
         return "Its GPU call ended without saying how"  # it returned, but never wrote the job's outcome

@@ -234,3 +234,11 @@ def test_reference_names_keep_their_places() -> None:
     prompt = h3.build_prompt(request, h3.Media(references=["a.png", "b.png"]))
     assert "<Subject 1> is the main subject in <Picture 1>" in prompt
     assert "<Subject 2> is the red car in <Picture 2>" in prompt
+
+
+def test_pdmd_takes_its_converted_lora() -> None:
+    settings = h3.settings(h3.VideoRequest(prompt="x", model="pdmd"), h3.Media())
+    assert settings["model_type"] == "minimax_h3_fl2va_pruned" and settings["num_inference_steps"] == 4
+    assert settings["activated_loras"] == [h3.PDMD_FILE] and settings["loras_multipliers"] == "1"
+    renamed = h3.unprefixed(["transformer.token_refiner.refiner_blocks.0.attn.to_k.lora_A.weight"], "transformer.")
+    assert list(renamed.values()) == ["token_refiner.refiner_blocks.0.attn.to_k.lora_A.weight"]

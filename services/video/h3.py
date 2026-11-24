@@ -19,9 +19,18 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field, field_validator
 
-# The PDMD 4-step LoRA (the Kaggle notebook's default) isn't offered: its keys are in diffusers' names, which WanGP's
-# loader rejects ("unexpected module keys"); the notebook converts them with a loader of its own.
+# The PDMD 4-step distillation LoRA (UCSD / ByteDance, github.com/ZeamoxWang/pdmd), the Kaggle notebook's default.
+# Its keys are diffusers' names behind a "transformer." prefix: WanGP converts diffusers' names, but only when a key
+# starts with one (token_refiner.refiner_blocks., transformer_blocks., ...), so as published it rejects them all
+# ("unexpected module keys"). The engine saves a copy without the prefix under CONVERTED's name, and WanGP takes that.
 PDMD_LORA = "https://huggingface.co/pdmd2026/pdmd_4NFE_lora/resolve/main/lora_model_0.safetensors"
+PDMD_FILE = "pdmd_4nfe_unprefixed.safetensors"
+CONVERTED = {PDMD_FILE: (PDMD_LORA, "transformer.")}  # a LoRA file WanGP gets: (where it's from, prefix to strip)
+
+
+def unprefixed(keys, prefix: str) -> dict[str, str]:
+    """{key: the key without `prefix`}: what the engine renames a LoRA's tensors to."""
+    return {key: key.removeprefix(prefix) for key in keys}
 
 
 @dataclass(frozen=True)
@@ -33,14 +42,20 @@ class Model:
     steps: int
     sampler: str = "euler"
     references: bool = False  # Ref2VA: reference images and voices; FL2VA: start and end frames, a soundtrack
-    loras: tuple[tuple[str, float], ...] = ()  # always applied (a distillation LoRA), as (url, strength)
+    loras: tuple[tuple[str, float], ...] = ()  # always applied (a distillation LoRA), as (url or file, strength)
     shift: float | None = None  # flow shift, when the model wants another than WanGP's default for it
 
 
 MODELS = {
+    "pdmd": Model(
+        "minimax_h3_fl2va_pruned",
+        "Base H3 + the PDMD 4-step distillation LoRA: text, start image, first + last frame, soundtrack. The fastest.",
+        steps=4,
+        loras=((PDMD_FILE, 1.0),),
+    ),
     "pdd": Model(
         "minimax_h3_fl2va_pruned_pdd",
-        "WanGP's PDD 8-step model: text, start image, first + last frame, soundtrack. The fastest.",
+        "WanGP's PDD 8-step model: text, start image, first + last frame, soundtrack.",
         steps=8,
     ),
     "base": Model(
@@ -186,7 +201,7 @@ def problems(request: VideoRequest, media: Media) -> list[str]:
         found.append("Write a prompt (or send a start image or references)")
     if model.references:
         if media.soundtrack:
-            found.append(f"{request.model} takes a voice to clone, not a soundtrack: use pdd or base")
+            found.append(f"{request.model} takes a voice to clone, not a soundtrack: use pdmd, pdd or base")
         if media.voice and not media.references:
             found.append("A voice needs at least one reference image: H3 binds each voice to a reference")
     else:
