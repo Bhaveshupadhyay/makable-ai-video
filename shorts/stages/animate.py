@@ -11,6 +11,10 @@
                                      and a pause, saved as animations/<take>/<shot>.mp4 too. Paid ($0.07 a second
                                      with Omni): `run` never animates on its own, only `animate RUN` or `run --paid`.
 
+Drawing costs cents an image and animating dollars, so `run` does neither on its own: `cast RUN`, `stills RUN` and
+`animate RUN` do, or `run --paid`. A take already made is never paid for twice: each clip's `.source` beside it
+notes what it was made from, and a retry, or another take, makes only what's missing or made from something else.
+
 The narration is spoken before the stills are animated, so each clip is asked for only as long as its shot needs.
 A file you change is kept as it is (the run's usual rule): a sheet you chose is locked, and so is a clip you chose.
 
@@ -46,20 +50,38 @@ from ..run import (
     still_file,
     writing,
 )
-from ..script import Script, on_screen
-from .base import NotReady, Stage, read_script
+from ..script import SAFE_NAME, Script, on_screen
+from .base import TO_MAKE, NotReady, Stage, read_script, states
 
 STILLS_SHEET = "stills/sheet.png"
 GOOGLE = "pip install 'makable-shorts[gemini]', with GOOGLE_CLOUD_PROJECT and Google Cloud's sign-in (see the README)"
+IMAGE_COST = "about 3 ¢ an image (13 ¢ with Nano Banana Pro)"
 
 
 def storyboard(run: Run) -> Script:
-    """The script, if it's an animated Short's, with a shot for every scene."""
+    """The script, if it's an animated Short's, with a shot for every scene, and names that are file names: a
+    character's and a shot's name each name a file in the run folder, and never one outside it."""
     script = read_script(run)
     missing = [number for number, scene in enumerate(script.scenes, 1) if scene.shot is None]
     if missing:
         raise NotReady(f"scene {missing[0]} has no shot: {COMMAND} check-script {run.folder} says what's wrong")
+    names = [one.name for one in script.characters] + [scene.footage for scene in script.scenes]
+    unsafe = [name for name in names if not SAFE_NAME.fullmatch(name)]
+    if unsafe:
+        raise NotReady(f"{unsafe[0]!r} can't name a file: names have only letters, digits, - and _")
     return script
+
+
+def made_from(path: Path) -> str | None:
+    """What a take was made from, as noted beside it when it was made (None: it isn't there, or wasn't noted)."""
+    note = path.with_name(f"{path.name}.source")
+    return note.read_text().strip() if path.exists() and note.exists() else None
+
+
+def note_made_from(path: Path, source: str) -> None:
+    note = path.with_name(f"{path.name}.source")
+    with writing(note) as out:
+        out.write_text(source + "\n")
 
 
 class Cast(Stage):
@@ -68,6 +90,7 @@ class Cast(Stage):
     needs = ("script",)
     extra = "gemini"
     where = GOOGLE
+    cost = IMAGE_COST
 
     def by(self, settings: Settings) -> str:
         return f"cast ({settings.image_model})"
@@ -76,14 +99,18 @@ class Cast(Stage):
         return ["google.genai"]
 
     def plan(self, run: Run) -> dict[str, str]:
+        """Each character's sheet, and each of its takes: a take that's missing is drawn, and only it."""
         settings, script = run.settings(), storyboard(run)
         plan = {}
         for one in script.characters:
             mascot = character(one.name)
-            made_from = (
-                ("mascot", file_hash(mascot)) if mascot else (settings.image_model, sheet_prompt(script.style, one))
-            )
-            plan[cast_file(one.name)] = fingerprint(*made_from)
+            if mascot:
+                plan[cast_file(one.name)] = fingerprint("mascot", file_hash(mascot))
+                continue
+            source = fingerprint(settings.image_model, sheet_prompt(script.style, one))
+            plan[cast_file(one.name)] = source
+            for number in range(1, settings.cast_takes + 1):
+                plan[cast_take_file(one.name, number)] = fingerprint(source, number)
         return plan
 
     def make(self, run: Run, paths: list[str]) -> None:
@@ -92,25 +119,28 @@ class Cast(Stage):
         settings, script = run.settings(), run.script()
         google = None
         for one in script.characters:
-            if cast_file(one.name) not in paths:
-                continue
             if mascot := character(one.name):
+                if cast_file(one.name) not in paths:
+                    continue
                 print(f"{one.name}: your mascot, {mascot}")
                 with writing(run.path(cast_file(one.name))) as out:
                     shutil.copyfile(mascot, out)
                 continue
-            google = google or client()
-            cost = settings.cast_takes * IMAGE_MODELS.get(settings.image_model, 0.0)
-            print(
-                f"Drawing {one.name}'s sheet, {settings.cast_takes} takes with {settings.image_model} (about ${cost:.2f})"
-            )
-            for number in range(1, settings.cast_takes + 1):
+            numbers = [n for n in range(1, settings.cast_takes + 1) if cast_take_file(one.name, n) in paths]
+            if numbers:
+                google = google or client()
+                cost = len(numbers) * IMAGE_MODELS.get(settings.image_model, 0.0)
+                print(
+                    f"Drawing {one.name}'s sheet, {len(numbers)} takes with {settings.image_model} (about ${cost:.2f})"
+                )
+            for number in numbers:
                 with writing(run.path(cast_take_file(one.name, number))) as out:
                     draw(google, sheet_prompt(script.style, one), [], out, model=settings.image_model, aspect="16:9")
-            with writing(run.path(cast_file(one.name))) as out:
-                shutil.copyfile(run.path(cast_take_file(one.name, 1)), out)
-            others = f"; or {COMMAND} choose {run.folder} {one.name} 2" if settings.cast_takes > 1 else ""
-            print(f"  {cast_file(one.name)} is take 1{others}")
+            if cast_file(one.name) in paths:
+                with writing(run.path(cast_file(one.name))) as out:
+                    shutil.copyfile(run.path(cast_take_file(one.name, 1)), out)
+                others = f"; or {COMMAND} choose {run.folder} {one.name} 2" if settings.cast_takes > 1 else ""
+                print(f"  {cast_file(one.name)} is take 1{others}")
 
 
 class Stills(Stage):
@@ -119,12 +149,13 @@ class Stills(Stage):
     needs = ("script", "cast")
     extra = "gemini"
     where = GOOGLE
+    cost = IMAGE_COST
 
     def by(self, settings: Settings) -> str:
         return f"stills ({settings.image_model})"
 
     def packages(self, settings: Settings) -> list[str]:
-        return ["google.genai"]
+        return ["google.genai", "PIL"]  # Pillow, for the contact sheet
 
     def drawings(self, run: Run) -> list[tuple[str, int, bool, str, list[Reference]]]:
         """Every image to draw, in order: its path, its scene's index, whether it's an end still, its prompt and its
@@ -157,20 +188,33 @@ class Stills(Stage):
             sheets[str(sheet)] = file_hash(sheet)
         plan: dict[str, str] = {}
         for path, _, _, prompt, references in self.drawings(run):
-            # A still drawn after another is made from it: from what that one is made from, as it's drawn first.
-            made_from = [
-                sheets.get(str(reference.path)) or plan.get(run.relative(reference.path)) for reference in references
-            ]
-            plan[path] = fingerprint(settings.image_model, prompt, made_from)
+            # A still drawn from another is made from that one as it is, once it's drawn: or while it's still to be
+            # drawn, from what it'll be drawn from (so it's drawn again after it). `recorded` notes the first.
+            sources: list[object] = []
+            for reference in references:
+                if str(reference.path) in sheets:
+                    sources.append(sheets[str(reference.path)])
+                    continue
+                before = run.relative(reference.path)
+                pending = states(run, self.product, {before: plan[before]})[before] in TO_MAKE
+                sources.append(("to draw", plan[before]) if pending else file_hash(reference.path))
+            plan[path] = fingerprint(settings.image_model, prompt, sources)
+        plan[STILLS_SHEET] = fingerprint("sheet", sorted(plan.items()))
         return plan
+
+    def recorded(self, run: Run, plan: dict[str, str]) -> dict[str, str]:
+        """What the stills were made from, now they're drawn: the stills they were drawn from, as they are."""
+        return self.plan(run)
 
     def make(self, run: Run, paths: list[str]) -> None:
         from ..images import client, draw
 
         settings = run.settings()
-        cost = len(paths) * IMAGE_MODELS.get(settings.image_model, 0.0)
-        print(f"Drawing {len(paths)} stills with {settings.image_model} (about ${cost:.2f})")
-        google = client()
+        drawn = [path for path in paths if path != STILLS_SHEET]
+        if drawn:
+            cost = len(drawn) * IMAGE_MODELS.get(settings.image_model, 0.0)
+            print(f"Drawing {len(drawn)} stills with {settings.image_model} (about ${cost:.2f})")
+        google = client() if drawn else None
         for path, _, _, prompt, references in self.drawings(run):
             if path in paths:
                 print(f"  {path}")
@@ -248,15 +292,32 @@ def note_picks(run: Run, picks: dict[str, str]) -> None:
         out.write_text(json.dumps(kept | picks, indent=1, sort_keys=True) + "\n")
 
 
-def animate_take(run: Run, name: str, made: list[tuple[str, Path, Path | None, str, int]], folder: str) -> None:
-    """Animates each of `made` with the take `name`, into animations/<folder>/<shot>.mp4, printing what it costs."""
+def clip_source(name: str, still: Path, end: Path | None, prompt: str, seconds: int) -> str:
+    """What a take's clip is made from: the take, its still (and end still, for a model that takes one), its motion
+    prompt and its length."""
     animator, model = take(name)
-    seconds = sum(clip[4] for clip in made)
-    print(f"Animating {len(made)} shots with {name} ({model}): {seconds} s, about ${seconds * animator.per_second:.2f}")
-    for shot, still, end, prompt, length in made:
+    ending = file_hash(end) if end and animator.end_frame else None
+    return fingerprint(name, model, file_hash(still), ending, prompt, seconds)
+
+
+def animate_take(run: Run, name: str, made: list[tuple[str, Path, Path | None, str, int]], folder: str) -> None:
+    """Animates each of `made` with the take `name`, into animations/<folder>/<shot>.mp4, printing what it costs. A
+    clip already made from what it'd be made from now is kept, so a retry pays only for what's left; one made from
+    something else (another still, motion or length) is made again."""
+    animator, model = take(name)
+    todo = [
+        clip for clip in made if made_from(run.path(animation_file(folder, clip[0]))) != clip_source(name, *clip[1:])
+    ]
+    if not todo:
+        return
+    seconds = sum(clip[4] for clip in todo)
+    print(f"Animating {len(todo)} shots with {name} ({model}): {seconds} s, about ${seconds * animator.per_second:.2f}")
+    for shot, still, end, prompt, length in todo:
         print(f"  {shot}: {length} s")
-        with writing(run.path(animation_file(folder, shot))) as out:
-            animator.animate(still, end if animator.end_frame else None, prompt, length, out, model)
+        out = run.path(animation_file(folder, shot))
+        with writing(out) as part:
+            animator.animate(still, end if animator.end_frame else None, prompt, length, part, model)
+        note_made_from(out, clip_source(name, still, end, prompt, length))
 
 
 class Animate(Stage):
@@ -279,11 +340,7 @@ class Animate(Stage):
     def plan(self, run: Run) -> dict[str, str]:
         settings = run.settings()
         name = take_name(settings.animator, settings.animator_model)
-        plan = {}
-        for shot, still, end, prompt, seconds in shots(run, settings):
-            ending = file_hash(end) if end and ANIMATORS[settings.animator].end_frame else None
-            plan[footage_file(shot)] = fingerprint(name, take(name)[1], file_hash(still), ending, prompt, seconds)
-        return plan
+        return {footage_file(clip[0]): clip_source(name, *clip[1:]) for clip in shots(run, settings)}
 
     def make(self, run: Run, paths: list[str]) -> None:
         settings = run.settings()
@@ -293,12 +350,12 @@ class Animate(Stage):
         for shot, *_ in made:
             with writing(run.path(footage_file(shot))) as out:
                 shutil.copyfile(run.path(animation_file(name, shot)), out)
-        note_picks(run, {shot: name for shot, *_ in made})
+            note_picks(run, {shot: name})
 
 
 def more_takes(run: Run, names: list[str], copies: int = 1) -> list[str]:
     """Animates every shot with each take in `names`, `copies` times (omni-1.2, omni-1.2-2, ...), into
-    animations/, for `compare`: what's there already is kept. Returns the takes' folders."""
+    animations/, for `compare`: a clip already made from the shot as it is now is kept. Returns the takes' folders."""
     settings = run.settings()
     for name in names:
         take(name)  # a take that's no such thing is refused before anything's paid for
@@ -306,9 +363,7 @@ def more_takes(run: Run, names: list[str], copies: int = 1) -> list[str]:
     for name in names:
         for copy in range(1, copies + 1):
             folder = name if copy == 1 else f"{name}-{copy}"
-            todo = [clip for clip in shots(run, settings) if not run.path(animation_file(folder, clip[0])).exists()]
-            if todo:
-                animate_take(run, name, todo, folder)
+            animate_take(run, name, shots(run, settings), folder)
             folders.append(folder)
     return folders
 
@@ -379,7 +434,9 @@ def choose(run: Run, what: str, pick: str) -> list[str]:
     shot's clip (`what` its footage name, or "all", and `pick` the take). Returns the files it wrote."""
     script = storyboard(run)
     if what in {one.name for one in script.characters}:
-        source = run.path(cast_take_file(what, int(pick)) if pick.isdigit() else pick)
+        if not pick.isdigit():
+            raise ValueError(f"Choose {what}'s sheet by its take's number: {COMMAND} choose RUN {what} 2")
+        source = run.path(cast_take_file(what, int(pick)))
         if not source.exists():
             raise NotReady(f"there's no take {pick} of {what}'s sheet")
         with writing(run.path(cast_file(what))) as out:
@@ -398,8 +455,8 @@ def choose(run: Run, what: str, pick: str) -> list[str]:
     for shot in chosen:
         with writing(run.path(footage_file(shot))) as out:
             shutil.copyfile(run.path(animation_file(pick, shot)), out)
+        note_picks(run, {shot: pick})  # each as it's copied: an interrupted choice says how far it got
         print(f"{footage_file(shot)} is {pick}'s")
-    note_picks(run, dict.fromkeys(chosen, pick))
     return [footage_file(shot) for shot in chosen]
 
 

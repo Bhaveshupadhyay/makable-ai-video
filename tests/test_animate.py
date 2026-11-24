@@ -91,7 +91,19 @@ def test_the_cast_is_drawn_in_takes_and_the_first_is_used_until_you_choose(anima
 
     choose(animated, "man", "2")
     assert animated.path("cast/man.png").read_bytes() == animated.path("cast/man-take-2.png").read_bytes()
-    assert states(animated, "cast", STAGES["cast"].plan(animated)) == {"cast/man.png": EDITED}  # locked: kept
+    assert states(animated, "cast", STAGES["cast"].plan(animated)) == {
+        "cast/man.png": EDITED,  # locked: kept
+        "cast/man-take-1.png": CURRENT,
+        "cast/man-take-2.png": CURRENT,
+    }
+
+    # A take more, and only it is drawn.
+    animated.save_settings(animated.settings().model_copy(update={"cast_takes": 3}))
+    drawn.clear()
+    run_stage(animated, "cast")
+    assert len(drawn) == 1
+    assert animated.path("cast/man-take-3.png").exists()
+    assert animated.path("cast/man.png").read_bytes() == animated.path("cast/man-take-2.png").read_bytes()
 
 
 def test_a_mascot_you_keep_is_used_as_it_is(animated: Run, drawn: list, shorts_home: Path) -> None:
@@ -114,11 +126,15 @@ def test_each_still_is_drawn_from_its_characters_the_first_still_and_the_shot_it
         ["shot-01.png"],  # no one in it: only the first still, for the style
         ["man.png", "shot-01.png", "shot-02.png"],  # it follows on from shot 2
     ]
+    plan = STAGES["stills"].plan(animated)
+    assert set(states(animated, "stills", plan).values()) == {CURRENT}  # noted as drawn: nothing's drawn twice
     first = drawn[0][0]
     assert first.startswith(f"{STYLE}. Image 1 is the character sheet of man.")
     assert "The picture: The man under a palm." in first
     assert "No text, letters, captions, logos or watermarks" in first
-    assert animated.path("stills/sheet.png").exists()
+    from PIL import Image
+
+    assert Image.open(animated.path("stills/sheet.png")).size == (3 * 270, 480)  # every still, side by side
 
 
 def test_only_a_still_whose_prompt_or_references_changed_is_drawn_again(animated: Run, drawn: list) -> None:
@@ -131,7 +147,38 @@ def test_only_a_still_whose_prompt_or_references_changed_is_drawn_again(animated
         "stills/shot-01.png": CURRENT,
         "stills/shot-02.png": STALE,
         "stills/shot-03.png": STALE,
+        "stills/sheet.png": STALE,
     }
+    drawn.clear()
+    run_stage(animated, "stills")
+    assert [prompt.split("The picture: ")[1].split(".")[0] for prompt, _ in drawn] == [
+        "Two coconuts falling",
+        "The man looks up",
+    ]
+
+
+def test_a_still_drawn_from_an_edited_still_is_drawn_again(animated: Run, drawn: list) -> None:
+    from PIL import Image
+
+    run_stage(animated, "cast")
+    run_stage(animated, "stills")
+    Image.new("RGB", (90, 160), "white").save(animated.path("stills/shot-01.png"))  # edited by hand
+    assert states(animated, "stills", STAGES["stills"].plan(animated)) == {
+        "stills/shot-01.png": EDITED,  # kept as it is
+        "stills/shot-02.png": STALE,  # both are drawn from it
+        "stills/shot-03.png": STALE,
+        "stills/sheet.png": STALE,
+    }
+    drawn.clear()
+    run_stage(animated, "stills")
+    assert len(drawn) == 2
+    assert set(states(animated, "stills", STAGES["stills"].plan(animated)).values()) <= {CURRENT, EDITED}
+
+
+def test_drawing_costs_cents_so_run_draws_nothing_on_its_own(animated: Run, drawn: list) -> None:
+    assert not run_all(animated)
+    assert drawn == []
+    assert "3 ¢ an image" in producer(animated, "cast").cost
 
 
 def test_a_clip_is_as_long_as_its_shot_needs() -> None:
@@ -164,7 +211,9 @@ def test_animating_is_paid_so_run_stops_before_it(
     # More takes, to compare, and one chosen: assemble makes the video from it.
     more_takes(animated, ["omni-1.1"])
     assert animated_by[-1] == ("shot-03.png", 6, "gemini-omni-1.1-flash-preview")
-    assert compare(animated).exists()
+    from shorts.media import frame_size
+
+    assert frame_size(compare(animated)) == (2 * 360, 640 + 40)  # a column a take, under their names
     choose(animated, "shot-02", "omni-1.1")
     assert json.loads(animated.path("picks.json").read_text())["shot-02"] == "omni-1.1"
     assert run_all(animated)  # nothing paid is due: the chosen clip is kept as it is
@@ -221,3 +270,58 @@ def test_google_is_asked_again_when_its_busy() -> None:
 
     with pytest.raises(Busy):
         patiently(always_busy, waits=(0,))
+
+
+@needs_ffmpeg
+def test_a_retry_pays_only_for_what_isnt_made(
+    animated: Run, drawn: list, animated_by: list, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_stage(animated, "cast")
+    run_stage(animated, "stills")
+    bring_in(animated, "narration", [speech(tmp_path / f"{n}.wav", 2, 300 + 100 * n) for n in (1, 2, 3)])
+    fake = ANIMATORS["omni"].animate
+
+    def fails_on_shot_2(still: Path, end: Path | None, prompt: str, seconds: int, out: Path, model: str) -> Path:
+        if still.name == "shot-02.png":
+            raise RuntimeError("Omni fell over")
+        return fake(still, end, prompt, seconds, out, model)
+
+    monkeypatch.setitem(ANIMATORS, "omni", dataclasses.replace(ANIMATORS["omni"], animate=fails_on_shot_2))
+    with pytest.raises(RuntimeError):
+        run_stage(animated, "animate")
+    monkeypatch.setitem(ANIMATORS, "omni", dataclasses.replace(ANIMATORS["omni"], animate=fake))
+    run_stage(animated, "animate")
+    assert [still for still, *_ in animated_by] == ["shot-01.png", "shot-02.png", "shot-03.png"]  # shot 1 once
+
+    # Another take is made again for a shot whose still changed since, and only for it.
+    more_takes(animated, ["omni-1.1"])
+    from PIL import Image
+
+    Image.new("RGB", (90, 160), "white").save(animated.path("stills/shot-03.png"))
+    more_takes(animated, ["omni-1.1"])
+    assert [still for still, *_ in animated_by[3:]] == ["shot-01.png", "shot-02.png", "shot-03.png", "shot-03.png"]
+
+
+def test_a_character_is_kept_or_forgotten_by_name_equals() -> None:
+    import argparse
+
+    from shorts.__main__ import character_argument
+
+    assert character_argument("man=sheet.png") == ("man", "sheet.png")
+    assert character_argument("man=") == ("man", "")  # forgets it
+    with pytest.raises(argparse.ArgumentTypeError):
+        character_argument("man")  # not a way to forget it by mistake
+
+
+def test_an_animated_short_needs_google_cloud_whoever_animates_it() -> None:
+    from shorts.keys import needed
+
+    assert "GOOGLE_CLOUD_PROJECT" in needed({"narrator": "kokoro", "animator": "import"})
+    assert "GOOGLE_CLOUD_PROJECT" not in needed({"filmer": "none", "narrator": "kokoro"})
+
+
+def test_a_character_sheet_needs_at_least_one_take() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Settings(cast_takes=0)

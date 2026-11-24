@@ -40,7 +40,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from .home import MINE, chosen, home, mine
 from .script import Script
@@ -140,7 +140,7 @@ class Settings(BaseModel):
     # character's sheet it draws to choose from, and who animates the stills (shorts.animators; "import": you do,
     # elsewhere), with which of its versions (None: its own)
     image_model: str = "gemini-nano-banana-2.1"
-    cast_takes: int = 3
+    cast_takes: int = Field(3, ge=1)
     animator: Literal["omni", "import"] = "omni"
     animator_model: str | None = None
     captions: bool = True

@@ -109,7 +109,11 @@ def animated(run: Run) -> Run:
     return run
 
 
-def test_an_animated_runs_script_isnt_checked_against_recordings(animated: Run) -> None:
+def test_an_animated_runs_script_isnt_checked_against_recordings(animated: Run, tmp_path: Path) -> None:
+    # A recording the shots aren't said over: a demo's script would be refused for it
+    animated.save_settings(
+        animated.settings().model_copy(update={"footage": {"demo": str(video(tmp_path / "r.mp4", 2))}})
+    )
     assert check_script(animated, storyboard()) == ([], [])
 
 
@@ -128,3 +132,39 @@ def test_an_animated_short_opens_on_its_first_shot(animated: Run, tmp_path: Path
     ]
     Assemble().make(animated, [FINAL])
     assert duration(animated.path(FINAL)) == pytest.approx((5 + 0.35) + (4 + 0.35 + 1), abs=0.05)
+
+
+def test_names_name_files_so_they_never_leave_the_run_folder() -> None:
+    script = storyboard(shot(1, characters=("../../poster",)), shot(2), shot(3), shot(4))
+    script.characters[0].name = "../../poster"
+    script.scenes[1].footage = "../outside"
+    errors, _ = checked(script)
+    assert "The character '../../poster' needs a name of letters, digits, - and _: it names files" in errors
+    assert "Scene 2's footage '../outside' needs a name of letters, digits, - and _ (shot-01)" in errors
+
+
+def test_saying_not_to_show_text_is_fine() -> None:
+    script = storyboard()
+    script.style += ", no text or logos anywhere"
+    script.scenes[0].shot.still += ", without captions"
+    assert checked(script) == ([], [])
+    script.scenes[1].shot.still = "No blood. A sign with text on it"  # a new sentence asks for it
+    assert checked(script)[0][0].startswith("Scene 2's still mentions 'text'")
+
+
+def test_the_hook_named_is_what_the_video_opens_with() -> None:
+    script = storyboard()
+    script.hooks = {"H1": script.scenes[0].text, "H2": "Something else entirely."}
+    script.hook = "H1"
+    assert checked(script) == ([], [])
+    script.hook = "H2"
+    assert checked(script)[0] == [
+        "The hook 'H2' isn't what the video opens with: make it the first scene's text, or name another"
+    ]
+    script.hook = "H9"
+    assert checked(script)[0] == ["The hook 'H9' isn't one of the hooks (H1, H2)"]
+
+
+def test_a_demo_without_an_intro_needs_no_intro_line() -> None:
+    script = storyboard()
+    assert "The intro line is empty" not in check(script, {}, intro=False)[0]

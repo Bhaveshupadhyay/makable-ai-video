@@ -4,8 +4,8 @@
     film-intro      intro           Gemini Omni or HeyGen films you saying the intro line (about $1)
     film-outro      outro           and the outro line (about $1), when run.json wants an outro
     take-voice      avatar-voice    the intro's voice, to speak the narration in (ffmpeg)
-    cast            cast            an animated Short's characters, drawn (cents an image)
-    stills          stills          and each shot's still, drawn with them (cents an image)
+    cast            cast            an animated Short's characters, drawn (about 3 ¢ an image)
+    stills          stills          and each shot's still, drawn with them (about 3 ¢ an image)
     speak           narration       ElevenLabs, your own voice API, or Kokoro speaks each scene
     animate         footage         each still animated, as long as its narration ($0.07 a second, with Omni)
     assemble        video           ffmpeg and Pillow: final.mp4 (with the cards, in a video without an avatar)

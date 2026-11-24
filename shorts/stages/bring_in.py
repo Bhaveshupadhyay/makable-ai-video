@@ -146,6 +146,7 @@ def check_script(run: Run, script: Script) -> tuple[list[str], list[str]]:
         silent=silent,
         narrator=narrator,
         kind=settings.kind,
+        intro=settings.intro != "none",
     )
 
 

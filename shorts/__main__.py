@@ -47,7 +47,7 @@ import sys
 from pathlib import Path
 
 from . import COMMAND
-from .animators import ANIMATORS
+from .animators import ANIMATORS, take_name
 from .filmers import FILMERS, heygen_voices
 from .home import (
     MINE,
@@ -85,6 +85,22 @@ def size(text: str) -> tuple[int, int]:
     except ValueError:
         raise argparse.ArgumentTypeError(f"{text!r} isn't a size like 1080x1920") from None
     return width, height
+
+
+def positive(text: str) -> int:
+    """A whole number above 0."""
+    number = int(text)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"{text} isn't 1 or more")
+    return number
+
+
+def character_argument(text: str) -> tuple[str, str]:
+    """NAME=SHEET, a mascot's sheet to keep, or NAME=, to forget it."""
+    name, equals, sheet = text.partition("=")
+    if not equals or not name:
+        raise argparse.ArgumentTypeError(f"{text!r}: give NAME=SHEET, or NAME= to forget a mascot")
+    return name, sheet
 
 
 def option(text: str) -> tuple[str, float | bool | str]:
@@ -236,7 +252,8 @@ def show_keys(args: argparse.Namespace) -> None:
     """Adds a line to SHORTS_HOME's .env for each key your choices need, then says which are still empty, and with
     --open, opens it in your text editor if you've some to fill in."""
     choices = chosen()
-    if not {"filmer", "narrator"} <= choices.keys():
+    # (an animated Short has no one filming you: its animator stands in for the filmer)
+    if "narrator" not in choices or not {"filmer", "animator"} & choices.keys():
         sys.exit(f"keys: choose who films you and who speaks the narration first: {CHOOSE}")
     file, keys = env_file(), needed(choices)
     empty = add(keys, file)
@@ -247,7 +264,8 @@ def show_keys(args: argparse.Namespace) -> None:
         print("  (your choices need no keys)")
     if set(UNASKED) & set(empty):
         print(f"`{COMMAND} deploy-voice` deploys your voice API to Modal, and sets {' and '.join(UNASKED)}")
-    if choices["filmer"] == "omni" and not google_signed_in():
+    on_google = "omni" in (choices.get("filmer"), choices.get("animator")) or "image_model" in choices
+    if on_google and not google_signed_in():
         print(
             "Google Cloud has no sign-in here yet: sign in once, in a terminal, with gcloud auth application-default login"
         )
@@ -407,7 +425,7 @@ def main() -> None:
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
     setup.add_argument("--kind", choices=KINDS, help="a product demo (the default), or an animated Short")
     setup.add_argument("--image-model", choices=IMAGE_MODELS, help="what draws an animated Short's images")
-    setup.add_argument("--cast-takes", type=int, help="how many takes of each character's sheet to draw (3)")
+    setup.add_argument("--cast-takes", type=positive, help="how many takes of each character's sheet to draw (3)")
     setup.add_argument("--animator", choices=ANIMATED_BY, help="who animates the stills: omni, or you (import)")
     setup.add_argument("--animator-model", help=f"the animator's version: {', '.join(ANIMATORS['omni'].versions)}")
     setup.add_argument("--language", choices=LANGUAGES)
@@ -446,7 +464,7 @@ def main() -> None:
     me.add_argument(
         "--character",
         dest="characters",
-        type=lambda text: tuple(text.split("=", 1)) if "=" in text else (text, ""),
+        type=character_argument,
         action="append",
         metavar="NAME=SHEET",
         help="a mascot's character sheet (a PNG), for every animated Short it's in (\"NAME=\" to forget it)",
@@ -556,7 +574,7 @@ def main() -> None:
             one.add_argument(
                 "--with", dest="with_takes", metavar="TAKES", help="more takes to compare: omni-1.1,omni-1.2"
             )
-            one.add_argument("--takes", type=int, default=1, help="how many takes of each, with --with")
+            one.add_argument("--takes", type=positive, default=1, help="how many takes of each (into animations/)")
 
     args = parser.parse_args()
     if args.command == "me":
@@ -611,8 +629,10 @@ def main() -> None:
             compare(run)
         elif args.command == "prompts":
             print("\n".join(prompts(run)))
-        elif args.command == "animate" and args.with_takes:
-            more_takes(run, [name.strip() for name in args.with_takes.split(",") if name.strip()], args.takes)
+        elif args.command == "animate" and (args.with_takes or args.takes > 1):
+            settings = run.settings()  # without --with, more takes of run.json's own
+            names = (args.with_takes or take_name(settings.animator, settings.animator_model)).split(",")
+            more_takes(run, [name.strip() for name in names if name.strip()], args.takes)
         elif args.command == "frames":
             show_frames(run, args.name, args.at, args.every, args.width)
         elif args.command == "drive":

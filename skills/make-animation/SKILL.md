@@ -50,7 +50,7 @@ so an API narrates in their own voice, from the sample. If they have neither, Ko
 for free, or `none` gives captions only. With `--yes`, if anything isn't chosen, stop and say so.
 
 The image model and Omni need `GOOGLE_CLOUD_PROJECT` and Google Cloud's sign-in, as `/make-video`'s step 1 sets up
-(`makable-shorts keys --open`, and `! gcloud auth application-default login`).
+(`makable-shorts keys --open`, and `! gcloud auth application-default login`). `keys` needs a narrator chosen first.
 
 ## 2. The topic
 
@@ -145,7 +145,7 @@ makable-shorts animate RUN
 ```
 
 It writes each clip to `footage/<shot>.mp4`, and to `animations/omni-1.2/` as the take it is. To compare versions
-or takes on the first few videos, `makable-shorts animate RUN --with omni-1.1,omni-1.2` (or `--takes 2`) makes more,
+or takes on the first few videos, `makable-shorts animate RUN --with omni-1.1,omni-1.2` (or `animate RUN --with omni-1.2 --takes 2`, two takes of one) makes more,
 at the same price each: ask before that too.
 
 **Animating it themselves (`import`):** run `makable-shorts prompts RUN`. It lists each still, its length and its

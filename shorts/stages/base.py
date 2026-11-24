@@ -59,6 +59,11 @@ class Stage:
         """Writes the files in `paths` (some of what `plan` names)."""
         raise NotImplementedError
 
+    def recorded(self, run: Run, plan: dict[str, str]) -> dict[str, str]:
+        """What the files `make` wrote are noted as made from: `plan`, the plan before it, unless what they're made
+        from is only known once it's made (stills drawn from other stills)."""
+        return plan
+
 
 def read_script(run: Run) -> Script:
     if not run.path(SCRIPT).exists():
@@ -112,6 +117,7 @@ def execute(run: Run, stage: Stage, *, force: bool = False) -> list[str]:
 
     before = {path: written(path) for path in plan}
     stage.make(run, todo)
+    plan = stage.recorded(run, plan)
     record = run.record(stage.product)
     files = {path: made for path, made in record.files.items() if path in plan}  # forget what's no longer planned
     for path in plan:  # what it was asked for, and anything else it wrote over

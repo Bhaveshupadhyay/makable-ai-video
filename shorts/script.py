@@ -94,6 +94,9 @@ SHOT_SECONDS = (4.0, 8.0)
 NOT_SHOWN = re.compile(
     r"\b(logos?|watermarks?|brand(?:s|ed)?|trademarks?|captions?|subtitles?|text|lettering|written|typography)\b", re.I
 )
+# A word that says not to show it ("no text or logos"), earlier in the same sentence
+NOT = re.compile(r"\b(no|not|without|never|free of)\b", re.I)
+SAFE_NAME = re.compile(r"[\w-]+")  # a character's or a shot's name, which names its files: one file name, no path
 SPEEDS = (0.6, 2.5)  # how much slower or faster than real time a stretch can play and still look right
 SHORTEST = 1.0  # seconds: the shortest stretch of a recording a scene can be said over
 SAID = re.compile(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]|#\w")  # emoji and hashtags, which aren't said
@@ -134,6 +137,7 @@ def check(
     silent: bool = False,
     narrator: str | None = None,
     kind: str = "demo",
+    intro: bool = True,
 ) -> tuple[list[str], list[str]]:
     """What's wrong with a script, checked against the recordings it's said over: errors (the video can't be
     made from it as it is) and warnings (it can, but it may not look or sound right).
@@ -150,14 +154,18 @@ def check(
             it would leave out are warned about (None: not checked).
         kind: The run's kind (one of KINDS): an animated Short's storyboard is checked too (`check_storyboard`), and
             it has no intro, opening on its first shot.
+        intro: Whether the video has an intro (run.json's intro isn't "none"): one without opens on its first scene.
     """
     errors: list[str] = []
     warnings: list[str] = []
     animated = kind == "animated"
-    if animated:
+    opens = intro and not animated  # with the intro line: or without, with the first scene's
+    if not opens:
         if script.intro_line.strip():
             warnings.append(
                 "The intro line isn't used: an animated Short opens on its first shot, so the hook is its text"
+                if animated
+                else "The intro line isn't used: run.json's intro is \"none\", so the video opens on its first scene"
             )
     elif not script.intro_line.strip():
         errors.append("The intro line is empty")
@@ -222,12 +230,36 @@ def check(
         warnings.append(f"Something that's said has an emoji or a hashtag, which {cant}")
     if silent and any(not scene.text.strip() for scene in script.scenes):
         warnings.append("A scene has no text: without a voice, the captions are all that says what's happening")
-    check_tags(
-        script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards, intro=not animated
-    )
+    check_tags(script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards, intro=opens)
+    check_hook(script, errors, opens=opens)
     if animated:
         check_storyboard(script, errors, warnings)
     return errors, warnings
+
+
+def check_hook(script: Script, errors: list[str], *, opens: bool) -> None:
+    """Whether the hook the script names (`hook`) is one of its `hooks`, and what the video opens with (the intro
+    line, or without an intro, the first scene's text): metadata.json names it, for the insights to compare hooks."""
+    if not script.hook:
+        return
+    if script.hook not in script.hooks:
+        errors.append(
+            f"The hook {script.hook!r} isn't one of the hooks ({', '.join(script.hooks) or 'there are none'})"
+        )
+        return
+    opening = script.intro_line if opens else (script.scenes[0].text if script.scenes else "")
+    if " ".join(without(script.hooks[script.hook]).split()) != " ".join(without(opening).split()):
+        where = "the intro line" if opens else "the first scene's text"
+        errors.append(f"The hook {script.hook!r} isn't what the video opens with: make it {where}, or name another")
+
+
+def asks_for(text: str) -> str | None:
+    """What `text` asks a model to show that it mustn't (text, a logo, ...), unless it says not to ("no text")."""
+    for match in NOT_SHOWN.finditer(text):
+        sentence = re.split(r"[.;:!?]|\bbut\b", text[: match.start()])[-1]
+        if not NOT.search(sentence):
+            return match.group(0)
+    return None
 
 
 def shot_seconds(scene: Scene) -> float:
@@ -244,13 +276,19 @@ def check_storyboard(script: Script, errors: list[str], warnings: list[str]) -> 
     for name in dict.fromkeys(name for name in names if names.count(name) > 1):
         errors.append(f"Two characters are called {name!r}: each needs a name of its own")
     for character in script.characters:
-        if not character.name.strip() or not character.look.strip():
-            errors.append(f"The character {character.name!r} needs a name and a look")
+        if not SAFE_NAME.fullmatch(character.name):
+            errors.append(f"The character {character.name!r} needs a name of letters, digits, - and _: it names files")
+        if not character.look.strip():
+            errors.append(f"The character {character.name!r} needs a look")
     asked = [("The style", script.style)]
     asked += [(f"The character {character.name!r}", character.look) for character in script.characters]
     shots: dict[str, int] = {}
     for number, scene in enumerate(script.scenes, 1):
         shot = scene.shot
+        if not SAFE_NAME.fullmatch(scene.footage):
+            errors.append(
+                f"Scene {number}'s footage {scene.footage!r} needs a name of letters, digits, - and _ (shot-01)"
+            )
         if shot is None:
             errors.append(f"Scene {number} has no shot: what it shows (still) and how it moves (motion)")
             continue
@@ -275,9 +313,9 @@ def check_storyboard(script: Script, errors: list[str], warnings: list[str]) -> 
                 f"clips a video model makes ({fix})"
             )
     for where, text in asked:
-        if match := NOT_SHOWN.search(text):
+        if asked_for := asks_for(text):
             errors.append(
-                f"{where} mentions {match.group(0)!r}: describe only pictures. The models are already told to show no "
+                f"{where} mentions {asked_for!r}: describe only pictures. The models are already told to show no "
                 "text, captions or logos, and draw them wrong if asked"
             )
 

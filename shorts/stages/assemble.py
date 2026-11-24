@@ -102,6 +102,8 @@ class Assemble(Stage):
         # (and for a script with tags, that the captions leave them out: so a video made before they did is made again)
         said = [script.intro_line, script.outro_line, *(scene.text for scene in script.scenes)]
         tagged = ("captions without tags",) if any(found(text) for text in said) else ()
+        # (and an animated Short's kind, which metadata.json notes: a demo's is named as before)
+        tagged += (("kind", settings.kind),) if settings.kind != "demo" else ()
         source = fingerprint(
             script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind, *tagged
         )
