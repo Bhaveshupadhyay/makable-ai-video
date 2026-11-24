@@ -43,6 +43,8 @@ class MemoryJobs:
         self.flags.add(job_id)
 
     def set_handle(self, job_id, handle):
+        if getattr(self, "broken", False):
+            raise OSError("the Dict is down")
         self.handles[job_id] = handle
 
     def handle(self, job_id):
@@ -54,6 +56,7 @@ class FakeGpu:
 
     def __init__(self, jobs: MemoryJobs, folder: Path) -> None:
         self.jobs, self.folder, self.started, self.stopped, self.hold = jobs, folder, [], [], False
+        self.why = None  # what `ended` says
 
     def start(self, job, files):
         self.started.append((job, files))
@@ -66,14 +69,21 @@ class FakeGpu:
     def stop(self, handle):
         self.stopped.append(handle)
 
+    def ended(self, handle):
+        return self.why
+
 
 class FolderVideos:
     def __init__(self, folder: Path) -> None:
         self.folder = folder
 
-    def path(self, job_id):
+    def copy(self, job_id):
         path = self.folder / f"{job_id}.mp4"
-        return path if path.exists() else None
+        if not path.exists():
+            return None
+        copied = self.folder / f"copy-{job_id}.mp4"
+        shutil.copyfile(path, copied)
+        return copied
 
     def delete(self, job_id):
         (self.folder / f"{job_id}.mp4").unlink(missing_ok=True)
@@ -125,6 +135,7 @@ def test_text_to_video_runs_and_downloads(world, tmp_path: Path) -> None:
     assert done["status"] == "succeeded"
     out = client.download(job["id"], tmp_path / "out.mp4")
     assert out.read_bytes().startswith(b"\x00\x00\x00\x18ftyp")
+    assert not (tmp_path / f"copy-{job['id']}.mp4").exists()  # the copy it streamed from is gone
     assert [j["id"] for j in client.list()] == [job["id"]]
     assert client.delete(job["id"])["status"] == "deleted" and jobs.get(job["id"]) is None
 
@@ -197,3 +208,29 @@ def test_a_structured_prompt_is_kept() -> None:
     prompt = "integrated_multimodal_description: [Shot 1] A cat.\noverall_soundscape: Purring."
     request = h3.VideoRequest(prompt=prompt)
     assert h3.build_prompt(request, h3.Media()) == prompt
+
+
+def test_a_call_that_ends_without_an_outcome_fails(world) -> None:
+    _, gpu, _, client = world
+    gpu.hold = True
+    job = client.create({"prompt": "slow"})
+    assert client.get(job["id"])["status"] == "queued"
+    gpu.why = "It ran past the GPU's limit of 60 minutes"
+    failed = client.get(job["id"])
+    assert failed["status"] == "failed" and failed["error"] == gpu.why
+    assert client.list()[0]["status"] == "failed"
+
+
+def test_a_job_whose_handle_cant_be_kept_is_stopped(world) -> None:
+    jobs, gpu, _, client = world
+    gpu.hold, jobs.broken = True, True
+    with pytest.raises(VideoError, match="503"):
+        client.create({"prompt": "x"})
+    assert len(gpu.stopped) == 1 and jobs.all() == []
+
+
+def test_reference_names_keep_their_places() -> None:
+    request = h3.VideoRequest(prompt="x", model="ref-pdd", reference_names=["", "the red car"])
+    prompt = h3.build_prompt(request, h3.Media(references=["a.png", "b.png"]))
+    assert "<Subject 1> is the main subject in <Picture 1>" in prompt
+    assert "<Subject 2> is the red car in <Picture 2>" in prompt

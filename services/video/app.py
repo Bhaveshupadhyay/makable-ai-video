@@ -8,7 +8,8 @@ Volume (makable-video-models) the first time each is used, so later containers s
 
 Set up once (`pip install modal`, then `modal setup` to sign in):
 
-    modal secret create makable-video VIDEO_API_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+    export VIDEO_API_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')  # the client's key too
+    modal secret create makable-video VIDEO_API_KEY="$VIDEO_API_KEY"
     modal deploy -m services.video.app        # from the repo's root; prints the API's URL
 
 `modal serve -m services.video.app` serves your working copy at a temporary URL while you work on it.
@@ -180,20 +181,49 @@ class GpuRunner:
     def stop(self, handle: str) -> None:
         modal.FunctionCall.from_id(handle).cancel()
 
+    def ended(self, handle: str) -> str | None:
+        from modal.exception import FunctionTimeoutError, OutputExpiredError, TimeoutError
+
+        try:
+            modal.FunctionCall.from_id(handle).get(timeout=0)
+        except FunctionTimeoutError:  # both subclass TimeoutError, which only means "not yet": first
+            return f"It ran past the GPU's limit of {TIMEOUT // 60} minutes"
+        except OutputExpiredError:
+            return "Its GPU call ended long ago without saying how"
+        except TimeoutError:
+            return None  # queued or still running
+        except Exception as error:
+            return f"Its GPU call failed: {error}"[:2000]
+        return "Its GPU call ended without saying how"  # it returned, but never wrote the job's outcome
+
 
 class VolumeVideos:
-    """api.Videos: the MP4s in the Volume."""
+    """api.Videos: the MP4s in the Volume. A reload fails while this container has one of its files open, so reading
+    and deleting happen one at a time, and downloads stream from a copy, not from the Volume."""
 
-    def path(self, job_id: str) -> Path | None:
-        videos.reload()  # the GPU container committed it
-        path = Path(VIDEOS) / f"{job_id}.mp4"
-        return path if path.exists() else None
+    def __init__(self) -> None:
+        import threading
+
+        self.lock = threading.Lock()
+
+    def copy(self, job_id: str) -> Path | None:
+        with self.lock:
+            videos.reload()  # the GPU container committed it
+            path = Path(VIDEOS) / f"{job_id}.mp4"
+            if not path.exists():
+                return None
+            handle, name = tempfile.mkstemp(suffix=".mp4")
+            os.close(handle)
+            shutil.copyfile(path, name)
+            return Path(name)
 
     def delete(self, job_id: str) -> None:
-        path = Path(VIDEOS) / f"{job_id}.mp4"
-        if path.exists():
-            path.unlink()
-            videos.commit()
+        with self.lock:
+            videos.reload()  # it may have been committed after this container last looked
+            path = Path(VIDEOS) / f"{job_id}.mp4"
+            if path.exists():
+                path.unlink()
+                videos.commit()
 
 
 @app.function(

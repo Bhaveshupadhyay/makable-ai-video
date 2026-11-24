@@ -8,6 +8,7 @@ WanGP's licence lets you use it for free, your company included, but not offer p
 without a commercial licence from its author: this API is for your own videos.
 """
 
+import contextlib
 import json
 import os
 import sys
@@ -16,6 +17,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .h3 import Media
+
+CANCEL_WAIT = 300  # seconds to let a cancelled WanGP job stop (a step of a 720p, 15 s clip takes about a minute)
 
 
 class Cancelled(Exception):
@@ -82,7 +85,13 @@ class Engine:
         callbacks.on_progress = on_progress
         started = time.time()
         state["job"] = self.session.submit_task(task, callbacks=callbacks)
-        result = state["job"].result()
+        try:
+            result = state["job"].result()
+        except BaseException:  # Modal cancelled the input (InputCancellation): stop WanGP before the next job
+            state["job"].cancel()
+            with contextlib.suppress(Exception):  # WanGP stops after its current step; no new job until then
+                state["job"].result(timeout=CANCEL_WAIT)
+            raise
         if state["phase"]:
             timings[state["phase"]] = timings.get(state["phase"], 0.0) + time.time() - state["since"]
         timings["total"] = time.time() - started

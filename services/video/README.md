@@ -16,14 +16,18 @@ one H100. The prompt builder follows the *MiniMax H3 Turbo (INT8)* Kaggle notebo
 ## Deploy
 
 ```bash
-modal secret create makable-video VIDEO_API_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+export VIDEO_API_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+```
+
+```bash
+modal secret create makable-video VIDEO_API_KEY="$VIDEO_API_KEY"
 ```
 
 ```bash
 modal deploy -m services.video.app
 ```
 
-Set `VIDEO_API_URL` (the `…modal.run` address it prints) and `VIDEO_API_KEY` wherever you call it from. The first
+Set `VIDEO_API_URL` (the `…modal.run` address it prints) and the same `VIDEO_API_KEY` wherever you call it from. The first
 video with each model downloads its weights into the `makable-video-models` Volume (~30 to 60 GB, several minutes).
 After that, a new container only loads them.
 

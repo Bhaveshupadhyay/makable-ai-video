@@ -251,10 +251,10 @@ def build_prompt(request: VideoRequest, media: Media) -> str:
         body = (f"integrated_multimodal_description: [Shot 1] {trigger}A {secs}-second cinematic single take. "
                 f"{lead}{scene}{line}\noverall_soundscape: {sound}\nnon_diegetic_music: {music}")
         return "\n".join([*anchors, body])
-    names = [n.strip() for n in request.reference_names if n.strip()]
+    names = [n.strip() for n in request.reference_names]  # by position: an empty one gets the fallback
     subjects, retention = [], []
     for i in range(refs):
-        label = names[i] if i < len(names) else ("the main subject" if i == 0 else "the subject")
+        label = (names[i] if i < len(names) else "") or ("the main subject" if i == 0 else "the subject")
         subjects.append(f"<Subject {i + 1}> is {label} in <Picture {pictures + i + 1}>, preserving their exact "
                         "identity, appearance, proportions, clothing and distinctive details.")
         retention.append(f"<Subject {i + 1}> (appears in [Shot 1]): fully_preserved - identity and appearance are "

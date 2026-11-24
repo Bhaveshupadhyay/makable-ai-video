@@ -38,6 +38,7 @@ from typing import Annotated, Any, Protocol
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
+from starlette.background import BackgroundTask
 
 from . import h3
 
@@ -63,16 +64,17 @@ class Jobs(Protocol):
 
 
 class Runner(Protocol):
-    """Starts a job on the GPU, and returns what `stop` takes to stop it."""
+    """Starts a job on the GPU, and returns what `stop` and `ended` take."""
 
     def start(self, job: dict, files: dict[str, Any]) -> str: ...
     def stop(self, handle: str) -> None: ...
+    def ended(self, handle: str) -> str | None: ...  # why the call has ended (it timed out...), or None: it hasn't
 
 
 class Videos(Protocol):
     """The MP4s jobs made, by job id."""
 
-    def path(self, job_id: str) -> Path | None: ...
+    def copy(self, job_id: str) -> Path | None: ...  # a temporary copy of it, which the caller deletes
     def delete(self, job_id: str) -> None: ...
 
 
@@ -235,32 +237,55 @@ def create_app(jobs: Jobs, runner: Runner, videos: Videos, key: str) -> FastAPI:
         }
         jobs.put(new)
         try:
-            jobs.set_handle(new["id"], runner.start(new, files))
+            handle = runner.start(new, files)
         except Exception as error:
             log.exception("Couldn't start %s", new["id"])
             jobs.delete(new["id"])
             raise problem(503, "start_failed", f"The GPU couldn't take the job: {error}") from None
+        try:
+            jobs.set_handle(new["id"], handle)
+        except Exception as error:  # without its handle the call can't be stopped later: stop it now
+            log.exception("Couldn't keep %s's handle", new["id"])
+            jobs.cancel(new["id"])
+            runner.stop(handle)
+            jobs.delete(new["id"])
+            raise problem(503, "start_failed", f"The job couldn't be kept: {error}") from None
         current = jobs.get(new["id"]) or new  # the GPU may have started it already
         return JSONResponse(public(current), status_code=202, headers={"Location": f"/v1/videos/{new['id']}"})
+
+    def settled(found: dict) -> dict:
+        """The job, failed if its call ended without saying how (a timeout, a lost container): the GPU writes the
+        outcome itself otherwise."""
+        handle = found["status"] not in DONE and jobs.handle(found["id"])
+        why = handle and runner.ended(handle)
+        if not why:
+            return found
+        current = jobs.get(found["id"]) or found  # the GPU may have written it just before its call ended
+        if current["status"] in DONE:
+            return current
+        current = {**current, "status": "failed", "phase": "failed", "error": why, "finished_at": time.time()}
+        jobs.put(current)
+        return current
 
     @app.get("/v1/videos", dependencies=[Depends(authorized)])
     def list_jobs(limit: Annotated[int, Query(ge=1, le=100)] = 20) -> dict[str, Any]:
         latest = sorted(jobs.all(), key=lambda j: j.get("created_at", 0), reverse=True)[:limit]
-        return {"data": [public(j) for j in latest]}
+        return {"data": [public(settled(j)) for j in latest]}
 
     @app.get("/v1/videos/{job_id}", dependencies=[Depends(authorized)])
     def get_job(job_id: str) -> dict[str, Any]:
-        return public(job(job_id))
+        return public(settled(job(job_id)))
 
     @app.get("/v1/videos/{job_id}/content", dependencies=[Depends(authorized)])
     def content(job_id: str) -> FileResponse:
         found = job(job_id)
         if found["status"] != "succeeded":
             raise problem(409, "not_ready", f"The job is {found['status']}: the video is there once it has succeeded")
-        path = videos.path(job_id)
+        path = videos.copy(job_id)  # a copy: the Volume's file isn't held open while it streams
         if path is None:
             raise problem(404, "video_not_found", "The job succeeded, but its MP4 is gone")
-        return FileResponse(path, media_type="video/mp4", filename=f"{job_id}.mp4")
+        return FileResponse(path, media_type="video/mp4", filename=f"{job_id}.mp4",
+                            background=BackgroundTask(path.unlink, missing_ok=True))
 
     @app.post("/v1/videos/{job_id}/cancel", dependencies=[Depends(authorized)])
     def cancel(job_id: str) -> dict[str, Any]:
