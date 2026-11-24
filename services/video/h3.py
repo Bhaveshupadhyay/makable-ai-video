@@ -76,7 +76,7 @@ MODELS = {
         references=True,
     ),
 }
-DEFAULT_MODEL = "pdd"
+DEFAULT_MODEL = "pdmd"
 
 RESOLUTIONS = {"360p": (640, 352), "480p": (832, 480), "540p": (960, 544), "720p": (1280, 704)}  # 16:9's
 ASPECTS = {"auto": None, "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1.0, "4:3": 4 / 3, "3:4": 3 / 4, "21:9": 21 / 9}

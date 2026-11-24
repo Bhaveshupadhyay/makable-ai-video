@@ -126,11 +126,11 @@ def test_text_to_video_runs_and_downloads(world, tmp_path: Path) -> None:
     jobs, gpu, _, client = world
     job = client.create({"prompt": "A fox reads the news", "dialogue": "Good evening.", "aspect": "9:16"})
     assert job["status"] in ("queued", "succeeded") and job["id"].startswith("vid_")
-    assert (job["width"], job["height"]) == (480, 832) and job["frames"] == 124 and job["steps"] == 8
+    assert (job["width"], job["height"]) == (480, 832) and job["frames"] == 124 and job["steps"] == 4
     assert "<d>[English] Good evening.</d>" in job["prompt"] and "settings" not in job
     sent, files = gpu.started[0]
-    assert sent["settings"]["model_type"] == "minimax_h3_fl2va_pruned_pdd"
-    assert sent["settings"]["activated_loras"] == [] and files == {}
+    assert sent["settings"]["model_type"] == "minimax_h3_fl2va_pruned"
+    assert sent["settings"]["activated_loras"] == [h3.PDMD_FILE] and files == {}
     done = client.wait(job["id"], every=0)
     assert done["status"] == "succeeded"
     out = client.download(job["id"], tmp_path / "out.mp4")
@@ -200,7 +200,7 @@ def test_prompts_show_what_would_run(world) -> None:
     _, gpu, _, client = world
     shown = client.prompt({"prompt": "A city", "loras": [{"name": "camera-motion"}], "seed": 7})
     assert shown["prompt"].startswith("integrated_multimodal_description: [Shot 1] camera motion, A 5-second")
-    assert shown["settings"]["seed"] == 7 and shown["settings"]["loras_multipliers"] == "0.9"
+    assert shown["settings"]["seed"] == 7 and shown["settings"]["loras_multipliers"] == "1 0.9"
     assert gpu.started == []
 
 

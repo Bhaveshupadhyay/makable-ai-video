@@ -38,8 +38,8 @@ runs between videos.
 
 | `model` | Takes | Steps |
 |---|---|---|
-| `pdd` (default) | text, `start_image`, `end_image`, `soundtrack` | 8 |
-| `pdmd` | the same, with the PDMD 4-step LoRA | 4 |
+| `pdmd` (default) | text, `start_image`, `end_image`, `soundtrack`, with the PDMD 4-step LoRA | 4 |
+| `pdd` | the same, with WanGP's PDD 8-step model | 8 |
 | `base` | the same, undistilled | 20 |
 | `ref-pdd` | text, `references` (up to 3), `voice` | 8 |
 | `ref` | the same, undistilled | 20 |
