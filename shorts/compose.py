@@ -127,7 +127,7 @@ def soundtrack(
     parts: list[Part],
     out: Path,
     music: Path | None = None,
-    music_volume: float = -23.0,
+    music_volume: float = -27.0,
     music_ending: tuple[float, float] | None = None,
 ) -> Path:
     """Lays each part's speech at its start (padded to its length), adds music, and evens out the loudness. The music
@@ -194,7 +194,7 @@ def compose(
     *,
     size: tuple[int, int] = SIZE,
     music: Path | None = None,
-    music_volume: float = -23.0,
+    music_volume: float = -27.0,
     music_ending: tuple[float, float] | None = None,
     captions: bool = True,
     captions_at: float = CAPTION_PLACES["middle"],

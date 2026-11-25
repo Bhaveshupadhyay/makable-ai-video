@@ -428,9 +428,9 @@ def main() -> None:
     setup.add_argument("--face", help="a photo of you, for Omni")
     setup.add_argument("--voice", help="a sample of you talking, for --narration-voice sample")
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
-    setup.add_argument("--music-volume", type=float, help="the music's volume under the video, in dB (-23)")
+    setup.add_argument("--music-volume", type=float, help="the music's volume under the video, in dB (-27)")
     setup.add_argument(
-        "--music-ending-volume", type=float, help="the music's volume from the last scene on, in dB (-29.7)"
+        "--music-ending-volume", type=float, help="the music's volume from the last scene on, in dB (-33.7)"
     )
     setup.add_argument(
         "--subscribe", help='a green-screen subscribe animation, shown over the last scene ("" for none)'
