@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import COMMAND
-from .run import FINAL, PRODUCTS, Run, Settings
+from .run import FINAL, Run, Settings, products
 from .stages import STAGES, Import, NotReady, Stage, execute, producer, states
 from .stages.base import MISSING, TO_MAKE
 
@@ -55,7 +55,8 @@ class Status:
 def status(run: Run) -> list[Status]:
     """Every product's status, in the order they're made."""
     settings = run.settings()
-    stages = {product: producer(run, product) for product in PRODUCTS}
+    order = products(settings)
+    stages = {product: producer(run, product) for product in order}
     needed: set[str] = set()
     wanted = ["video"]
     while wanted:  # what the video is made from, and what that's made from
@@ -65,7 +66,7 @@ def status(run: Run) -> list[Status]:
             wanted += stages[product].requires(settings)
     result: list[Status] = []
     ready: dict[str, bool] = {}
-    for product in PRODUCTS:
+    for product in order:
         stage = stages[product]
         if product not in needed:
             result.append(Status(product, stage, needed=False))

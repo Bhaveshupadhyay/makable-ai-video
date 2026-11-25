@@ -54,7 +54,10 @@ def env_file() -> Path:
 
 def needed(choices: dict[str, str]) -> list[str]:
     """The keys your choices need (`home.chosen`'s), in ABOUT's order."""
-    wanted = {key for choice in (choices.get("filmer"), choices.get("narrator")) for key in NEEDS.get(choice or "", ())}
+    # (an animated Short's images are drawn on Google Cloud, as Omni films: whoever animates them)
+    drawn = "omni" if choices.get("image_model") or choices.get("animator") else None
+    makers = (choices.get("filmer"), choices.get("narrator"), choices.get("animator"), drawn)
+    wanted = {key for choice in makers for key in NEEDS.get(choice or "", ())}
     return [key for key in ABOUT if key in wanted]
 
 

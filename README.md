@@ -86,6 +86,27 @@ Each video is in `.makable-shorts/runs/` in your product's repo, kept out of git
 
 You choose who films your avatar and who speaks the narration: see [Who films you](#who-films-you) and [Who speaks the narration](#who-speaks-the-narration).
 
+### Animated Shorts (`/make-animation`)
+
+The plugin's other skill makes a 30-second animated explainer about a topic, not your product: a fact, a comparison, a "what happens if".
+
+```
+/make-animation "can a falling coconut break your skull?" --language hi
+```
+
+1. Claude checks the fact with a web search and writes a storyboard: the style, the characters, and 4 to 6 shots, each with its narration, its picture and its motion.
+2. It draws each character once, as a character sheet (`cast`), and every shot as a still, with those sheets as references (`stills`), so the characters look the same in every shot. You approve the characters and the stills before anything is animated.
+3. The narration is spoken in your voice, then Gemini Omni animates each still for as long as its narration (`animate`). You can make takes with two versions and compare them side by side (`compare`, `choose`).
+4. The pipeline adds the captions and music, and writes `final.mp4`.
+
+| | Cost for a 30-second, 5-shot Short |
+|---|---|
+| Characters and stills (Nano Banana 2.1 / Pro) | about $0.35 / $1.40, with a few redraws |
+| Animation (Omni, $0.07 a second) | about $2.10 |
+| Animating the stills yourself on the Gemini website (`--animator import`) | nothing |
+
+It uses the same Google Cloud project and sign-in as Omni does for avatar videos: nothing new to sign up for.
+
 ---
 
 ## How `/make-video` works

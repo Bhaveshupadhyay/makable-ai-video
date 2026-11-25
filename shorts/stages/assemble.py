@@ -57,7 +57,7 @@ class Assemble(Stage):
     where = "pip install 'makable-shorts[assemble]' (Pillow), with ffmpeg"
 
     def requires(self, settings: Settings) -> tuple[str, ...]:
-        drawn = {"intro"} if settings.intro == "card" else set()  # what assemble makes itself, or the video hasn't
+        drawn = {"intro"} if settings.intro in ("card", "none") else set()  # what assemble makes, or the video hasn't
         silent = {"narration"} if settings.narrator == "none" else set()
         return tuple(need for need in self.needs if need not in drawn | silent) + (
             ("outro",) if settings.outro in FILMED else ()
@@ -96,12 +96,14 @@ class Assemble(Stage):
         silent = settings.narrator == "none"
         kind = (
             (settings.intro, settings.outro, silent, LOOK)
-            if silent or "card" in (settings.intro, settings.outro)
+            if silent or "card" in (settings.intro, settings.outro) or settings.intro == "none"
             else ()
         )
         # (and for a script with tags, that the captions leave them out: so a video made before they did is made again)
         said = [script.intro_line, script.outro_line, *(scene.text for scene in script.scenes)]
         tagged = ("captions without tags",) if any(found(text) for text in said) else ()
+        # (and an animated Short's kind, which metadata.json notes: a demo's is named as before)
+        tagged += (("kind", settings.kind),) if settings.kind != "demo" else ()
         source = fingerprint(
             script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind, *tagged
         )
@@ -136,9 +138,11 @@ class Assemble(Stage):
             parts = [
                 self.card(run, settings, script.intro_line, footage, first.start or 0.0, title, CARD_NARRATION["intro"])
             ]
-        else:
+        elif settings.intro in FILMED:
             intro = files["the intro"]
             parts = [Part(intro, whole_frames(duration(intro)), intro, without(script.intro_line), speech_span(intro))]
+        else:  # no intro: it opens on the first scene
+            parts = []
         played: dict[str, float] = {}  # how far into each recording the scenes without a stretch got
         for index, scene in enumerate(script.scenes):
             footage = run.path(footage_file(scene.footage))
@@ -193,6 +197,8 @@ class Assemble(Stage):
             # cloned from yours. Kokoro's voices aren't anyone's.
             "containsSyntheticMedia": avatar or cloned,
             "seconds": round(seconds, 2),
+            "kind": settings.kind,  # for the insights to compare demos with animated Shorts
+            **({"hook": script.hook} if script.hook else {}),
         }
         with writing(run.path(METADATA)) as out:
             out.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n")

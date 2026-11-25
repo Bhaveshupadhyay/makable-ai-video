@@ -5,7 +5,7 @@
 import shutil
 
 from .. import COMMAND
-from ..run import Run, file_hash, fingerprint, footage_file, steps_file, writing
+from ..run import Run, Settings, file_hash, fingerprint, footage_file, steps_file, writing
 from .base import NotReady, Stage
 
 
@@ -14,8 +14,17 @@ class RecordFootage(Stage):
     product = "footage"
     where = "anywhere"  # no packages of its own
 
+    def requires(self, settings: Settings) -> tuple[str, ...]:
+        """An animated Short you animate yourself is animated from its stills."""
+        return ("stills",) if settings.kind == "animated" else ()
+
     def plan(self, run: Run) -> dict[str, str]:
         settings = run.settings()
+        if not settings.footage and settings.kind == "animated":
+            raise NotReady(
+                f"animate each still yourself ({COMMAND} prompts RUN lists them), then bring each clip in: "
+                f"{COMMAND} import RUN footage --name shot-01 CLIP"
+            )
         if not settings.footage:
             raise NotReady(
                 f"run.json names no footage: {COMMAND} drive RUN start --url URL, or new RUN --footage NAME=FILE"
