@@ -45,7 +45,7 @@ or outro: the video opens on its first shot and ends on its last.
   (Hindi in Latin letters: "agar pachchees meter oonche ped se ek nariyal…"), word for word with `text` and with
   no tags, unless the user wants Devanagari. **Numbers are always digits in a caption**, whatever words the narrator
   says them in: "25 meter" (not "pachchees meter"), "80 kilometer prati ghante", "1.5-2 kilo". `new --captions-at bottom` puts the captions low in the frame.
-- **`text`:** what's said over the shot, 8 to 18 words (4 to 8 seconds), with tags as `/make-video`'s
+- **`text`:** what's said over the shot, 10 to 19 words with Omni (4 to 8 seconds), 7 to 15 with H3 (3 to 6.5), with tags as `/make-video`'s
   [script.md](../../make-video/references/script.md) describes them. The first scene's text is the hook: the same
   words as `hooks[hook]`.
 - **`shot`:** `still`, `motion`, `characters` (by name), `follows` (true when it continues the shot before, in the
