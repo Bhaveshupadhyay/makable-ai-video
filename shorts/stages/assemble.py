@@ -112,6 +112,8 @@ class Assemble(Stage):
             (("captions_at", settings.captions_at),) if settings.captions and settings.captions_at != "middle" else ()
         )
         tagged += tuple(sorted(self.effects(run, settings).items()))
+        # (and the music's volumes, when there's music)
+        tagged += (("music", settings.music_volume, settings.music_ending_volume),) if settings.music else ()
         source = fingerprint(
             script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind, *tagged
         )
@@ -220,17 +222,19 @@ class Assemble(Stage):
         music = run.resolve(settings.music) if settings.music else None
         with tempfile.TemporaryDirectory() as work, writing(run.path(FINAL)) as out:
             parts = self.parts(run, settings, script, Path(work))
-            subscribe = None
-            if settings.subscribe:  # over the last scene, where the narration asks them to follow
-                ending = 1 if settings.outro == "card" or settings.outro in FILMED else 0
-                at = sum(part.length for part in parts[: len(parts) - ending - 1])
-                subscribe = (run.resolve(settings.subscribe), at)
+            # the last scene, where the narration asks them to follow: the subscribe animation is over it, and the
+            # music goes quieter under it
+            ending = 1 if settings.outro == "card" or settings.outro in FILMED else 0
+            at = sum(part.length for part in parts[: len(parts) - ending - 1])
+            subscribe = (run.resolve(settings.subscribe), at) if settings.subscribe else None
             compose(
                 parts,
                 Path(work),
                 out,
                 size=even(settings.size),
                 music=music,
+                music_volume=settings.music_volume,
+                music_ending=(settings.music_ending_volume, at),
                 captions=settings.captions,
                 captions_at=CAPTION_PLACES[settings.captions_at],
                 subscribe=subscribe,

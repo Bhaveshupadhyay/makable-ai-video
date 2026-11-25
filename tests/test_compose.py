@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from shorts.compose import Part, compose, fills
+from shorts.compose import Part, compose, fills, music_gain, soundtrack
 from shorts.media import duration, executable, frame_size, has_sound
 
 from .conftest import needs_ffmpeg, speech, video
@@ -71,3 +71,27 @@ def test_captions_last_to_the_end_over_footage_of_any_colour_range(
     parts = [Part(avatar, 2.0, text="Hi there."), Part(screen, 2.0, text="Look here."), Part(avatar, 2.0, text="Bye.")]
     out = compose(parts, tmp_path / "work", tmp_path / "out.mp4", size=(180, 320))
     assert [captioned(out, at) for at in (1.0, 3.0, 5.0)] == [True, True, True]
+
+
+def test_music_gain_is_its_volume_in_db_and_dips_from_the_ending_on():
+    assert music_gain(-20.0, None) == "volume=0.100000"
+    gain = music_gain(-14.7, (-21.4, 25.5))
+    assert "lt(t,25.500),0.184077" in gain and "lt(t,25.800)" in gain and gain.endswith(",0.085114))':eval=frame")
+
+
+def mean_volume(audio: Path, start: float, end: float) -> float:
+    found = subprocess.run(
+        [executable(), "-hide_banner", "-ss", str(start), "-to", str(end), "-i", str(audio), "-af", "volumedetect",
+         "-f", "null", "-"],
+        capture_output=True, text=True, check=True,
+    ).stderr  # fmt: skip
+    return float(found.split("mean_volume:")[1].split("dB")[0])
+
+
+@needs_ffmpeg
+def test_the_music_goes_quieter_from_the_last_scene_on(tmp_path):
+    music = speech(tmp_path / "music.wav", 2, tone=330)  # looped under the whole video
+    parts = [Part(video(tmp_path / f"{n}.mp4", 3), 3.0, speech(tmp_path / f"{n}.wav", 0.2)) for n in range(2)]
+    out = soundtrack(parts, tmp_path / "mix.wav", music, -14.7, (-21.4, 3.0))
+    before, after = mean_volume(out, 1.0, 2.5), mean_volume(out, 3.5, 3.9)
+    assert 5.0 < before - after < 8.5  # 6.7 dB quieter, give or take the loudness evening it out

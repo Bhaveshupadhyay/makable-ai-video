@@ -135,6 +135,10 @@ class Settings(BaseModel):
     face: str | None = None  # a photo of you, for whoever films you
     voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
+    # how loud the music is, in dB (its gain, as a video editor sets it): under the video, and from the last scene,
+    # where the narration asks them to follow, on
+    music_volume: float = Field(-14.7, le=0)
+    music_ending_volume: float = Field(-21.4, le=0)
     # a subscribe animation on a green screen, shown over the last scene (its call to follow) with the green taken out
     subscribe: str | None = None
     size: tuple[int, int] = (1080, 1920)  # the video's width and height

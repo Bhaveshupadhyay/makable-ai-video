@@ -107,8 +107,31 @@ def render_part(part: Part, out: Path, frame: tuple[int, int] = SIZE) -> Path:
     return out
 
 
-def soundtrack(parts: list[Part], out: Path, music: Path | None = None, music_volume: float = 0.12) -> Path:
-    """Lays each part's speech at its start (padded to its length), adds music, and evens out the loudness."""
+MUSIC_DIP = 0.3  # seconds the music takes to go from its volume to its ending volume
+
+
+def music_gain(volume: float, ending: tuple[float, float] | None) -> str:
+    """ffmpeg's volume filter for music at `volume` dB, and from `ending`'s time on at its volume (dB), with a short
+    slope between so it doesn't click."""
+    start = 10 ** (volume / 20)
+    if ending is None:
+        return f"volume={start:.6f}"
+    end, at = 10 ** (ending[0] / 20), ending[1]
+    slope = f"{start:.6f}+({end:.6f}-{start:.6f})*(t-{at:.3f})/{MUSIC_DIP}"
+    return (
+        f"volume='if(lt(t,{at:.3f}),{start:.6f},if(lt(t,{at + MUSIC_DIP:.3f}),{slope},{end:.6f}))':eval=frame"
+    )
+
+
+def soundtrack(
+    parts: list[Part],
+    out: Path,
+    music: Path | None = None,
+    music_volume: float = -14.7,
+    music_ending: tuple[float, float] | None = None,
+) -> Path:
+    """Lays each part's speech at its start (padded to its length), adds music, and evens out the loudness. The music
+    plays at `music_volume` dB, and from `music_ending`'s time on at its volume (dB), if it's given."""
     inputs: list[str | Path] = []
     chains = []
     count = 0  # the inputs so far
@@ -145,7 +168,7 @@ def soundtrack(parts: list[Part], out: Path, music: Path | None = None, music_vo
         tune = given("-stream_loop", "-1", "-i", music)
         graph += (
             f";[{tune}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
-            f"volume={music_volume},afade=t=out:st={max(total - 2, 0):.3f}:d=2[music]"
+            f"{music_gain(music_volume, music_ending)},afade=t=out:st={max(total - 2, 0):.3f}:d=2[music]"
             ";[voice][music]amix=inputs=2:duration=first:normalize=0[mixed]"
         )
         mixed = "[mixed]"
@@ -171,17 +194,20 @@ def compose(
     *,
     size: tuple[int, int] = SIZE,
     music: Path | None = None,
+    music_volume: float = -14.7,
+    music_ending: tuple[float, float] | None = None,
     captions: bool = True,
     captions_at: float = CAPTION_PLACES["middle"],
     subscribe: tuple[Path, float] | None = None,
 ) -> Path:
-    """Makes the MP4 from the parts, in order: `size` (even numbers), captions of what's said, and music; and
+    """Makes the MP4 from the parts, in order: `size` (even numbers), captions of what's said, and music (at
+    `music_volume` dB, and from `music_ending`'s time on at its volume); and
     `subscribe`, a green-screen animation and when it starts, keyed out and laid over the middle of the frame."""
     workdir.mkdir(parents=True, exist_ok=True)
     pictures = [render_part(part, workdir / f"part-{index}.mp4", size) for index, part in enumerate(parts)]
     listing = workdir / "parts.ffconcat"
     listing.write_text("ffconcat version 1.0\n" + "".join(f"file {picture.name}\n" for picture in pictures))
-    audio = soundtrack(parts, workdir / "soundtrack.wav", music)
+    audio = soundtrack(parts, workdir / "soundtrack.wav", music, music_volume, music_ending)
 
     inputs: list[str | Path] = ["-f", "concat", "-i", listing, "-i", audio]
     picture = ["-map", "0:v"]
