@@ -137,8 +137,8 @@ class Settings(BaseModel):
     music: str | None = None  # played quietly under the video
     # how loud the music is, in dB (its gain, as a video editor sets it): under the video, and from the last scene,
     # where the narration asks them to follow, on
-    music_volume: float = Field(-14.7, le=0)
-    music_ending_volume: float = Field(-21.4, le=0)
+    music_volume: float = Field(-23.0, le=0)
+    music_ending_volume: float = Field(-29.7, le=0)
     # a subscribe animation on a green screen, shown over the last scene (its call to follow) with the green taken out
     subscribe: str | None = None
     size: tuple[int, int] = (1080, 1920)  # the video's width and height

@@ -139,7 +139,7 @@ Two things every video needs, and you never go on without:
   narrated in their own voice needs a sample instead (`voice`): ask for it the same way, or stop with `--yes`.
 
 Ask about music once, with the photo, or on its own for a demo: a file of their own (`me --music PATH`), or none. A
-silent demo is better with some. It plays at -14.7 dB under the video, and at -21.4 dB from the last scene on, where
+silent demo is better with some. It plays at -23 dB under the video, and at -29.7 dB from the last scene on, where
 the narration asks them to follow; `new RUN --music-volume DB --music-ending-volume DB` changes either.
 
 ## 2. What the video is about
