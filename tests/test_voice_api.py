@@ -3,6 +3,7 @@ this process, with a stand-in for the models: the same requests the pipeline sen
 
 import shutil
 import subprocess
+import wave
 from pathlib import Path
 
 import pytest
@@ -173,3 +174,46 @@ def test_omnivoice_is_sent_the_tags_and_chatterbox_isnt(server: TestClient, tone
         voice.close()
     assert tone.asked[0][0] == "[laughter] Think, a coconut, [sigh] and your skull!"
     assert chatterbox.asked[0][0] == "Think, a coconut, and your skull!"
+
+
+def m4a(out: Path) -> Path:
+    """A sample as a phone records one: 10 s of AAC in an m4a, its index (moov) after the sound, as ffmpeg writes it.
+    Through a pipe, ffmpeg reads a small one whole; one this long (over 64 KB) it can't."""
+    speech(out, 10)
+    data = out.read_bytes()
+    assert data.find(b"moov") > data.find(b"mdat") > 0 and len(data) > 80_000
+    return out
+
+
+@api_needs_ffmpeg
+def test_an_m4a_with_its_index_at_the_end_is_heard(api: SpeechAPI, tone: Tone, tmp_path: Path) -> None:
+    # Read through a pipe, ffmpeg can't reach the index, writes an empty WAV and says nothing failed
+    voice = api.add_voice("avatar", m4a(tmp_path / "sample.m4a"))
+    api.speak(voice, "one two three", "omnivoice")
+    [(_, size, *_)] = tone.asked
+    assert size > 1000
+
+
+@api_needs_ffmpeg
+def test_a_sample_with_no_sound_is_refused(api: SpeechAPI, tmp_path: Path) -> None:
+    silent = tmp_path / "empty.wav"
+    with wave.open(str(silent), "wb") as out:
+        out.setnchannels(1), out.setsampwidth(2), out.setframerate(24000)
+    with pytest.raises(SpeechAPIError, match="422 The sample isn't audio ffmpeg can read: there's no sound in it"):
+        api.add_voice("avatar", silent)
+
+
+@api_needs_ffmpeg
+def test_the_pipeline_sends_its_sample_as_wav(api: SpeechAPI, server: TestClient, tmp_path: Path) -> None:
+    sent: list[bytes] = []
+    add = api.add_voice
+
+    def noting(name: str, sample: Path, *args: object) -> str:
+        sent.append(Path(sample).read_bytes())
+        return add(name, sample, *args)
+
+    api.add_voice = noting  # type: ignore[method-assign]
+    voice = ApiVoice(m4a(tmp_path / "sample.m4a"), "hi", "omnivoice", api=api)
+    voice.say("one two three", tmp_path / "scene.wav")
+    voice.close()
+    assert [data[:4] + data[8:12] for data in sent] == [b"RIFFWAVE"]

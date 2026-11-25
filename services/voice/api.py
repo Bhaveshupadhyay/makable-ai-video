@@ -29,6 +29,7 @@ import logging
 import re
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,11 +113,25 @@ def problem(code: int, status: str, message: str) -> HTTPException:
 
 
 def ffmpeg(data: bytes, *args: str) -> bytes:
-    """Runs ffmpeg on `data` (any audio) and returns what it writes, in the format `args` end with."""
-    result = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", *args, "pipe:1"], input=data, capture_output=True)
+    """Runs ffmpeg on `data` (any audio) and returns what it writes, in the format `args` end with.
+
+    `data` is read from a file, not a pipe: an m4a or a video from a phone keeps its index at the end, and ffmpeg
+    can't seek a pipe to find it. Raises when ffmpeg fails."""
+    with tempfile.TemporaryDirectory() as work:
+        source = Path(work) / "in"
+        source.write_bytes(data)
+        command = ["ffmpeg", "-v", "error", "-i", str(source), "-vn", *args, "pipe:1"]
+        result = subprocess.run(command, capture_output=True)
     if result.returncode:
         raise ValueError(result.stderr.decode(errors="replace").strip() or "ffmpeg failed")
     return result.stdout
+
+
+def has_sound(wav: bytes) -> bool:
+    """Whether a WAV has any sound after its headers: ffmpeg writes one with none, and exits as if all went well,
+    when it can't read its input's sound."""
+    data = wav.find(b"data")
+    return data >= 0 and len(wav) > data + 8
 
 
 def output(output_format: str) -> tuple[list[str], str]:
@@ -173,6 +188,8 @@ def create_app(voices: FolderVoices, speakers: Mapping[str, Speaker], key: str) 
             raise problem(422, "invalid_labels", 'labels is a JSON object, such as {"language": "en"}') from None
         try:
             wav = ffmpeg(sample, "-ac", "1", "-f", "wav")
+            if not has_sound(wav):
+                raise ValueError("there's no sound in it")
         except ValueError as error:
             raise problem(422, "invalid_audio", f"The sample isn't audio ffmpeg can read: {error}") from None
         voice_id = voices.add(

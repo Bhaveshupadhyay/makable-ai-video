@@ -114,7 +114,11 @@ class ApiVoice:
             self.api = SpeechAPI.from_environment(self.narrator)
         if self.voice_id is None:
             name = f"makable-shorts {self.reference.stem}"
-            self.voice_id = self.api.add_voice(name, self.reference, self.transcript, self.language)
+            with tempfile.TemporaryDirectory() as work:
+                # Sent as WAV, whatever the sample is: an m4a keeps its index at the end, which the API can't read
+                sample = Path(work) / "sample.wav"
+                ffmpeg("-i", self.reference, "-vn", "-ac", "1", sample)
+                self.voice_id = self.api.add_voice(name, sample, self.transcript, self.language)
         mp3 = self.api.speak(self.voice_id, self.spoken(text), self.model, settings=self.tts_options)
         with tempfile.TemporaryDirectory() as work:
             speech = Path(work) / "speech.mp3"
