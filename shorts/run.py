@@ -135,15 +135,20 @@ class Settings(BaseModel):
     face: str | None = None  # a photo of you, for whoever films you
     voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
+    # a subscribe animation on a green screen, shown over the last scene (its call to follow) with the green taken out
+    subscribe: str | None = None
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
     # An animated Short's: the model that draws the characters and the stills (shorts.images), how many takes of each
     # character's sheet it draws to choose from, and who animates the stills (shorts.animators; "import": you do,
     # elsewhere), with which of its versions (None: its own)
     image_model: str = "gemini-nano-banana-2.1"
     cast_takes: int = Field(3, ge=1)
-    animator: Literal["omni", "import"] = "omni"
+    animator: Literal["omni", "h3", "import"] = "omni"
     animator_model: str | None = None
+    # how loud an animated Short's clips' own sound effects are under the narration: 0, none, unless you want them
+    effects: float = Field(0.0, ge=0, le=1)
     captions: bool = True
+    captions_at: Literal["middle", "bottom"] = "middle"  # where the captions are: the frame's middle, or low down
 
     @property
     def narration_model(self) -> str:

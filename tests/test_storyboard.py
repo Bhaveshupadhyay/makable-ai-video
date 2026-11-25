@@ -96,6 +96,17 @@ def test_each_shot_fits_a_clip_and_the_short_its_length() -> None:
     ]
 
 
+def test_with_h3_a_short_has_more_and_shorter_shots() -> None:
+    # 7 words: about 3.1 s on screen, a short H3 clip; 6 of them, as many as H3's short clips tell 30 seconds in
+    script = storyboard(*(shot(number, words=7) for number in range(1, 7)))
+    _, warnings = check(script, {}, kind="animated", animator="h3")
+    assert "shot is about" not in " ".join(warnings) and "shots:" not in " ".join(warnings)
+    _, warnings = check(script, {}, kind="animated")  # Omni's clips are 4 s at least, and 6 shots is its most
+    assert "Scene 1's shot is about 3.1 s: 4 to 8 s fits the clips a video model makes" in " ".join(warnings)
+    _, warnings = check(storyboard(), {}, kind="animated", animator="h3")
+    assert "The script has 5 shots: 6 to 8 tell a 30-second story with H3's short clips" in warnings
+
+
 def test_a_demo_isnt_held_to_the_storyboard() -> None:
     script = storyboard()
     script.style = ""

@@ -44,6 +44,9 @@ class Scene(BaseModel):
     # What the narrator says over its stretch of a recording, one or two short sentences: or in a video without a
     # voice, what the captions say
     text: str
+    # What the captions show while it's said, if not `text`: the same words in other letters, such as Hindi in Latin
+    # letters (Hinglish: "agar pachchees meter oonche ped se..."), which more people read fast. Tags stay out of it.
+    caption: str = ""
     footage: str  # the recording's name in run.json
     # Where in the recording the scene is, in seconds. Without them, the recording plays on from where the scene
     # before on it stopped.
@@ -90,6 +93,16 @@ KINDS = ("demo", "animated")  # a product demo said over recordings, or an anima
 SHOTS = (4, 6)
 ANIMATED_NARRATION = 30
 SHOT_SECONDS = (4.0, 8.0)
+# H3's: it's at its best on clips of 5 s or less, quicker to make and with less drift, so more and shorter shots
+H3_SHOTS = (6, 8)
+H3_SHOT_SECONDS = (3.0, 6.5)
+
+
+def storyboard_limits(animator: str) -> tuple[tuple[int, int], tuple[float, float]]:
+    """How many shots an animated Short has, and how long each is on screen, for the animator that makes its clips."""
+    return (H3_SHOTS, H3_SHOT_SECONDS) if animator == "h3" else (SHOTS, SHOT_SECONDS)
+
+
 # What a shot's image or clip mustn't be asked for: the models are already told no text or logos, and spell them wrong
 NOT_SHOWN = re.compile(
     r"\b(logos?|watermarks?|brand(?:s|ed)?|trademarks?|captions?|subtitles?|text|lettering|written|typography)\b", re.I
@@ -138,6 +151,7 @@ def check(
     narrator: str | None = None,
     kind: str = "demo",
     intro: bool = True,
+    animator: str = "omni",
 ) -> tuple[list[str], list[str]]:
     """What's wrong with a script, checked against the recordings it's said over: errors (the video can't be
     made from it as it is) and warnings (it can, but it may not look or sound right).
@@ -155,6 +169,8 @@ def check(
         kind: The run's kind (one of KINDS): an animated Short's storyboard is checked too (`check_storyboard`), and
             it has no intro, opening on its first shot.
         intro: Whether the video has an intro (run.json's intro isn't "none"): one without opens on its first scene.
+        animator: Who animates an animated Short's stills (run.json's animator): its clips set how many shots there
+            are, and how long each is.
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -180,8 +196,12 @@ def check(
         warnings.append(f"The end card's line has {words(script.outro_line)} words: keep it to {CARD_WORDS}")
     elif words(script.outro_line) > OUTRO_WORDS:
         warnings.append(f"The outro line has {words(script.outro_line)} words: keep it to {OUTRO_WORDS} or fewer")
-    if animated and not SHOTS[0] <= len(script.scenes) <= SHOTS[1]:
-        warnings.append(f"The script has {len(script.scenes)} shots: {SHOTS[0]} to {SHOTS[1]} tell a 30-second story")
+    shots = storyboard_limits(animator)[0]
+    if animated and not shots[0] <= len(script.scenes) <= shots[1]:
+        warnings.append(
+            f"The script has {len(script.scenes)} shots: {shots[0]} to {shots[1]} tell a 30-second story"
+            + (" with H3's short clips" if animator == "h3" else "")
+        )
     elif not animated and not SCENES[0] <= len(script.scenes) <= SCENES[1]:
         warnings.append(f"The script has {len(script.scenes)} scenes: {SCENES[0]} to {SCENES[1]} tell a minute's story")
 
@@ -233,7 +253,7 @@ def check(
     check_tags(script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards, intro=opens)
     check_hook(script, errors, opens=opens)
     if animated:
-        check_storyboard(script, errors, warnings)
+        check_storyboard(script, errors, warnings, animator)
     return errors, warnings
 
 
@@ -267,9 +287,10 @@ def shot_seconds(scene: Scene) -> float:
     return on_screen(scene)
 
 
-def check_storyboard(script: Script, errors: list[str], warnings: list[str]) -> None:
+def check_storyboard(script: Script, errors: list[str], warnings: list[str], animator: str = "omni") -> None:
     """What's wrong with an animated Short's storyboard, added to `errors` and `warnings` (see `check`): its style,
     its characters, and each scene's shot."""
+    lasts = storyboard_limits(animator)[1]
     if not script.style.strip():
         errors.append('The storyboard has no style: one sentence on how every image looks ("Stylized 3D CGI, ...")')
     names = [character.name for character in script.characters]
@@ -306,10 +327,10 @@ def check_storyboard(script: Script, errors: list[str], warnings: list[str]) -> 
         asked += [(f"Scene {number}'s {part}", text or "") for part, text in
                   (("still", shot.still), ("motion", shot.motion), ("end still", shot.end_still))]  # fmt: skip
         seconds = shot_seconds(scene)
-        if not SHOT_SECONDS[0] <= seconds <= SHOT_SECONDS[1]:
-            fix = "say more over it, or join it to the next" if seconds < SHOT_SECONDS[0] else "say less, or split it"
+        if not lasts[0] <= seconds <= lasts[1]:
+            fix = "say more over it, or join it to the next" if seconds < lasts[0] else "say less, or split it"
             warnings.append(
-                f"Scene {number}'s shot is about {seconds:.1f} s: {SHOT_SECONDS[0]:g} to {SHOT_SECONDS[1]:g} s fits the "
+                f"Scene {number}'s shot is about {seconds:.1f} s: {lasts[0]:g} to {lasts[1]:g} s fits the "
                 f"clips a video model makes ({fix})"
             )
     for where, text in asked:

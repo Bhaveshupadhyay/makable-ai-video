@@ -66,11 +66,11 @@ from .home import (
 from .images import IMAGE_MODELS
 from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
 from .orchestrator import PACKAGE_ROOT, advice, elsewhere, run_all, run_stage, shorts_in, status
-from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
+from .run import FINAL, NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import KINDS, LANGUAGES, TONES, Script, shot_seconds, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.animate import choose as choose_take
-from .stages.animate import compare, more_takes, prompts
+from .stages.animate import compare, image_prompts, more_takes, prompts
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
 from .voice import KOKORO_VOICES
@@ -129,7 +129,7 @@ def new(run: Run, args: argparse.Namespace) -> None:
     settings = run.settings()
     updates = {key: getattr(args, key) for key in Settings.model_fields if getattr(args, key, None) is not None}
     # (footage, narrator options and respellings come in one at a time, and are added to what's there)
-    for key in ("face", "voice", "music"):  # "" for none
+    for key in ("face", "voice", "music", "subscribe"):  # "" for none
         if key in updates:
             updates[key] = run.relative(Path(updates[key])) if updates[key] else None
     for item in args.footage_items or []:
@@ -138,6 +138,8 @@ def new(run: Run, args: argparse.Namespace) -> None:
     another = updates.get("narrator", settings.narrator) != settings.narrator
     if another and "narrator_model" not in updates:
         updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
+    if updates.get("animator", settings.animator) != settings.animator and "animator_model" not in updates:
+        updates["animator_model"] = None  # another animator: its own versions, not the last one's
     if another or args.narrator_option:  # another narrator's options are its own: Kokoro takes none of an API's
         updates["narrator_options"] = {
             **({} if another else settings.narrator_options),
@@ -151,7 +153,8 @@ def new(run: Run, args: argparse.Namespace) -> None:
     changed = settings.model_copy(update=updates)
     if changed.intro in ("card", "none") and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
         updates["narration_voice"] = "sample"  # no avatar to take a voice from: an API speaks in yours
-    run.save_settings(settings.model_copy(update=updates))
+    # (model_copy doesn't validate what it's given: so a value run.json can't hold is refused before it's written)
+    run.save_settings(Settings.model_validate(settings.model_copy(update=updates).model_dump()))
     print(run.path(SETTINGS).read_text())
 
 
@@ -170,6 +173,7 @@ NARRATED_BY = {
 }
 ANIMATED_BY = {
     "omni": "Gemini Omni, in your Google Cloud project ($0.07 a second)",
+    "h3": "MiniMax H3, on your own Modal GPU, with sound effects (about 2.5 ¢ a second at 720p)",
     "import": "you, elsewhere (the Gemini website, for free), bringing each clip in",
 }
 IMAGE_MODEL_DEFAULT = Settings.model_fields["image_model"].default
@@ -337,7 +341,8 @@ def show_frames(run: Run, name: str, times: list[float] | None, every: float, wi
     from .sheet import contact_sheet, times_every
 
     footage = run.settings().footage
-    video = run.path(footage_file(name))  # recorded, or an animated Short's shot
+    # recorded, or an animated Short's shot; or "final", the video itself
+    video = run.path(FINAL) if name == "final" else run.path(footage_file(name))
     if name not in footage and not video.exists():
         raise NotReady(f"run.json has no footage {name!r}: {', '.join(footage) or 'it names none'}")
     video = video if video.exists() else run.resolve(footage[name])
@@ -423,11 +428,21 @@ def main() -> None:
     setup.add_argument("--face", help="a photo of you, for Omni")
     setup.add_argument("--voice", help="a sample of you talking, for --narration-voice sample")
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
+    setup.add_argument(
+        "--subscribe", help='a green-screen subscribe animation, shown over the last scene ("" for none)'
+    )
     setup.add_argument("--kind", choices=KINDS, help="a product demo (the default), or an animated Short")
     setup.add_argument("--image-model", choices=IMAGE_MODELS, help="what draws an animated Short's images")
     setup.add_argument("--cast-takes", type=positive, help="how many takes of each character's sheet to draw (3)")
-    setup.add_argument("--animator", choices=ANIMATED_BY, help="who animates the stills: omni, or you (import)")
-    setup.add_argument("--animator-model", help=f"the animator's version: {', '.join(ANIMATORS['omni'].versions)}")
+    setup.add_argument("--animator", choices=ANIMATED_BY, help="who animates the stills: omni, h3, or you (import)")
+    setup.add_argument(
+        "--animator-model",
+        help="the animator's version: "
+        + "; ".join(f"{name} {', '.join(found.versions)}" for name, found in ANIMATORS.items()),
+    )
+    setup.add_argument(
+        "--effects", type=float, help="how loud the clips' own sound effects are under the narration, 0 to 1 (0.35)"
+    )
     setup.add_argument("--language", choices=LANGUAGES)
     setup.add_argument("--tone", choices=TONES)
     setup.add_argument(
@@ -447,12 +462,14 @@ def main() -> None:
     setup.add_argument("--reference-text", help="what's said in the voice sample, for OmniVoice")
     setup.add_argument("--size", type=size, help="the video's width x height (default 1080x1920)")
     setup.add_argument("--captions", action=argparse.BooleanOptionalAction)
+    setup.add_argument("--captions-at", choices=("middle", "bottom"), help="where the captions are (middle)")
 
     me = commands.add_parser("me", help="your own files and choices, kept for every video, and the keys you need")
     for kind, what in (
         ("face", "a photo of you, for whoever films you"),
         ("music", "music to play quietly under your videos"),
         ("voice", "a sample of you talking, 3 to 10 seconds, to narrate in your voice"),
+        ("subscribe", "a green-screen subscribe animation, shown over the last scene of your videos"),
     ):
         me.add_argument(f"--{kind}", metavar="FILE", help=f'{what} ("" to forget it)')
     me.add_argument("--filmer", choices=FILMED_BY, help="who films your intro and outro, from your photo")
@@ -492,9 +509,9 @@ def main() -> None:
     chose.add_argument("what", help="a shot (shot-01), all of them (all), or a character (man)")
     chose.add_argument("pick", help="the take: omni-1.2 for a shot, a number for a character's sheet")
     commands.add_parser("compare", help="every take of every shot, side by side").add_argument("run", type=Path)
-    commands.add_parser("prompts", help="each still and its motion prompt, to animate elsewhere").add_argument(
-        "run", type=Path
-    )
+    shown = commands.add_parser("prompts", help="each still and its motion prompt, to animate elsewhere")
+    shown.add_argument("run", type=Path)
+    shown.add_argument("--stills", action="store_true", help="every image's prompt instead, before it's drawn")
 
     imported = commands.add_parser("import", help="bring in files made elsewhere")
     imported.add_argument("run", type=Path)
@@ -509,7 +526,7 @@ def main() -> None:
 
     frames = commands.add_parser("frames", help="a recording's frames, labelled with their times, in contact sheets")
     frames.add_argument("run", type=Path)
-    frames.add_argument("name", help="the footage's name, as run.json calls it")
+    frames.add_argument("name", help="the footage's name, as run.json calls it, or final for the video")
     frames.add_argument("--at", type=float, nargs="+", metavar="SECONDS", help="these times (default: --every)")
     frames.add_argument("--every", type=float, default=2.5, metavar="SECONDS", help="a frame this often")
     frames.add_argument("--width", type=int, default=240, help="each frame's width in pixels (larger to read text)")
@@ -628,7 +645,7 @@ def main() -> None:
         elif args.command == "compare":
             compare(run)
         elif args.command == "prompts":
-            print("\n".join(prompts(run)))
+            print("\n".join(image_prompts(run) if args.stills else prompts(run)))
         elif args.command == "animate" and (args.with_takes or args.takes > 1):
             settings = run.settings()  # without --with, more takes of run.json's own
             names = (args.with_takes or take_name(settings.animator, settings.animator_model)).split(",")

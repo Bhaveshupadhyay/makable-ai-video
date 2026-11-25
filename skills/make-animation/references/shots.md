@@ -31,7 +31,18 @@ What the video model does with the still, in one action, and the camera's move:
 - the camera's move named: "tilts up", "tracks down with it", "slow push in", "holds still";
 - the end state said: where it stops is where the next shot picks up.
 
-The clip is 4 to 8 seconds: two actions at most. Split anything longer into two shots.
+The clip is 4 to 8 seconds with Omni, 3 to 6.5 with H3: one action, two at most. H3 is at its best at 5 seconds
+or less: a short clip is made far quicker than a long one (about a minute for 4.5 s at 480p, several times that for
+15 s) and drifts less. So with H3, about 5 seconds a shot, 6 to 8 shots for a 30-second Short, joined one after
+another. Split anything longer into two shots, each with a still of its own.
+
+## A shot with no one in it
+
+A video model fills what a shot leaves open, and the style can steer it: with "medical-explainer" in the style, H3
+turned a still of a balance scale into an anatomy figure. For a shot of things (a scale, an x-ray, a chart), say in
+the motion that what's drawn stays exactly as drawn ("the scale, the coconut and the bottle stay exactly as
+drawn"), say the one thing that moves, and give it an end still. Don't list what mustn't appear ("no confetti, no
+people"): the words bring some of it in.
 
 ## Never in a prompt
 
@@ -43,5 +54,11 @@ The clip is 4 to 8 seconds: two actions at most. Split anything longer into two 
 ## The end still
 
 `end_still` describes a shot's last frame, for a video model that takes one, to end a shot exactly ("the crack lines
-glowing across the top of the skull"). Omni takes only a first frame, so with Omni leave it out: say the end state
-in the motion instead.
+glowing across the top of the skull"). `stills` draws it from the shot's still, as `stills/<shot>-end.png`, for one
+more image.
+
+- **H3 takes one: give it one** on every shot where something moves toward a moment the next shot picks up, and on
+  every shot with no one in it. Without it, H3 hurries the action to its end: the coconut that was to stop in
+  mid-air above his head fell all the way and landed beside him, giving the answer away before the question. Make
+  it the next shot's opening ("the coconut a couple of metres above his head, he hasn't noticed").
+- **Omni takes only a first frame,** so with Omni leave it out: say the end state in the motion instead.

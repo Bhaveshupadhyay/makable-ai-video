@@ -75,14 +75,15 @@ def wrap(pen: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, widt
     return lines
 
 
-def draw(text: str, font: ImageFont.FreeTypeFont, size: tuple[int, int] = SIZE) -> Image.Image:
-    """One caption: white with a black outline, wrapped to the frame, on a transparent frame."""
+def draw(text: str, font: ImageFont.FreeTypeFont, size: tuple[int, int] = SIZE, at: float = CENTER_Y) -> Image.Image:
+    """One caption: white with a black outline, wrapped to the frame, on a transparent frame, its middle `at` (a
+    fraction of the height) down it."""
     width, height = size
     image = Image.new("RGBA", size)
     pen = ImageDraw.Draw(image)
     lines = wrap(pen, text, font, width - 160)
     pen.multiline_text(
-        (width / 2, height * CENTER_Y),
+        (width / 2, height * at),
         "\n".join(lines),
         font=font,
         anchor="mm",
@@ -95,7 +96,13 @@ def draw(text: str, font: ImageFont.FreeTypeFont, size: tuple[int, int] = SIZE) 
     return image
 
 
-def render(captions: list[Caption], workdir: Path, font: ImageFont.FreeTypeFont, size: tuple[int, int] = SIZE) -> Path:
+def render(
+    captions: list[Caption],
+    workdir: Path,
+    font: ImageFont.FreeTypeFont,
+    size: tuple[int, int] = SIZE,
+    place: float = CENTER_Y,
+) -> Path:
     """Draws each caption and returns an ffconcat list that shows each one for its time.
 
     Read it with `-f concat -i <list>`; gaps between captions show a blank frame.
@@ -109,7 +116,7 @@ def render(captions: list[Caption], workdir: Path, font: ImageFont.FreeTypeFont,
         if caption.start > at + 0.001:
             entries += [f"file {blank.name}", f"duration {caption.start - at:.3f}"]
         image = workdir / f"{index:03d}.png"
-        draw(caption.text, font, size).save(image)
+        draw(caption.text, font, size, place).save(image)
         entries += [f"file {image.name}", f"duration {caption.end - caption.start:.3f}"]
         at = caption.end
     entries.append(f"file {blank.name}")  # the last entry's duration is ignored

@@ -41,11 +41,15 @@ or outro: the video opens on its first shot and ends on its last.
 ```
 
 - **`footage`:** `shot-01`, `shot-02`, … in order, one per scene. Each shot is its own clip.
-- **`text`:** what's said over the shot, 8 to 18 words (4 to 8 seconds), with tags as `/make-video`'s
+- **`caption`:** what the captions show, when it isn't `text`. For a Hindi Short, write each line in Hinglish
+  (Hindi in Latin letters: "agar pachchees meter oonche ped se ek nariyal…"), word for word with `text` and with
+  no tags, unless the user wants Devanagari. **Numbers are always digits in a caption**, whatever words the narrator
+  says them in: "25 meter" (not "pachchees meter"), "80 kilometer prati ghante", "1.5-2 kilo". `new --captions-at bottom` puts the captions low in the frame.
+- **`text`:** what's said over the shot, 10 to 19 words with Omni (4 to 8 seconds), 7 to 15 with H3 (3 to 6.5), with tags as `/make-video`'s
   [script.md](../../make-video/references/script.md) describes them. The first scene's text is the hook: the same
   words as `hooks[hook]`.
 - **`shot`:** `still`, `motion`, `characters` (by name), `follows` (true when it continues the shot before, in the
-  same place), and `end_still` (only for a model that takes a last frame: not Omni). See [shots.md](shots.md).
+  same place), and `end_still` (only for a model that takes a last frame: H3, not Omni). See [shots.md](shots.md).
 - **`intro_line`** and **`outro_line`** stay empty: the hook is shot 1's text, and the sign-off is the last shot's.
 
 ## What `check-script` holds it to
@@ -58,6 +62,6 @@ Errors (the video can't be made):
 - text, captions, logos, brands or watermarks asked for in the style, a look, a still or a motion.
 
 Warnings (it can be made, but may not look or sound right):
-- a shot said in under 4 or over 8 seconds: it won't fit a clip;
-- fewer than 4 or more than 6 shots, or narration far from 30 seconds;
+- a shot said in under 4 or over 8 seconds with Omni, or under 3 or over 6.5 with H3: it won't fit a clip;
+- fewer than 4 or more than 6 shots with Omni, or than 6 or 8 with H3; or narration far from 30 seconds;
 - tags a narrator won't perform, or more than three of them.
