@@ -217,3 +217,25 @@ def test_the_pipeline_sends_its_sample_as_wav(api: SpeechAPI, server: TestClient
     voice.say("one two three", tmp_path / "scene.wav")
     voice.close()
     assert [data[:4] + data[8:12] for data in sent] == [b"RIFFWAVE"]
+
+
+@api_needs_ffmpeg
+def test_a_title_with_data_in_it_isnt_taken_for_sound(api: SpeechAPI, tmp_path: Path) -> None:
+    # The chunks are walked: "data" in a title, before the audio, isn't the audio
+    silent = tmp_path / "titled.wav"
+    command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=d=0", "-t", "0", "-metadata", "title=data data"]
+    subprocess.run([*command, str(silent)], check=True)
+    assert b"data data" in silent.read_bytes()
+    with pytest.raises(SpeechAPIError, match="422 The sample isn't audio ffmpeg can read: there's no sound in it"):
+        api.add_voice("avatar", silent)
+
+
+@api_needs_ffmpeg
+def test_a_sample_too_long_as_wav_is_refused_before_its_sent(api: SpeechAPI, tmp_path: Path) -> None:
+    sent: list[Path] = []
+    api.add_voice = lambda name, sample, *args: sent.append(sample) or ""  # type: ignore[method-assign]
+    long = speech(tmp_path / "long.mp3", 125)  # well under 10 MB as MP3, over it as WAV
+    voice = ApiVoice(long, "hi", "omnivoice", api=api)
+    with pytest.raises(SpeechAPIError, match=r"long.mp3 is 125 s long, over 10 MB as WAV: use a shorter one"):
+        voice.say("one two three", tmp_path / "scene.wav")
+    assert sent == []

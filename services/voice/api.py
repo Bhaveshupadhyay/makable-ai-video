@@ -128,10 +128,22 @@ def ffmpeg(data: bytes, *args: str) -> bytes:
 
 
 def has_sound(wav: bytes) -> bool:
-    """Whether a WAV has any sound after its headers: ffmpeg writes one with none, and exits as if all went well,
-    when it can't read its input's sound."""
-    data = wav.find(b"data")
-    return data >= 0 and len(wav) > data + 8
+    """Whether a WAV's audio (its `data` chunk) has any bytes in it: ffmpeg writes a WAV with none, and exits as if
+    all went well, when it can't read its input's sound. The chunks are walked, so a "data" in the metadata (a
+    title, say) isn't taken for the audio. Written to a pipe, the data chunk's size is unknown (0xFFFFFFFF), and
+    the audio is what follows its header."""
+    if wav[:4] != b"RIFF" or wav[8:12] != b"WAVE":
+        return False
+    at = 12
+    while at + 8 <= len(wav):
+        chunk, size = wav[at : at + 4], int.from_bytes(wav[at + 4 : at + 8], "little")
+        follows = len(wav) - (at + 8)
+        if chunk == b"data":
+            return min(size, follows) > 0
+        if size > follows:
+            return False
+        at += 8 + size + (size & 1)  # chunks are padded to an even length
+    return False
 
 
 def output(output_format: str) -> tuple[list[str], str]:
