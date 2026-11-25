@@ -436,3 +436,43 @@ def test_every_image_prompt_can_be_shown_before_anything_is_drawn(animated: Run,
     assert lines[0].startswith("cast/man.png:\n  " + STYLE + ". Character sheet of a bald cartoon man")
     assert lines[3].startswith("stills/shot-03.png (drawn from cast/man.png, stills/shot-01.png, stills/shot-02.png):")
     assert "The picture: The man looks up." in lines[3]
+
+
+@needs_ffmpeg
+def test_a_subscribe_animation_plays_over_the_last_scene_with_its_green_taken_out(
+    animated: Run, drawn: list, animated_by: list, tmp_path: Path
+) -> None:
+    import subprocess
+
+    from imageio_ffmpeg import get_ffmpeg_exe
+
+    from shorts.media import corner_colour
+
+    # A wide green-screen clip, with a red button in its middle
+    button = tmp_path / "subscribe.mp4"
+    subprocess.run(
+        [get_ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x04b94d:s=320x180:r=30:d=2",
+         "-vf", "drawbox=x=120:y=70:w=80:h=40:color=red:t=fill", "-pix_fmt", "yuv420p", str(button)],
+        check=True,
+    )  # fmt: skip
+    red, green, blue = bytes.fromhex(corner_colour(button)[2:])
+    assert green > 150 and red < 30 and blue < 110  # the green, give or take the encoder
+    run_stage(animated, "cast")
+    run_stage(animated, "stills")
+    bring_in(animated, "narration", [speech(tmp_path / f"{n}.wav", 2, 300 + 100 * n) for n in (1, 2, 3)])
+    run_stage(animated, "animate")
+    animated.save_settings(animated.settings().model_copy(update={"subscribe": str(button)}))
+    run_stage(animated, "assemble")
+
+    def pixel(at: float, x: int, y: int) -> bytes:
+        command = [get_ffmpeg_exe(), "-v", "error", "-ss", str(at), "-i", str(animated.path(FINAL)), "-frames:v", "1",
+                   "-vf", f"crop=2:2:{x}:{y},scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]  # fmt: skip
+        return subprocess.run(command, capture_output=True, check=True).stdout
+
+    # 2.33 s a scene: the last starts at 4.67 s. Before it, no button; in it, the button in the middle, and no green.
+    red, green, blue = pixel(5.5, 90, 160)
+    assert red > 150 and green < 100 and blue < 100
+    assert pixel(3.0, 90, 160)[0] < 150 or pixel(3.0, 90, 160)[1] > 100  # the clip's own picture, before it
+    for x, y in ((10, 160), (170, 160), (90, 120)):  # around the button: the video, not the green screen
+        red, green, blue = pixel(5.5, x, y)
+        assert not (green > 150 and red < 80 and blue < 110)

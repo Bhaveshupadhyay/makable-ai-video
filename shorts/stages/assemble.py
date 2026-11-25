@@ -79,6 +79,8 @@ class Assemble(Stage):
             files["the outro"] = run.path(FILMED_OUTRO)
         if settings.music:
             files["the music"] = run.resolve(settings.music)
+        if settings.subscribe:
+            files["the subscribe animation"] = run.resolve(settings.subscribe)
         return files
 
     def plan(self, run: Run) -> dict[str, str]:
@@ -213,6 +215,11 @@ class Assemble(Stage):
         music = run.resolve(settings.music) if settings.music else None
         with tempfile.TemporaryDirectory() as work, writing(run.path(FINAL)) as out:
             parts = self.parts(run, settings, script, Path(work))
+            subscribe = None
+            if settings.subscribe:  # over the last scene, where the narration asks them to follow
+                ending = 1 if settings.outro == "card" or settings.outro in FILMED else 0
+                at = sum(part.length for part in parts[: len(parts) - ending - 1])
+                subscribe = (run.resolve(settings.subscribe), at)
             compose(
                 parts,
                 Path(work),
@@ -221,6 +228,7 @@ class Assemble(Stage):
                 music=music,
                 captions=settings.captions,
                 captions_at=CAPTION_PLACES[settings.captions_at],
+                subscribe=subscribe,
             )
             seconds = duration(out)
         avatar = settings.intro in FILMED or settings.outro in FILMED

@@ -45,6 +45,18 @@ def duration(path: Path) -> float:
     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
+def corner_colour(path: Path) -> str:
+    """The colour of a video's top-left pixel, a second in (or at its start), as ffmpeg writes one: 0x04b94d. On a
+    green-screen clip, the green."""
+    for at in ("1", "0"):
+        command = [executable(), "-v", "error", "-ss", at, "-i", str(path), "-frames:v", "1", "-vf",
+                   "crop=8:8:0:0,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]  # fmt: skip
+        pixel = subprocess.run(command, capture_output=True).stdout
+        if len(pixel) == 3:
+            return "0x" + pixel.hex()
+    raise RuntimeError(f"{path} has no frame to take the green from")
+
+
 def frame_size(path: Path) -> tuple[int, int]:
     """Returns a video's width and height: its first video stream's."""
     # Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(progressive), 720x1280 [SAR 1:1 …

@@ -2,7 +2,8 @@
 
     .env                 your keys (KEY=value lines), for what the environment doesn't set (`shorts.keys`)
     me/face.png          a photo of you, for whoever films you; me/music.mp3, played under the video; and
-    me/voice.wav         a sample of you talking (`python -m shorts me` keeps them)
+    me/voice.wav         a sample of you talking; me/subscribe.mp4, a green-screen subscribe animation shown over
+                         the last scene (`python -m shorts me` keeps them)
     me/characters/<name>.png   a mascot's character sheet, for every animated Short it's in (`me --character`)
     choices.json         who films you (Gemini Omni, HeyGen, clips you bring in, or no one: a video without an
                          avatar) and who speaks the narration (ElevenLabs, your own voice API on Modal, Kokoro on
@@ -27,7 +28,7 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlsplit
 
-MINE = ("face", "music", "voice")  # what `me` keeps: run.json's settings of the same names
+MINE = ("face", "music", "voice", "subscribe")  # what `me` keeps: run.json's settings of the same names
 # and what it keeps of your choices (`chosen`): an animated Short's image model and animator too
 CHOICES = ("filmer", "filmer_voice", "narrator", "kokoro_voice", "image_model", "animator")
 

@@ -135,6 +135,8 @@ class Settings(BaseModel):
     face: str | None = None  # a photo of you, for whoever films you
     voice: str | None = None  # a sample of you talking, 3 to 10 seconds (with narration_voice "sample")
     music: str | None = None  # played quietly under the video
+    # a subscribe animation on a green screen, shown over the last scene (its call to follow) with the green taken out
+    subscribe: str | None = None
     size: tuple[int, int] = (1080, 1920)  # the video's width and height
     # An animated Short's: the model that draws the characters and the stills (shorts.images), how many takes of each
     # character's sheet it draws to choose from, and who animates the stills (shorts.animators; "import": you do,

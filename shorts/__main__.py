@@ -66,7 +66,7 @@ from .home import (
 from .images import IMAGE_MODELS
 from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
 from .orchestrator import PACKAGE_ROOT, advice, elsewhere, run_all, run_stage, shorts_in, status
-from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
+from .run import FINAL, NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import KINDS, LANGUAGES, TONES, Script, shot_seconds, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.animate import choose as choose_take
@@ -129,7 +129,7 @@ def new(run: Run, args: argparse.Namespace) -> None:
     settings = run.settings()
     updates = {key: getattr(args, key) for key in Settings.model_fields if getattr(args, key, None) is not None}
     # (footage, narrator options and respellings come in one at a time, and are added to what's there)
-    for key in ("face", "voice", "music"):  # "" for none
+    for key in ("face", "voice", "music", "subscribe"):  # "" for none
         if key in updates:
             updates[key] = run.relative(Path(updates[key])) if updates[key] else None
     for item in args.footage_items or []:
@@ -338,7 +338,8 @@ def show_frames(run: Run, name: str, times: list[float] | None, every: float, wi
     from .sheet import contact_sheet, times_every
 
     footage = run.settings().footage
-    video = run.path(footage_file(name))  # recorded, or an animated Short's shot
+    # recorded, or an animated Short's shot; or "final", the video itself
+    video = run.path(FINAL) if name == "final" else run.path(footage_file(name))
     if name not in footage and not video.exists():
         raise NotReady(f"run.json has no footage {name!r}: {', '.join(footage) or 'it names none'}")
     video = video if video.exists() else run.resolve(footage[name])
@@ -424,6 +425,9 @@ def main() -> None:
     setup.add_argument("--face", help="a photo of you, for Omni")
     setup.add_argument("--voice", help="a sample of you talking, for --narration-voice sample")
     setup.add_argument("--music", help='music to play quietly under the video ("" for none)')
+    setup.add_argument(
+        "--subscribe", help='a green-screen subscribe animation, shown over the last scene ("" for none)'
+    )
     setup.add_argument("--kind", choices=KINDS, help="a product demo (the default), or an animated Short")
     setup.add_argument("--image-model", choices=IMAGE_MODELS, help="what draws an animated Short's images")
     setup.add_argument("--cast-takes", type=positive, help="how many takes of each character's sheet to draw (3)")
@@ -462,6 +466,7 @@ def main() -> None:
         ("face", "a photo of you, for whoever films you"),
         ("music", "music to play quietly under your videos"),
         ("voice", "a sample of you talking, 3 to 10 seconds, to narrate in your voice"),
+        ("subscribe", "a green-screen subscribe animation, shown over the last scene of your videos"),
     ):
         me.add_argument(f"--{kind}", metavar="FILE", help=f'{what} ("" to forget it)')
     me.add_argument("--filmer", choices=FILMED_BY, help="who films your intro and outro, from your photo")
@@ -518,7 +523,7 @@ def main() -> None:
 
     frames = commands.add_parser("frames", help="a recording's frames, labelled with their times, in contact sheets")
     frames.add_argument("run", type=Path)
-    frames.add_argument("name", help="the footage's name, as run.json calls it")
+    frames.add_argument("name", help="the footage's name, as run.json calls it, or final for the video")
     frames.add_argument("--at", type=float, nargs="+", metavar="SECONDS", help="these times (default: --every)")
     frames.add_argument("--every", type=float, default=2.5, metavar="SECONDS", help="a frame this often")
     frames.add_argument("--width", type=int, default=240, help="each frame's width in pixels (larger to read text)")

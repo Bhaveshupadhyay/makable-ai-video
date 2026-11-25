@@ -11,7 +11,7 @@ little; any other is shown whole over a blurred, darker copy of itself.
 from dataclasses import dataclass
 from pathlib import Path
 
-from .media import ffmpeg, frame_size, has_sound
+from .media import corner_colour, ffmpeg, frame_size, has_sound
 
 FPS = 30
 SIZE = (1080, 1920)  # YouTube Shorts and Instagram Reels
@@ -155,6 +155,15 @@ def soundtrack(parts: list[Part], out: Path, music: Path | None = None, music_vo
     return out
 
 
+def keyed(clip: Path, size: tuple[int, int]) -> str:
+    """The filters that take a green-screen clip's green out (the colour of its corner) and fit it across a frame of
+    `size`: a wide clip, whose button is in its middle, a little wider than the frame, with its sides cut off."""
+    width, _ = size
+    wide = frame_size(clip)[0] > frame_size(clip)[1]
+    fit = f"scale={even((round(width * 1.25), 2))[0]}:-2,crop={width}:ih" if wide else f"scale={width}:-2"
+    return f"chromakey={corner_colour(clip)}:0.13:0.06,despill=type=green,{fit},format=yuva420p"
+
+
 def compose(
     parts: list[Part],
     workdir: Path,
@@ -164,8 +173,10 @@ def compose(
     music: Path | None = None,
     captions: bool = True,
     captions_at: float = CAPTION_PLACES["middle"],
+    subscribe: tuple[Path, float] | None = None,
 ) -> Path:
-    """Makes the MP4 from the parts, in order: `size` (even numbers), captions of what's said, and music."""
+    """Makes the MP4 from the parts, in order: `size` (even numbers), captions of what's said, and music; and
+    `subscribe`, a green-screen animation and when it starts, keyed out and laid over the middle of the frame."""
     workdir.mkdir(parents=True, exist_ok=True)
     pictures = [render_part(part, workdir / f"part-{index}.mp4", size) for index, part in enumerate(parts)]
     listing = workdir / "parts.ffconcat"
@@ -192,6 +203,16 @@ def compose(
             render(timings, workdir / "captions", load_font(FONT_CACHE), size, captions_at),
         ]
         picture = ["-filter_complex", "[0:v][2:v]overlay=0:0:eof_action=pass,format=yuv420p[v]", "-map", "[v]"]
+    if subscribe is not None:
+        clip, at = subscribe
+        under = "[0:v][2:v]overlay=0:0:eof_action=pass[under];" if captions else "[0:v]null[under];"
+        inputs += ["-itsoffset", f"{at:.3f}", "-i", clip]
+        graph = (
+            under
+            + f"[{3 if captions else 2}:v]{keyed(clip, size)}[over];"
+            + ("[under][over]overlay=(W-w)/2:(H-h)/2:eof_action=pass,format=yuv420p[v]")
+        )
+        picture = ["-filter_complex", graph, "-map", "[v]"]
     ffmpeg(
         *inputs, *picture, "-map", "1:a",
         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(FPS),

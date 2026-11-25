@@ -176,9 +176,19 @@ their times (the one in `footage/`, so after choosing too). Show it to the user,
 
 Then `makable-shorts run RUN`: it makes `final.mp4` and `metadata.json`.
 
+**The subscribe animation.** If the user has a subscribe-button animation on a green screen (a stock clip, such as
+a "subscribe button green screen" from a stock site), it goes over the last scene, where the narration asks them to
+follow. Keep it once for every Short with `makable-shorts me --subscribe FILE`: each new run takes a copy. For a run
+made before, or another clip, `makable-shorts new RUN --subscribe FILE` (`""` for none). `assemble` takes the green
+out (the colour of the clip's corner), lays the button over the middle of the frame from the last scene's start to
+the end, and leaves the clip's sound out. Look at the last seconds (`makable-shorts frames RUN final --at 28 29 30`)
+before showing it: no green edges, and the whole button (and its bell) inside the frame. A clip longer than the
+last scene is cut off at the end of the video.
+
 ## 10. Report
 
 - the video (`final.mp4`), and how long it is;
+- whether the subscribe animation is in it (`me --subscribe`), and if not, that it can be;
 - what it cost: the images (count × the image model's price), and the seconds animated × $0.07;
 - the title and description (with the fact's source);
 - the hook used (`hook`) and the others (`hooks`), so they can upload another version and `/review-video` can
