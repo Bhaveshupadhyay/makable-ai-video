@@ -10,7 +10,7 @@ import re
 from collections.abc import Collection
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .compose import GAP
 from .tags import TAGS, found, known, performed, without
@@ -38,6 +38,9 @@ class Shot(BaseModel):
     # What the last frame shows, for a model that takes one: so the shot ends exactly there. Omni takes only a first
     # frame, so with it this is left out.
     end_still: str | None = None
+    # How loud its clip's own sound effects are under the narration, 0 to 1, for an animator whose clips have them
+    # (H3): a coconut landing, an impact. None: run.json's effects (none, unless set), the same for every shot.
+    sound: float | None = Field(None, ge=0, le=1)
 
 
 class Scene(BaseModel):

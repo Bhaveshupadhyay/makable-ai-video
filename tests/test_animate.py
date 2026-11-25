@@ -372,6 +372,15 @@ def test_h3_animates_in_short_clips_and_its_sound_effects_play_under_the_narrati
     parts = Assemble().parts(animated, animated.settings(), animated.script(), tmp_path)
     assert [part.effects for part in parts] == [0.0, 0.0, 0.0]
 
+    # A shot can have its sound where it fits (an impact), and the rest keep quiet
+    script = animated.script()
+    script.scenes[1].shot.sound = 0.5
+    parts = Assemble().parts(animated, animated.settings(), script, tmp_path)
+    assert [part.effects for part in parts] == [0.0, 0.0, 0.0]  # shot-02 is brought in: its sound isn't the animator's
+    script.scenes[2].shot.sound = 0.4
+    parts = Assemble().parts(animated, animated.settings(), script, tmp_path)
+    assert [part.effects for part in parts] == [0.0, 0.0, 0.4]
+
     # The captions show a scene's caption, where it has one (Hinglish for a Hindi line), and its text otherwise.
     script = animated.script()
     script.scenes[0].caption = "Shot ek yahan bola jaata hai."

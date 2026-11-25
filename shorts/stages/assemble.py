@@ -111,7 +111,7 @@ class Assemble(Stage):
         tagged += (
             (("captions_at", settings.captions_at),) if settings.captions and settings.captions_at != "middle" else ()
         )
-        tagged += tuple(sorted(self.effects(run, settings).items()))
+        tagged += tuple(sorted(self.effects(run, settings, script).items()))
         source = fingerprint(
             script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind, *tagged
         )
@@ -134,20 +134,26 @@ class Assemble(Stage):
         return Part(picture, whole_frames(duration(speech) + GAP), speech, text, speech_span(speech))
 
     @staticmethod
-    def effects(run: Run, settings: Settings) -> dict[str, float]:
-        """How loud each animated shot's own sound is under the narration, by footage name: run.json's effects, for
-        a clip made by an animator whose clips carry sound effects (picks.json says whose each is). Footage you
-        brought in keeps quiet: it may have speech or music of its own."""
+    def effects(run: Run, settings: Settings, script: Script) -> dict[str, float]:
+        """How loud each animated shot's own sound is under the narration, by footage name: the shot's `sound`, or
+        else run.json's effects, for a clip made by an animator whose clips carry sound effects (picks.json says
+        whose each is). Footage you brought in keeps quiet: it may have speech or music of its own."""
         file = run.path(PICKS)
-        if settings.kind != "animated" or settings.effects <= 0 or not file.exists():
+        loudness = {
+            scene.footage: settings.effects if scene.shot.sound is None else scene.shot.sound
+            for scene in script.scenes
+            if scene.shot is not None
+        }
+        if settings.kind != "animated" or not any(loudness.values()) or not file.exists():
             return {}
         from ..animators import ANIMATORS
 
         picks = json.loads(file.read_text())  # a take is named by its animator first: "h3-720", "omni-1.2-2"
         return {
-            shot: settings.effects
+            shot: loudness[shot]
             for shot, name in picks.items()
-            if shot not in settings.footage  # brought in, so not the animator's any more
+            if loudness.get(shot)
+            and shot not in settings.footage  # brought in, so not the animator's any more
             and (animator := ANIMATORS.get(name.split("-")[0])) is not None
             and animator.sound
         }
@@ -171,7 +177,7 @@ class Assemble(Stage):
         else:  # no intro: it opens on the first scene
             parts = []
         played: dict[str, float] = {}  # how far into each recording the scenes without a stretch got
-        heard = self.effects(run, settings)
+        heard = self.effects(run, settings, script)
         for index, scene in enumerate(script.scenes):
             footage = run.path(footage_file(scene.footage))
             tail = TAIL if index == len(script.scenes) - 1 else 0

@@ -176,6 +176,17 @@ their times (the one in `footage/`, so after choosing too). Show it to the user,
 
 Then `makable-shorts run RUN`: it makes `final.mp4` and `metadata.json`.
 
+**Sound effects and music.** Only the narration is heard unless you add them, and only where they fit:
+- **Effects:** H3's clips carry the sound of what happens in them. Give a shot `"sound": 0.3` in its `shot` where
+  something happens that's worth hearing (a coconut snapping loose, falling, an impact, a landing), and leave it
+  out on the quiet ones (a fact on a scale, an x-ray, someone standing up), so it's never noise for its own sake.
+- **Music:** `makable-shorts new RUN --music FILE` plays a track quietly under the whole video, looped, and fades it
+  out at the end; `me --music FILE` keeps one for every Short. With no track of their own, H3 can make one: a 15 s
+  text-only request on their video API with a plain picture ("a slow abstract gradient"), `music` saying the mood
+  ("light, curious, playful explainer music, pizzicato and marimba, no vocals") and `sound` asking for none
+  besides. Loop its audio with crossfades to cover the video, and ask the user to listen before it goes in: you
+  can't hear it.
+
 **The subscribe animation.** If the user has a subscribe-button animation on a green screen (a stock clip, such as
 a "subscribe button green screen" from a stock site), it goes over the last scene, where the narration asks them to
 follow. Keep it once for every Short with `makable-shorts me --subscribe FILE`: each new run takes a copy. For a run

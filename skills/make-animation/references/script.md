@@ -49,7 +49,8 @@ or outro: the video opens on its first shot and ends on its last.
   [script.md](../../make-video/references/script.md) describes them. The first scene's text is the hook: the same
   words as `hooks[hook]`.
 - **`shot`:** `still`, `motion`, `characters` (by name), `follows` (true when it continues the shot before, in the
-  same place), and `end_still` (only for a model that takes a last frame: H3, not Omni). See [shots.md](shots.md).
+  same place), and `end_still` (only for a model that takes a last frame: H3, not Omni), and `sound` (0 to 1: how loud its clip's
+  own sound effects are under the narration, for a shot where something happens). See [shots.md](shots.md).
 - **`intro_line`** and **`outro_line`** stay empty: the hook is shot 1's text, and the sign-off is the last shot's.
 
 ## What `check-script` holds it to
