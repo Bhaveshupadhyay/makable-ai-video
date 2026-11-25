@@ -519,3 +519,17 @@ def test_an_end_still_the_script_no_longer_asks_for_isnt_used(animated: Run, dra
 
     Image.new("RGB", (90, 160), "white").save(animated.path("stills/shot-01-end.png"))  # left from before
     assert [end for _, _, end, _, _ in shots(animated, animated.settings())] == [None, None, None]
+
+
+@pytest.mark.parametrize("level", ["-inf", "nan", "1"])
+def test_a_music_level_must_be_a_finite_gain_of_zero_or_less(
+    animated: Run, monkeypatch: pytest.MonkeyPatch, level: str
+) -> None:
+    from shorts.__main__ import main
+
+    for option in ("--music-volume", "--music-ending-volume"):
+        monkeypatch.setattr("sys.argv", ["shorts", "new", str(animated.folder), f"{option}={level}"])
+        with pytest.raises(SystemExit, match="new: "):
+            main()
+    settings = animated.settings()  # run.json as it was, and still readable
+    assert (settings.music_volume, settings.music_ending_volume) == (-27.0, -33.7)
