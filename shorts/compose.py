@@ -28,6 +28,10 @@ COLOURS = (
     "setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709"
 )
 
+# Where the captions' middle is, down the frame (run.json's captions_at): the middle is above the title and buttons
+# Shorts and Reels draw over the bottom; "bottom" is as low as they can be and still clear them.
+CAPTION_PLACES = {"middle": 0.62, "bottom": 0.78}
+
 
 @dataclass
 class Part:
@@ -41,6 +45,8 @@ class Part:
     whole: bool = False  # the caption all at once, not a few words at a time with the speech: for text not heard
     start: float = 0.0  # where in the footage to start
     end: float | None = None  # where to end, fitting start to end to `length`; None: at the footage's own speed
+    # the footage's own sound, quietly under the speech (an animated Short's sound effects): its volume, 0 for none
+    effects: float = 0.0
 
     @property
     def speed(self) -> float:
@@ -105,22 +111,40 @@ def soundtrack(parts: list[Part], out: Path, music: Path | None = None, music_vo
     """Lays each part's speech at its start (padded to its length), adds music, and evens out the loudness."""
     inputs: list[str | Path] = []
     chains = []
+    count = 0  # the inputs so far
+
+    def given(*media: str | Path) -> int:
+        nonlocal count
+        inputs.extend(media)
+        count += 1
+        return count - 1
+
     for index, part in enumerate(parts):
         if part.speech is not None and has_sound(part.speech):
-            inputs += ["-i", part.speech]
+            said = given("-i", part.speech)
         else:
-            inputs += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
-        chains.append(
-            f"[{index}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:{part.length:.3f}[p{index}]"
-        )
+            said = given("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000")
+        heard = f"[{said}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:{part.length:.3f}"
+        # the footage's own sound under it, from where the part starts in it: only at its own speed, so it's in step
+        if part.effects > 0 and part.speed == 1.0 and has_sound(part.footage):
+            own = given("-i", part.footage)
+            chains.append(f"{heard}[s{index}]")
+            chains.append(
+                f"[{own}:a]aresample=48000,aformat=channel_layouts=stereo,atrim={part.start:.3f}:"
+                f"{part.start + part.length:.3f},asetpts=PTS-STARTPTS,volume={part.effects},apad,"
+                f"atrim=0:{part.length:.3f}[e{index}]"
+            )
+            chains.append(f"[s{index}][e{index}]amix=inputs=2:duration=first:normalize=0[p{index}]")
+        else:
+            chains.append(f"{heard}[p{index}]")
     labels = "".join(f"[p{index}]" for index in range(len(parts)))
     graph = ";".join(chains) + f";{labels}concat=n={len(parts)}:v=0:a=1[voice]"
     mixed = "[voice]"
     if music is not None:
         total = sum(part.length for part in parts)
-        inputs += ["-stream_loop", "-1", "-i", music]
+        tune = given("-stream_loop", "-1", "-i", music)
         graph += (
-            f";[{len(parts)}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
+            f";[{tune}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
             f"volume={music_volume},afade=t=out:st={max(total - 2, 0):.3f}:d=2[music]"
             ";[voice][music]amix=inputs=2:duration=first:normalize=0[mixed]"
         )
@@ -139,6 +163,7 @@ def compose(
     size: tuple[int, int] = SIZE,
     music: Path | None = None,
     captions: bool = True,
+    captions_at: float = CAPTION_PLACES["middle"],
 ) -> Path:
     """Makes the MP4 from the parts, in order: `size` (even numbers), captions of what's said, and music."""
     workdir.mkdir(parents=True, exist_ok=True)
@@ -160,7 +185,12 @@ def compose(
                 begin, end = at + begin, at + min(end, part.length)
                 timings += [Caption(part.text, begin, end)] if part.whole else timed(part.text, begin, end)
             at += part.length
-        inputs += ["-f", "concat", "-i", render(timings, workdir / "captions", load_font(FONT_CACHE), size)]
+        inputs += [
+            "-f",
+            "concat",
+            "-i",
+            render(timings, workdir / "captions", load_font(FONT_CACHE), size, captions_at),
+        ]
         picture = ["-filter_complex", "[0:v][2:v]overlay=0:0:eof_action=pass,format=yuv420p[v]", "-map", "[v]"]
     ffmpeg(
         *inputs, *picture, "-map", "1:a",

@@ -34,6 +34,8 @@ ABOUT = {
     ),
     "SHORTS_SPEECH_URL": f"Your voice API on Modal speaks the narration: its address. `{COMMAND} deploy-voice` sets it",
     "SHORTS_SPEECH_KEY": f"and its key, which `{COMMAND} deploy-voice` sets too",
+    "VIDEO_API_URL": "Your video API on Modal animates the stills with MiniMax H3: its address (services/video/README.md)",
+    "VIDEO_API_KEY": "and its key, the VIDEO_API_KEY you deployed it with",
 }
 
 # The keys each choice needs: who films you (`filmer`), and who speaks (`narrator`).
@@ -45,6 +47,7 @@ NEEDS = {
     "elevenlabs": ("ELEVENLABS_API_KEY",),
     "modal": ("SHORTS_SPEECH_URL", "SHORTS_SPEECH_KEY"),
     "kokoro": (),  # on this machine
+    "h3": ("VIDEO_API_URL", "VIDEO_API_KEY"),  # who animates an animated Short's stills
 }
 
 

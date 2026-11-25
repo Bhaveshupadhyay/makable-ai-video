@@ -13,6 +13,7 @@ dependencies = ["pydantic>=2", "imageio-ffmpeg==0.6.0"]
 browse = ["browser-use==0.13.11", "pillow"]                # drive and signin's Chrome: in an environment of its own
 gemini = ["google-genai>=2.33", "pillow"]                  # film-intro, film-outro (Gemini Omni), cast, stills, animate
 heygen = ["httpx"]                                         # film-intro, film-outro with HeyGen
+video = ["httpx"]                                          # animate with H3, on your video API (services/video)
 assemble = ["pillow"]                                      # assemble: the captions
 speech = ["httpx"]                                         # speak (ElevenLabs, or your voice API on Modal), deploy-voice
 # speak with Kokoro, on this machine: in an environment of its own (torch). Its English needs spaCy's small model,

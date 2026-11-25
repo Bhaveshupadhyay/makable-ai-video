@@ -1,6 +1,6 @@
 ---
 name: make-animation
-description: Makes an animated explainer Short (3D-style animation, a fact or a "what if" question) for YouTube Shorts and Instagram Reels. It designs consistent characters, draws each shot, animates it with Omni and narrates it in your cloned voice. Use when the user asks for an animated video, an explainer, a "what happens if" Short, or a video that isn't about their product.
+description: Makes an animated explainer Short (3D-style animation, a fact or a "what if" question) for YouTube Shorts and Instagram Reels. It designs consistent characters, draws each shot, animates it with Omni or MiniMax H3 and narrates it in your cloned voice. Use when the user asks for an animated video, an explainer, a "what happens if" Short, or a video that isn't about their product.
 argument-hint: "[topic or question] [--language hi] [--tone hype] [--yes] [--paid]"
 allowed-tools: Read, Write, Edit, Glob, Bash(makable-shorts *), Bash(ffprobe *), WebSearch
 ---
@@ -16,7 +16,7 @@ and the cheap images are checked before the paid clips are made.
 
 ```
 script ──► cast ──► stills ──► (approve) ──► speak ──► animate ──► (choose) ──► assemble
-          cents     cents                   voice      $0.07/s
+          cents     cents                   voice      $0.07/s (Omni), ~2.5 ¢/s (H3)
 ```
 
 If the request could be either kind ("make me a video"), ask once which: a demo of their product (`/make-video`), or
@@ -42,12 +42,19 @@ Run `makable-shorts me`. If it shows no `images` or `animator` line, ask once (i
   - Nano Banana Pro (`gemini-3-pro-image`): about 13 ¢ an image, with better faces.
 - **Who animates the stills:**
   - Gemini Omni (`omni`): $0.07 a second of video, about $2 for a 30-second Short.
+  - MiniMax H3 (`h3`), on their own Modal GPU (`services/video`, at `VIDEO_API_URL` with `VIDEO_API_KEY`): about
+    2 ¢ a second of GPU time at 480p, under $1 for a 30-second Short. It makes 480p unless told otherwise: `new
+    --animator-model 720` is sharper, for about a third more GPU time. It's at its best on clips of 5 seconds or
+    less: they're made far quicker than long ones (a 4.5 s clip takes about a minute at 480p, where a 15 s one
+    takes several times as long) and drift less. So with H3, plan short shots, about 5 s each, and join them,
+    rather than a few long ones. It takes a last frame too (`end_still`), which keeps a shot from rushing ahead.
   - Themselves (`import`): they animate each still on the Gemini website, for free, and give you the clips.
 
-Keep them with `makable-shorts me --image-model MODEL --animator omni|import`. The narrator is the same choice as
+Keep them with `makable-shorts me --image-model MODEL --animator omni|h3|import`. The narrator is the same choice as
 for `/make-video` (`me --narrator`), and so is their voice sample (`me --voice`). An animated Short has no avatar,
 so an API narrates in their own voice, from the sample. If they have neither, Kokoro (`--narrator kokoro`) speaks
-for free, or `none` gives captions only. With `--yes`, if anything isn't chosen, stop and say so.
+for free, or `none` gives captions only. With `--yes`, if anything isn't chosen, stop and say so. H3 can speak
+too, but never let it narrate: the narrator speaks in the user's cloned voice, and H3 is asked for no speech.
 
 The image model and Omni need `GOOGLE_CLOUD_PROJECT` and Google Cloud's sign-in, as `/make-video`'s step 1 sets up
 (`makable-shorts keys --open`, and `! gcloud auth application-default login`). `keys` needs a narrator chosen first.
@@ -63,11 +70,12 @@ out (myths that everyone repeats, numbers no one can source).
 ## 3. The run
 
 ```
-makable-shorts new .makable-shorts/runs/<date>-<topic> --kind animated --language hi
+makable-shorts new .makable-shorts/runs/<date>-<topic> --kind animated --language hi --captions-at bottom
 ```
 
 Name the run by the date and the topic (`2026-11-24-coconut-skull`). `--kind animated` makes it open on its first
-shot, with no intro or outro, and narrate in the user's voice.
+shot, with no intro or outro, and narrate in the user's voice. `--captions-at bottom` puts the captions low in the
+frame, clear of the pictures, as the user wants them. Only the narration is heard: the clips' own sound is off.
 
 ## 4. The storyboard
 
@@ -76,8 +84,10 @@ Write `script.json` as [references/script.md](references/script.md) says, with t
 
 - the `style`, one sentence every image starts with;
 - the `characters`, each with a `look`;
-- 4 to 6 scenes, each with its narration (`text`, with emotion tags if the narrator performs them), its footage name
-  (`shot-01`, …), and its `shot`: the `still`, the `motion`, who's in it, and whether it `follows` the shot before;
+- the scenes: 4 to 6 with Omni, 6 to 8 with H3 (its clips are best at 5 s or less). Each has its narration
+  (`text`, with emotion tags if the narrator performs them), its `caption` (Hinglish for a Hindi line, numbers in
+  digits), its footage name (`shot-01`, …), and its `shot`: the `still`, the `motion`, who's in it, whether it
+  `follows` the shot before, and with H3 an `end_still` where the shot must end exactly;
 - three versions of the opening line in `hooks` (`H1`, `H2`, `H3`), and the one used in `hook`.
 
 Check it before bringing it in, and fix every error and every warning you can:
@@ -87,8 +97,9 @@ makable-shorts check-script RUN drafts/script.json
 makable-shorts import RUN script drafts/script.json
 ```
 
-Show the user the storyboard: each shot's narration, still and motion, as a short list (interactive). Go on once
-they're happy with it.
+Show the user the storyboard: each shot's narration, still and motion, as a short list (interactive). Then show
+them every image's prompt word for word, and what it's drawn from: `makable-shorts prompts RUN --stills`. Nothing
+is drawn until they approve both.
 
 ## 5. The characters
 
@@ -131,20 +142,24 @@ references changed are drawn again. To redraw one as it is, delete its file firs
 makable-shorts speak RUN
 ```
 
-The narration is spoken before animating, so each clip is asked for only as long as its shot needs (4, 6 or 8
-seconds), and paid for by the second.
+The narration is spoken before animating, so each clip is asked for only as long as its shot needs (Omni: 4, 6 or
+8 seconds; H3: 3, 4.5, 5, 6.5, 8 or 10), and paid for by the second.
 
 ## 8. Animate
 
-**With Omni:** run `makable-shorts status RUN`, and tell the user what animating costs: each shot's clip length
-from the narration (4, 6 or 8 s), the seconds in all, and × $0.07. Wait for their yes (interactive), or go on only
-with `--paid` (with `--yes`). Then:
+**With Omni or H3:** run `makable-shorts status RUN`, and tell the user what animating costs: each shot's clip
+length from the narration (Omni: 4, 6 or 8 s; H3: 3, 4.5, 5, 6.5, 8 or 10 s), the seconds in all, and × $0.07
+(Omni) or × about $0.02 (H3 at 480p, its GPU time; a new GPU first loads the model, about half a minute more).
+Wait for their yes (interactive), or go on only with `--paid` (with `--yes`). Then:
 
 ```
 makable-shorts animate RUN
 ```
 
-It writes each clip to `footage/<shot>.mp4`, and to `animations/omni-1.2/` as the take it is. To compare versions
+It writes each clip to `footage/<shot>.mp4`, and to `animations/omni-1.2/` (or `h3-720/`) as the take it is. H3
+takes about 100 s a clip, one at a time, so give the command a Bash timeout of 600000 ms and run it in the
+background for more than five shots. H3's clips carry sound effects (no speech). Only the narration is heard unless
+the user wants them: `new --effects 0.35` plays them quietly under it. To compare versions
 or takes on the first few videos, `makable-shorts animate RUN --with omni-1.1,omni-1.2` (or `animate RUN --with omni-1.2 --takes 2`, two takes of one) makes more,
 at the same price each: ask before that too.
 

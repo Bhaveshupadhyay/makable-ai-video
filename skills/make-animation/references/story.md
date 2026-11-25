@@ -26,6 +26,6 @@ One question, answered with one surprising number, in 25 to 35 seconds. The shap
 ## Words
 
 - Hindi: everyday Hindi, as people speak it, with English words where they'd use them (स्पीड, फैक्ट्स). Numbers
-  in words, as said (पच्चीस, अस्सी), so the narrator says them right.
+  in words, as said (पच्चीस, अस्सी), so the narrator says them right; the captions show them as digits (25, 80).
 - About 2.5 words a second. Each shot's line is said in 4 to 8 seconds: 8 to 18 words. The check warns otherwise.
 - A tag or two where the feeling helps (`[surprise-wa]` on the hook, a `[sigh]`): no more than three in the video.

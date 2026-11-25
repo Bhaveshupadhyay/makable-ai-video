@@ -9,7 +9,8 @@
                                      and stills/sheet.png, all of them in one picture, to check them at a glance
     animate   footage/<shot>.mp4     each still animated (`shorts.animators`), as long as the shot's narration
                                      and a pause, saved as animations/<take>/<shot>.mp4 too. Paid ($0.07 a second
-                                     with Omni): `run` never animates on its own, only `animate RUN` or `run --paid`.
+                                     with Omni, about 2.5 ¢ with H3): `run` never animates on its own, only
+                                     `animate RUN` or `run --paid`. H3's sound effects play under the narration.
 
 Drawing costs cents an image and animating dollars, so `run` does neither on its own: `cast RUN`, `stills RUN` and
 `animate RUN` do, or `run --paid`. A take already made is never paid for twice: each clip's `.source` beside it
@@ -23,6 +24,7 @@ A file you change is kept as it is (the run's usual rule): a sheet you chose is 
     python -m shorts choose RUN shot-01|all TAKE         a take's clip as the footage (picks.json notes it)
     python -m shorts choose RUN man 2                    a character sheet's take, as the one every still uses
     python -m shorts prompts RUN                         each still and its motion prompt, to animate elsewhere
+    python -m shorts prompts RUN --stills                every image's prompt, word for word, before it's drawn
 """
 
 import json
@@ -31,7 +33,7 @@ import tempfile
 from pathlib import Path
 
 from .. import COMMAND
-from ..animators import ANIMATORS, motion_prompt, take, take_name
+from ..animators import ANIMATORS, clip_seconds, motion_prompt, take, take_name
 from ..compose import GAP, TAIL
 from ..home import character
 from ..images import IMAGE_MODELS, Reference, sheet_prompt, still_prompt, still_references
@@ -261,11 +263,10 @@ def shown_for(run: Run, settings: Settings, script: Script, index: int) -> float
     return duration(speech) + GAP + tail
 
 
-def shots(run: Run, settings: Settings) -> list[tuple[str, Path, Path | None, str, int]]:
+def shots(run: Run, settings: Settings) -> list[tuple[str, Path, Path | None, str, float]]:
     """Each shot to animate, in order: its footage's name, its still, its end still (or None), its motion prompt,
-    and the clip's seconds. Shots whose footage you brought in are left out: they're yours."""
-    from ..animators import clip_seconds
-
+    and how long it's on screen, in seconds (each animator asks for the shortest clip of its own that covers it).
+    Shots whose footage you brought in are left out: they're yours."""
     script = storyboard(run)
     found = []
     for index, scene in enumerate(script.scenes):
@@ -277,9 +278,9 @@ def shots(run: Run, settings: Settings) -> list[tuple[str, Path, Path | None, st
         if not still.exists():
             raise NotReady(f"{still_file(scene.footage)} isn't drawn yet: {COMMAND} stills {run.folder}")
         end = run.path(still_file(scene.footage, end=True))
-        seconds = clip_seconds(shown_for(run, settings, script, index))
+        shown = shown_for(run, settings, script, index)
         found.append(
-            (scene.footage, still, end if end.exists() else None, motion_prompt(script.style, shot.motion), seconds)
+            (scene.footage, still, end if end.exists() else None, motion_prompt(script.style, shot.motion), shown)
         )
     return found
 
@@ -292,15 +293,21 @@ def note_picks(run: Run, picks: dict[str, str]) -> None:
         out.write_text(json.dumps(kept | picks, indent=1, sort_keys=True) + "\n")
 
 
-def clip_source(name: str, still: Path, end: Path | None, prompt: str, seconds: int) -> str:
+def clip_length(name: str, shown: float) -> float:
+    """How long a clip the take `name` is asked for, for a shot on screen for `shown` seconds."""
+    return clip_seconds(shown, take(name)[0].lengths)
+
+
+def clip_source(name: str, still: Path, end: Path | None, prompt: str, shown: float) -> str:
     """What a take's clip is made from: the take, its still (and end still, for a model that takes one), its motion
-    prompt and its length."""
+    prompt and its clip's length."""
     animator, model = take(name)
+    seconds = clip_length(name, shown)
     ending = file_hash(end) if end and animator.end_frame else None
     return fingerprint(name, model, file_hash(still), ending, prompt, seconds)
 
 
-def animate_take(run: Run, name: str, made: list[tuple[str, Path, Path | None, str, int]], folder: str) -> None:
+def animate_take(run: Run, name: str, made: list[tuple[str, Path, Path | None, str, float]], folder: str) -> None:
     """Animates each of `made` with the take `name`, into animations/<folder>/<shot>.mp4, printing what it costs. A
     clip already made from what it'd be made from now is kept, so a retry pays only for what's left; one made from
     something else (another still, motion or length) is made again."""
@@ -310,14 +317,17 @@ def animate_take(run: Run, name: str, made: list[tuple[str, Path, Path | None, s
     ]
     if not todo:
         return
-    seconds = sum(clip[4] for clip in todo)
-    print(f"Animating {len(todo)} shots with {name} ({model}): {seconds} s, about ${seconds * animator.per_second:.2f}")
-    for shot, still, end, prompt, length in todo:
-        print(f"  {shot}: {length} s")
+    seconds = sum(clip_length(name, clip[4]) for clip in todo)
+    print(
+        f"Animating {len(todo)} shots with {name} ({model}): {seconds:g} s, about ${seconds * animator.price(model):.2f}"
+    )
+    for shot, still, end, prompt, shown in todo:
+        length = clip_length(name, shown)
+        print(f"  {shot}: {length:g} s", flush=True)
         out = run.path(animation_file(folder, shot))
         with writing(out) as part:
             animator.animate(still, end if animator.end_frame else None, prompt, length, part, model)
-        note_made_from(out, clip_source(name, still, end, prompt, length))
+        note_made_from(out, clip_source(name, still, end, prompt, shown))
 
 
 class Animate(Stage):
@@ -326,10 +336,13 @@ class Animate(Stage):
     needs = ("script", "stills", "narration")
     extra = "gemini"
     where = GOOGLE
-    cost = "$0.07 a second of video, with Omni"
+    cost = "$0.07 a second of video with Omni, about 2.5 ¢ a second of GPU time with H3"
 
     def by(self, settings: Settings) -> str:
         return f"animate ({take_name(settings.animator, settings.animator_model)})"
+
+    def extra_for(self, settings: Settings) -> str:
+        return "video" if settings.animator == "h3" else self.extra
 
     def requires(self, settings: Settings) -> tuple[str, ...]:
         return tuple(need for need in self.needs if need != "narration" or settings.narrator != "none")
@@ -460,11 +473,22 @@ def choose(run: Run, what: str, pick: str) -> list[str]:
     return [footage_file(shot) for shot in chosen]
 
 
+def image_prompts(run: Run) -> list[str]:
+    """Every image's prompt, word for word, and the images it's drawn from: each character's sheet, then each still
+    (and end still), to show before anything is drawn (`prompts RUN --stills`)."""
+    script = storyboard(run)
+    lines = [f"{cast_file(one.name)}:\n  {sheet_prompt(script.style, one)}" for one in script.characters]
+    for path, _, _, prompt, references in Stills().drawings(run):
+        drawn_from = ", ".join(run.relative(reference.path) for reference in references) or "nothing"
+        lines.append(f"{path} (drawn from {drawn_from}):\n  {prompt}")
+    return lines
+
+
 def prompts(run: Run) -> list[str]:
     """Each still, the clip's length and its motion prompt, to animate somewhere else (the Gemini website, for
     free): then `import RUN footage --name SHOT CLIP` brings each clip in."""
     settings = run.settings().model_copy(update={"footage": {}})  # every shot, brought in or not
     lines = []
-    for shot, still, _, prompt, seconds in shots(run, settings):
-        lines.append(f"{shot} ({seconds} s): {still}\n  {prompt}")
+    for shot, still, _, prompt, shown in shots(run, settings):
+        lines.append(f"{shot} ({clip_seconds(shown):g} s): {still}\n  {prompt}")
     return lines

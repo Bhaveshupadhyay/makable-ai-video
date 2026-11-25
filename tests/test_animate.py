@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from shorts.animators import ANIMATORS, clip_seconds
+from shorts.animators import ANIMATORS, H3_SECONDS, clip_seconds
 from shorts.media import duration
 from shorts.orchestrator import run_all, run_stage, status
 from shorts.run import FINAL, Run, Settings
 from shorts.script import Character, Scene, Script, Shot
 from shorts.stages import STAGES, producer
-from shorts.stages.animate import choose, compare, more_takes, prompts
+from shorts.stages.animate import choose, compare, image_prompts, more_takes, prompts
 from shorts.stages.assemble import Assemble
 from shorts.stages.base import CURRENT, EDITED, STALE, states
 from shorts.stages.bring_in import bring_in
@@ -183,6 +183,10 @@ def test_drawing_costs_cents_so_run_draws_nothing_on_its_own(animated: Run, draw
 
 def test_a_clip_is_as_long_as_its_shot_needs() -> None:
     assert [clip_seconds(seconds) for seconds in (2.0, 4.0, 4.3, 5.95, 6.5, 9.0)] == [4, 4, 6, 6, 8, 8]
+    # H3 makes clips in half seconds, so a short shot asks for a short clip: quicker, and less drift
+    assert ANIMATORS["h3"].price("480p") < ANIMATORS["h3"].price("720p") == ANIMATORS["h3"].per_second
+    shown = (2.0, 3.0, 3.35, 4.6, 5.35, 7.0, 12.0)
+    assert [clip_seconds(seconds, H3_SECONDS) for seconds in shown] == [3, 3, 4.5, 5, 6.5, 8, 10]
 
 
 @needs_ffmpeg
@@ -317,6 +321,7 @@ def test_an_animated_short_needs_google_cloud_whoever_animates_it() -> None:
     from shorts.keys import needed
 
     assert "GOOGLE_CLOUD_PROJECT" in needed({"narrator": "kokoro", "animator": "import"})
+    assert {"GOOGLE_CLOUD_PROJECT", "VIDEO_API_URL", "VIDEO_API_KEY"} <= set(needed({"animator": "h3"}))
     assert "GOOGLE_CLOUD_PROJECT" not in needed({"filmer": "none", "narrator": "kokoro"})
 
 
@@ -325,3 +330,109 @@ def test_a_character_sheet_needs_at_least_one_take() -> None:
 
     with pytest.raises(ValidationError):
         Settings(cast_takes=0)
+
+
+@needs_ffmpeg
+def test_h3_animates_in_short_clips_and_its_sound_effects_play_under_the_narration(
+    animated: Run, drawn: list, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, float, str]] = []
+
+    def animate(still: Path, end: Path | None, prompt: str, seconds: float, out: Path, model: str) -> Path:
+        calls.append((still.name, seconds, model))
+        return video(out, seconds, tone=1000)  # with its own sound
+
+    monkeypatch.setitem(ANIMATORS, "h3", dataclasses.replace(ANIMATORS["h3"], animate=animate))
+    animated.save_settings(animated.settings().model_copy(update={"animator": "h3", "effects": 0.35}))
+    run_stage(animated, "cast")
+    run_stage(animated, "stills")
+    narration = [speech(tmp_path / f"{n}.wav", seconds, 300 + 100 * n) for n, seconds in ((1, 4), (2, 2), (3, 3))]
+    bring_in(animated, "narration", narration)
+    assert producer(animated, "footage").by(animated.settings()) == "animate (h3-480)"
+    assert producer(animated, "footage").extra_for(animated.settings()) == "video"
+
+    run_stage(animated, "animate")
+    # 4.35 s, 2.35 s, and 3.35 s and a second more: the shortest of H3's lengths that covers each
+    assert calls == [("shot-01.png", 4.5, "480p"), ("shot-02.png", 3, "480p"), ("shot-03.png", 4.5, "480p")]
+    assert json.loads(animated.path("picks.json").read_text()) == dict.fromkeys(
+        ["shot-01", "shot-02", "shot-03"], "h3-480"
+    )
+    parts = Assemble().parts(animated, animated.settings(), animated.script(), tmp_path)
+    assert [part.effects for part in parts] == [0.35, 0.35, 0.35]
+    run_stage(animated, "assemble")
+    assert duration(animated.path(FINAL)) == pytest.approx(4.35 + 2.35 + 4.35, abs=0.1)
+
+    # A clip brought in keeps quiet: it may have speech or music of its own.
+    bring_in(animated, "footage", [video(tmp_path / "mine.mp4", 3, tone=500)], name="shot-02")
+    parts = Assemble().parts(animated, animated.settings(), animated.script(), tmp_path)
+    assert [part.effects for part in parts] == [0.35, 0.0, 0.35]
+
+    # Unless you ask for them, the clips' own sound isn't heard: only the narration.
+    animated.save_settings(animated.settings().model_copy(update={"effects": Settings().effects}))
+    parts = Assemble().parts(animated, animated.settings(), animated.script(), tmp_path)
+    assert [part.effects for part in parts] == [0.0, 0.0, 0.0]
+
+    # The captions show a scene's caption, where it has one (Hinglish for a Hindi line), and its text otherwise.
+    script = animated.script()
+    script.scenes[0].caption = "Shot ek yahan bola jaata hai."
+    parts = Assemble().parts(animated, animated.settings(), script, tmp_path)
+    assert [part.text for part in parts] == [
+        "Shot ek yahan bola jaata hai.",
+        "Shot 2 is said here.",
+        "Shot 3 is said here.",
+    ]
+
+
+def test_h3_sends_the_still_and_sound_effects_to_your_video_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import httpx
+
+    from shorts.animators import H3_SOUND, _h3
+
+    seen: list[httpx.Request] = []
+    polls = iter(["queued", "running", "succeeded"])
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.method == "POST":
+            return httpx.Response(202, json={"id": "vid_1", "status": "queued"})
+        if request.url.path.endswith("/content"):
+            return httpx.Response(200, content=b"an mp4")
+        return httpx.Response(200, json={"id": "vid_1", "status": next(polls)})
+
+    real = httpx.Client
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: real(transport=httpx.MockTransport(answer), **kwargs))
+    monkeypatch.setattr("shorts.animators.time.sleep", lambda seconds: None)
+    monkeypatch.setenv("VIDEO_API_URL", "https://video.example/")
+    monkeypatch.setenv("VIDEO_API_KEY", "k")
+    still = tmp_path / "shot-01.png"
+    still.write_bytes(b"png")
+
+    out = _h3(still, None, "He looks up", 4.5, tmp_path / "clip.mp4", "720p")
+    assert out.read_bytes() == b"an mp4"
+    sent = seen[0]
+    assert sent.headers["authorization"] == "Bearer k"
+    body = sent.content.decode(errors="replace")
+    assert 'name="start_image"' in body and 'name="end_image"' not in body
+    request = json.loads(body.split('name="request"')[1].split("\r\n\r\n", 1)[1].split("\r\n--", 1)[0])
+    assert request == {"prompt": "He looks up", "sound": H3_SOUND, "model": "pdmd", "resolution": "720p",
+                       "aspect": "9:16", "duration": 4.5}  # fmt: skip
+    assert [request.url.path for request in seen[1:]] == ["/v1/videos/vid_1"] * 3 + ["/v1/videos/vid_1/content"]
+
+
+def test_h3_needs_your_video_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from shorts.animators import _h3
+
+    monkeypatch.delenv("VIDEO_API_URL", raising=False)
+    with pytest.raises(ValueError, match="VIDEO_API_URL"):
+        _h3(tmp_path / "s.png", None, "p", 3, tmp_path / "c.mp4", "720p")
+
+
+def test_every_image_prompt_can_be_shown_before_anything_is_drawn(animated: Run, drawn: list) -> None:
+    lines = image_prompts(animated)
+    assert drawn == []
+    assert len(lines) == 1 + 3  # the sheet, and a still a shot
+    assert lines[0].startswith("cast/man.png:\n  " + STYLE + ". Character sheet of a bald cartoon man")
+    assert lines[3].startswith("stills/shot-03.png (drawn from cast/man.png, stills/shot-01.png, stills/shot-02.png):")
+    assert "The picture: The man looks up." in lines[3]

@@ -141,9 +141,12 @@ class Settings(BaseModel):
     # elsewhere), with which of its versions (None: its own)
     image_model: str = "gemini-nano-banana-2.1"
     cast_takes: int = Field(3, ge=1)
-    animator: Literal["omni", "import"] = "omni"
+    animator: Literal["omni", "h3", "import"] = "omni"
     animator_model: str | None = None
+    # how loud an animated Short's clips' own sound effects are under the narration: 0, none, unless you want them
+    effects: float = Field(0.0, ge=0, le=1)
     captions: bool = True
+    captions_at: Literal["middle", "bottom"] = "middle"  # where the captions are: the frame's middle, or low down
 
     @property
     def narration_model(self) -> str:

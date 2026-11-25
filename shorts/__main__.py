@@ -70,7 +70,7 @@ from .run import NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
 from .script import KINDS, LANGUAGES, TONES, Script, shot_seconds, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.animate import choose as choose_take
-from .stages.animate import compare, more_takes, prompts
+from .stages.animate import compare, image_prompts, more_takes, prompts
 from .stages.bring_in import PRODUCTS as IMPORTABLE
 from .stages.bring_in import check_script
 from .voice import KOKORO_VOICES
@@ -170,6 +170,7 @@ NARRATED_BY = {
 }
 ANIMATED_BY = {
     "omni": "Gemini Omni, in your Google Cloud project ($0.07 a second)",
+    "h3": "MiniMax H3, on your own Modal GPU, with sound effects (about 2.5 ¢ a second at 720p)",
     "import": "you, elsewhere (the Gemini website, for free), bringing each clip in",
 }
 IMAGE_MODEL_DEFAULT = Settings.model_fields["image_model"].default
@@ -426,8 +427,15 @@ def main() -> None:
     setup.add_argument("--kind", choices=KINDS, help="a product demo (the default), or an animated Short")
     setup.add_argument("--image-model", choices=IMAGE_MODELS, help="what draws an animated Short's images")
     setup.add_argument("--cast-takes", type=positive, help="how many takes of each character's sheet to draw (3)")
-    setup.add_argument("--animator", choices=ANIMATED_BY, help="who animates the stills: omni, or you (import)")
-    setup.add_argument("--animator-model", help=f"the animator's version: {', '.join(ANIMATORS['omni'].versions)}")
+    setup.add_argument("--animator", choices=ANIMATED_BY, help="who animates the stills: omni, h3, or you (import)")
+    setup.add_argument(
+        "--animator-model",
+        help="the animator's version: "
+        + "; ".join(f"{name} {', '.join(found.versions)}" for name, found in ANIMATORS.items()),
+    )
+    setup.add_argument(
+        "--effects", type=float, help="how loud the clips' own sound effects are under the narration, 0 to 1 (0.35)"
+    )
     setup.add_argument("--language", choices=LANGUAGES)
     setup.add_argument("--tone", choices=TONES)
     setup.add_argument(
@@ -447,6 +455,7 @@ def main() -> None:
     setup.add_argument("--reference-text", help="what's said in the voice sample, for OmniVoice")
     setup.add_argument("--size", type=size, help="the video's width x height (default 1080x1920)")
     setup.add_argument("--captions", action=argparse.BooleanOptionalAction)
+    setup.add_argument("--captions-at", choices=("middle", "bottom"), help="where the captions are (middle)")
 
     me = commands.add_parser("me", help="your own files and choices, kept for every video, and the keys you need")
     for kind, what in (
@@ -492,9 +501,9 @@ def main() -> None:
     chose.add_argument("what", help="a shot (shot-01), all of them (all), or a character (man)")
     chose.add_argument("pick", help="the take: omni-1.2 for a shot, a number for a character's sheet")
     commands.add_parser("compare", help="every take of every shot, side by side").add_argument("run", type=Path)
-    commands.add_parser("prompts", help="each still and its motion prompt, to animate elsewhere").add_argument(
-        "run", type=Path
-    )
+    shown = commands.add_parser("prompts", help="each still and its motion prompt, to animate elsewhere")
+    shown.add_argument("run", type=Path)
+    shown.add_argument("--stills", action="store_true", help="every image's prompt instead, before it's drawn")
 
     imported = commands.add_parser("import", help="bring in files made elsewhere")
     imported.add_argument("run", type=Path)
@@ -628,7 +637,7 @@ def main() -> None:
         elif args.command == "compare":
             compare(run)
         elif args.command == "prompts":
-            print("\n".join(prompts(run)))
+            print("\n".join(image_prompts(run) if args.stills else prompts(run)))
         elif args.command == "animate" and (args.with_takes or args.takes > 1):
             settings = run.settings()  # without --with, more takes of run.json's own
             names = (args.with_takes or take_name(settings.animator, settings.animator_model)).split(",")

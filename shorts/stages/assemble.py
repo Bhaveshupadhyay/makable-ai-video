@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 from ..cards import LOOK
-from ..compose import COLOURS, FONT_CACHE, GAP, TAIL, Part, compose, even, whole_frames
+from ..compose import CAPTION_PLACES, COLOURS, FONT_CACHE, GAP, TAIL, Part, compose, even, whole_frames
 from ..media import duration, speech_span, still
 from ..run import (
     CARD_NARRATION,
@@ -26,6 +26,7 @@ from ..run import (
     FINAL,
     METADATA,
     NARRATOR_MODELS,
+    PICKS,
     Run,
     Settings,
     file_hash,
@@ -125,6 +126,25 @@ class Assemble(Stage):
         speech = run.path(said)
         return Part(picture, whole_frames(duration(speech) + GAP), speech, text, speech_span(speech))
 
+    @staticmethod
+    def effects(run: Run, settings: Settings) -> dict[str, float]:
+        """How loud each animated shot's own sound is under the narration, by footage name: run.json's effects, for
+        a clip made by an animator whose clips carry sound effects (picks.json says whose each is). Footage you
+        brought in keeps quiet: it may have speech or music of its own."""
+        file = run.path(PICKS)
+        if settings.kind != "animated" or settings.effects <= 0 or not file.exists():
+            return {}
+        from ..animators import ANIMATORS
+
+        picks = json.loads(file.read_text())  # a take is named by its animator first: "h3-720", "omni-1.2-2"
+        return {
+            shot: settings.effects
+            for shot, name in picks.items()
+            if shot not in settings.footage  # brought in, so not the animator's any more
+            and (animator := ANIMATORS.get(name.split("-")[0])) is not None
+            and animator.sound
+        }
+
     def parts(self, run: Run, settings: Settings, script: Script, work: Path) -> list[Part]:
         """The video's parts, in order. Cards are drawn into `work`."""
         if not script.scenes:
@@ -144,17 +164,23 @@ class Assemble(Stage):
         else:  # no intro: it opens on the first scene
             parts = []
         played: dict[str, float] = {}  # how far into each recording the scenes without a stretch got
+        heard = self.effects(run, settings)
         for index, scene in enumerate(script.scenes):
             footage = run.path(footage_file(scene.footage))
             tail = TAIL if index == len(script.scenes) - 1 else 0
             if silent:  # read in the captions, all of it at once, across the scene
                 part = Part(
-                    footage, whole_frames(on_screen(scene, silent) + tail), text=without(scene.text), whole=True
+                    footage,
+                    whole_frames(on_screen(scene, silent) + tail),
+                    text=without(scene.caption or scene.text),
+                    whole=True,
                 )
             else:
                 speech = run.path(narration_file(index))
                 length = whole_frames(duration(speech) + GAP + tail)
-                part = Part(footage, length, speech, without(scene.text), speech_span(speech))  # the words alone
+                part = Part(
+                    footage, length, speech, without(scene.caption or scene.text), speech_span(speech)
+                )  # words alone
             if scene.start is not None and scene.end is not None:
                 part.start, part.end = scene.start, min(scene.end, duration(footage))
                 if part.end - part.start < 0.1:
@@ -162,6 +188,7 @@ class Assemble(Stage):
             else:
                 part.start = played.get(scene.footage, 0.0) % duration(footage)
                 played[scene.footage] = part.start + part.length
+            part.effects = heard.get(scene.footage, 0.0)
             stretch = f"{part.start:5.1f}-{part.end:5.1f} s" if part.end is not None else f"from {part.start:.1f} s"
             print(
                 f"Scene {index + 1}: {scene.footage} {stretch} at {part.speed:.2f}x, {part.length:.2f} s: {scene.text}"
@@ -186,7 +213,15 @@ class Assemble(Stage):
         music = run.resolve(settings.music) if settings.music else None
         with tempfile.TemporaryDirectory() as work, writing(run.path(FINAL)) as out:
             parts = self.parts(run, settings, script, Path(work))
-            compose(parts, Path(work), out, size=even(settings.size), music=music, captions=settings.captions)
+            compose(
+                parts,
+                Path(work),
+                out,
+                size=even(settings.size),
+                music=music,
+                captions=settings.captions,
+                captions_at=CAPTION_PLACES[settings.captions_at],
+            )
             seconds = duration(out)
         avatar = settings.intro in FILMED or settings.outro in FILMED
         cloned = settings.narrator in (*NARRATOR_MODELS, "import")  # a voice cloned from someone's, or may be
