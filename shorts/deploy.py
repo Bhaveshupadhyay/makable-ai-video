@@ -25,6 +25,7 @@ from .keys import env_file, set_values
 from .orchestrator import PACKAGE_ROOT
 
 MODAL = "modal==1.6.2"  # the Modal services/voice/app.py is written for
+DOTENV = "python-dotenv"  # what `modal secret create --from-dotenv` reads the key's file with: not one of Modal's own
 SECRET = "makable-voice"  # the secret app.py reads VOICE_API_KEY from
 ADDRESS = re.compile(r"https://[\w.-]+\.modal\.run")
 SECRET_WAIT = 5 * 60  # seconds before giving up on keeping the key
@@ -39,7 +40,7 @@ def modal(*args: str, keep: bool = True, timeout: float | None = None) -> subpro
     Raises:
         RuntimeError: It ran past `timeout`.
     """
-    command = ["uv", "tool", "run", "--from", MODAL, "modal", *args]
+    command = ["uv", "tool", "run", "--from", MODAL, "--with", DOTENV, "modal", *args]
     output = {"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT} if keep else {}
     try:
         return subprocess.run(

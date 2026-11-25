@@ -22,6 +22,7 @@ ELEVENLABS = "https://api.elevenlabs.io"
 FORMAT = "mp3_44100_128"  # what both APIs send by default
 RETRIED = {408, 409, 425, 429, 500, 502, 503, 504}
 REDIRECTS = 5
+MAX_SAMPLE = 10 * 1024 * 1024  # bytes: the largest sample the voice API (services/voice) takes, as ElevenLabs
 
 
 class SpeechAPIError(RuntimeError):

@@ -12,7 +12,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from .media import ffmpeg
+from .media import duration, ffmpeg
 from .tags import TAG, for_model, without
 
 
@@ -108,13 +108,22 @@ class ApiVoice:
 
     def say(self, text: str, out: Path) -> Path:
         """Speaks `text` in the sample's voice, through the API, and saves it as WAV."""
-        if self.api is None:
-            from .speech_api import SpeechAPI
+        from .speech_api import MAX_SAMPLE, SpeechAPI, SpeechAPIError  # httpx, which Kokoro's environment needn't have
 
+        if self.api is None:
             self.api = SpeechAPI.from_environment(self.narrator)
         if self.voice_id is None:
             name = f"makable-shorts {self.reference.stem}"
-            self.voice_id = self.api.add_voice(name, self.reference, self.transcript, self.language)
+            with tempfile.TemporaryDirectory() as work:
+                # Sent as WAV, whatever the sample is: an m4a keeps its index at the end, which the API can't read
+                sample = Path(work) / "sample.wav"
+                ffmpeg("-i", self.reference, "-vn", "-ac", "1", sample)
+                if sample.stat().st_size > MAX_SAMPLE:  # WAV is far larger than an m4a or an MP3 of the same voice
+                    raise SpeechAPIError(
+                        f"the voice sample {self.reference.name} is {duration(sample):.0f} s long, over "
+                        f"{MAX_SAMPLE // 1024 // 1024} MB as WAV: use a shorter one (3 to 10 s clones best)"
+                    )
+                self.voice_id = self.api.add_voice(name, sample, self.transcript, self.language)
         mp3 = self.api.speak(self.voice_id, self.spoken(text), self.model, settings=self.tts_options)
         with tempfile.TemporaryDirectory() as work:
             speech = Path(work) / "speech.mp3"
