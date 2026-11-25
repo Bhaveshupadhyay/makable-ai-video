@@ -23,6 +23,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 # Omni's versions, by the short names takes use
 OMNI_MODELS = {"1.1": "gemini-omni-1.1-flash-preview", "1.2": "gemini-omni-1.2-flash"}
@@ -122,6 +123,10 @@ def _h3(still: Path, end: Path | None, prompt: str, seconds: float, out: Path, m
         raise ValueError(
             "Set VIDEO_API_URL and VIDEO_API_KEY: your video API's address and key (services/video/README.md deploys "
             "it to your Modal account)"
+        )
+    if urlsplit(url).scheme != "https" and urlsplit(url).hostname not in ("localhost", "127.0.0.1", "::1"):
+        raise ValueError(
+            f"VIDEO_API_URL must be https:// (or on this machine), so the key isn't sent in the open: {url}"
         )
     request = {
         "prompt": prompt,

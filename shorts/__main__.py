@@ -138,6 +138,8 @@ def new(run: Run, args: argparse.Namespace) -> None:
     another = updates.get("narrator", settings.narrator) != settings.narrator
     if another and "narrator_model" not in updates:
         updates["narrator_model"] = None  # another API: its own model, not the one the last API spoke with
+    if updates.get("animator", settings.animator) != settings.animator and "animator_model" not in updates:
+        updates["animator_model"] = None  # another animator: its own versions, not the last one's
     if another or args.narrator_option:  # another narrator's options are its own: Kokoro takes none of an API's
         updates["narrator_options"] = {
             **({} if another else settings.narrator_options),
@@ -151,7 +153,8 @@ def new(run: Run, args: argparse.Namespace) -> None:
     changed = settings.model_copy(update=updates)
     if changed.intro in ("card", "none") and changed.narrator in NARRATOR_MODELS and "narration_voice" not in updates:
         updates["narration_voice"] = "sample"  # no avatar to take a voice from: an API speaks in yours
-    run.save_settings(settings.model_copy(update=updates))
+    # (model_copy doesn't validate what it's given: so a value run.json can't hold is refused before it's written)
+    run.save_settings(Settings.model_validate(settings.model_copy(update=updates).model_dump()))
     print(run.path(SETTINGS).read_text())
 
 

@@ -189,7 +189,8 @@ last scene is cut off at the end of the video.
 
 - the video (`final.mp4`), and how long it is;
 - whether the subscribe animation is in it (`me --subscribe`), and if not, that it can be;
-- what it cost: the images (count × the image model's price), and the seconds animated × $0.07;
+- what it cost: the images (count × the image model's price), and the seconds animated × the animator's rate
+  ($0.07 with Omni; about $0.02 with H3 at 480p, $0.025 at 720p);
 - the title and description (with the fact's source);
 - the hook used (`hook`) and the others (`hooks`), so they can upload another version and `/review-video` can
   compare them;

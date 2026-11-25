@@ -476,3 +476,46 @@ def test_a_subscribe_animation_plays_over_the_last_scene_with_its_green_taken_ou
     for x, y in ((10, 160), (170, 160), (90, 120)):  # around the button: the video, not the green screen
         red, green, blue = pixel(5.5, x, y)
         assert not (green > 150 and red < 80 and blue < 110)
+
+
+def test_another_animator_forgets_the_last_ones_version_and_effects_are_checked(
+    animated: Run, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shorts.__main__ import main
+
+    def new(*options: str) -> None:
+        monkeypatch.setattr("sys.argv", ["shorts", "new", str(animated.folder), *options])
+        main()
+
+    new("--animator", "omni", "--animator-model", "1.1")
+    new("--animator", "h3")
+    assert animated.settings().animator_model is None  # H3's own (480), not Omni's 1.1
+    new("--animator", "h3", "--animator-model", "720")
+    assert animated.settings().animator_model == "720"
+    with pytest.raises(SystemExit, match="new: "):
+        new("--effects", "-1")
+    assert animated.settings().effects == 0.0  # run.json as it was, and still readable
+    new("--effects", "1")
+    assert animated.settings().effects == 1.0
+
+
+def test_h3_sends_its_key_only_over_https(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from shorts.animators import _h3
+
+    monkeypatch.setenv("VIDEO_API_KEY", "k")
+    monkeypatch.setenv("VIDEO_API_URL", "http://video.example")
+    with pytest.raises(ValueError, match="must be https"):
+        _h3(tmp_path / "s.png", None, "p", 3, tmp_path / "c.mp4", "480p")
+
+
+def test_an_end_still_the_script_no_longer_asks_for_isnt_used(animated: Run, drawn: list, tmp_path: Path) -> None:
+    from shorts.stages.animate import shots
+
+    animated.save_settings(animated.settings().model_copy(update={"animator": "h3"}))
+    run_stage(animated, "cast")
+    run_stage(animated, "stills")
+    bring_in(animated, "narration", [speech(tmp_path / f"{n}.wav", 2, 300 + 100 * n) for n in (1, 2, 3)])
+    from PIL import Image
+
+    Image.new("RGB", (90, 160), "white").save(animated.path("stills/shot-01-end.png"))  # left from before
+    assert [end for _, _, end, _, _ in shots(animated, animated.settings())] == [None, None, None]

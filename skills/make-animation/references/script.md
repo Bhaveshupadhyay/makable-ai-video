@@ -62,6 +62,6 @@ Errors (the video can't be made):
 - text, captions, logos, brands or watermarks asked for in the style, a look, a still or a motion.
 
 Warnings (it can be made, but may not look or sound right):
-- a shot said in under 4 or over 8 seconds: it won't fit a clip;
-- fewer than 4 or more than 6 shots, or narration far from 30 seconds;
+- a shot said in under 4 or over 8 seconds with Omni, or under 3 or over 6.5 with H3: it won't fit a clip;
+- fewer than 4 or more than 6 shots with Omni, or than 6 or 8 with H3; or narration far from 30 seconds;
 - tags a narrator won't perform, or more than three of them.

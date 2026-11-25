@@ -277,10 +277,17 @@ def shots(run: Run, settings: Settings) -> list[tuple[str, Path, Path | None, st
         still = run.path(still_file(scene.footage))
         if not still.exists():
             raise NotReady(f"{still_file(scene.footage)} isn't drawn yet: {COMMAND} stills {run.folder}")
-        end = run.path(still_file(scene.footage, end=True))
+        # (an end still left on disk after the script stopped asking for one isn't used)
+        end = run.path(still_file(scene.footage, end=True)) if shot.end_still else None
         shown = shown_for(run, settings, script, index)
         found.append(
-            (scene.footage, still, end if end.exists() else None, motion_prompt(script.style, shot.motion), shown)
+            (
+                scene.footage,
+                still,
+                end if end and end.exists() else None,
+                motion_prompt(script.style, shot.motion),
+                shown,
+            )
         )
     return found
 

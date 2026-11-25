@@ -107,6 +107,11 @@ class Assemble(Stage):
         tagged = ("captions without tags",) if any(found(text) for text in said) else ()
         # (and an animated Short's kind, which metadata.json notes: a demo's is named as before)
         tagged += (("kind", settings.kind),) if settings.kind != "demo" else ()
+        # (and for captions low in the frame, or clips heard under the narration: so a video with neither keeps its name)
+        tagged += (
+            (("captions_at", settings.captions_at),) if settings.captions and settings.captions_at != "middle" else ()
+        )
+        tagged += tuple(sorted(self.effects(run, settings).items()))
         source = fingerprint(
             script.model_dump(), hashes, settings.size, settings.captions, GAP, TAIL, COLOURS, *kind, *tagged
         )
