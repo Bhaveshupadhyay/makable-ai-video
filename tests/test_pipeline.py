@@ -8,7 +8,7 @@ import pytest
 from shorts.media import duration
 from shorts.orchestrator import run_all, status
 from shorts.run import FINAL, Run, narration_file
-from shorts.stages.assemble import Assemble
+from shorts.stages.assemble import Assemble, made_timeline
 from shorts.stages.base import CURRENT, STALE
 from shorts.stages.bring_in import bring_in, in_order, without_copies
 
@@ -61,7 +61,17 @@ def test_the_video_from_files_made_elsewhere(run: Run, tmp_path: Path) -> None:
     assert run.path("footage/demo.steps.json").exists()
     # The intro, then each scene as long as its narration and a pause (and a second more after the last).
     assert duration(run.path(FINAL)) == pytest.approx(3 + (1.5 + 0.35) + (2.5 + 0.35 + 1), abs=0.05)
-    assert json.loads(run.path("metadata.json").read_text())["title"] == "A title"
+    metadata = json.loads(run.path("metadata.json").read_text())
+    assert metadata["title"] == "A title"
+    # Where each part is in it, to see where viewers left once it's posted.
+    parts = metadata["parts"]
+    assert [part["part"] for part in parts] == ["intro", "scene 1", "scene 2"]
+    assert parts[1]["start"] == pytest.approx(3, abs=0.05) and parts[1]["said"] == "Scene 1 says this."
+    assert parts[-1]["end"] == pytest.approx(duration(run.path(FINAL)), abs=0.05)
+    kept = run.path("metadata.json").read_text()
+    run.path("metadata.json").write_text(json.dumps({"title": "A title"}))
+    assert made_timeline(run) == parts  # a video assembled before they were kept: worked out from its files
+    run.path("metadata.json").write_text(kept)
 
     # Editing a scene's text makes its narration out of date, and only its: the pipeline asks for it again.
     edited = script((0, 4), (6, 9))

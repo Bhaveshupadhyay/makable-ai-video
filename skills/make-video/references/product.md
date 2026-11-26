@@ -35,7 +35,13 @@ What keeps a recording clean, learned while recording it:
 - where each flow starts (a page to open with `--url`);
 - what the page shows when something slow is done (for `wait-for`), and about how long it takes;
 - what must be new each time (a project's name), and what never to click (billing, deleting, publishing).
+
+## What's worked
+Lessons from how its videos did once posted, each with its evidence, kept by the review-video skill:
+- "Opening on the finished result kept 71% past 3 s, against a median of 58% (2026-10-30-clothing-store-publish)."
 ```
+
+`## What's worked` starts empty: the review-video skill adds to it, and the script follows it.
 
 ## Setting them up
 

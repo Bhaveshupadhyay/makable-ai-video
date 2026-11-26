@@ -136,7 +136,7 @@ Each video's run folder goes in the repo too, in `.makable-shorts/runs/`, and ke
 
 Then `makable-shorts keys --open` writes the keys those need into `~/.config/makable-shorts/.env`, each with where to get it, and opens the file in your text editor: you paste the keys in there, never into the chat (`.env.example` lists them all; the environment wins over the files). Your own voice API needs none from you: `makable-shorts deploy-voice` deploys it to your Modal account and writes its address and key there itself. Your photo and music are `makable-shorts me --face PHOTO [--music FILE]`. A photo with its background removed works best with Omni, which films the setting the script describes.
 
-**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), who films you and who speaks (`choices.json`), the sites you've signed in to (`sites/`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), and your choices, unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
+**Your own things** are kept in SHORTS_HOME, `~/.config/makable-shorts` unless that's set (`shorts/home.py`): your photo, music and voice (`me/`), who films you and who speaks (`choices.json`), the sites you've signed in to (`sites/`), your connected YouTube and Instagram accounts (`accounts/`), what your posted videos taught (`lessons.md`), a `.env`, and the notes on products whose code isn't where you make their videos (`products/<name>.md`). A new run takes a copy of your photo, music and voice from there (in its own `me/`), and your choices, unless it's given others, so changing yours later leaves the videos made before as they were. **The product's repo** holds the rest, in `.makable-shorts/`: its notes (`products/`, committed) and its videos (`runs/`, ignored).
 
 **Kinds, in run.json.** A demo's `intro` and `outro` are `card`, and a silent one's `narrator` is `none` (`makable-shorts new RUN --intro card --outro card --narrator none`, for one video). The cards are drawn by `assemble` (`shorts/cards.py`). The narrator says their lines too (`narration/intro.wav`, `outro.wav`), so a narrated demo's cards stay up while they're said, and a silent one's for as long as they take to read. `metadata.json`'s `containsSyntheticMedia`, for YouTube's "altered or synthetic content", is true for an avatar or a cloned voice, and false for Kokoro's voice or no voice.
 
@@ -145,6 +145,54 @@ Then `makable-shorts keys --open` writes the keys those need into `~/.config/mak
 ### From GitHub Actions
 
 With `--yes`, the skill asks nothing, for GitHub Actions. Copy `.github/workflows/make-video.yml` into your product's repo: it runs the skill there from the Actions tab (`gh workflow run make-video.yml -f commits=3f2a9c1`), with Claude Code on your subscription and the notes committed in the repo, and uploads the video. Its header lists the secrets and variables it needs: who films you and who speaks are repository variables there, and Omni signs in to Google Cloud with `google-github-actions/auth`.
+
+## How your videos did: `/review-video`
+
+Once a video is posted, ask Claude how it did, or:
+
+```
+/review-video https://youtube.com/shorts/aBcDeFgHiJk
+/review-video .makable-shorts/runs/2026-10-30-clothing-store-publish --instagram https://www.instagram.com/reel/C9xYz_1-ab/
+/review-video what's working on my channel?
+```
+
+The skill (`skills/review-video/`) fetches the video's numbers with `makable-shorts insights`, compares them with your other Shorts and Reels, and works out why it did as it did:
+
+- **The numbers,** against the median of your videos posted in the 90 days before:
+  - how many didn't swipe away: YouTube's engaged views as a share of all views, or 1 minus Instagram's skip rate;
+  - how long they watched, in seconds and as a share of the video;
+  - likes, comments, shares, saves and subscribers per 1,000 views;
+  - where the views came from (the Shorts feed, search, your channel), and views day by day.
+- **Where viewers left.** YouTube's audience retention, lined up with the video's own parts: how many were still watching at the start and end of the intro, of each scene and of the outro, and what was said in each. `assemble` keeps where each part is in `metadata.json`. For a video made elsewhere, it's in 10-second stretches.
+- **Why.** Claude looks at the frames where viewers left (`makable-shorts frames RUN final --at …`), the script and the recording's steps, and writes `RUN/insights/review.md`: the verdict, what lost viewers and what kept them, and what to change next time.
+- **The lessons** that should change future videos, each with its evidence: those for any video on the channel (the first frame, the seconds after the hook, the ending, the length, the title) in `lessons.md` in SHORTS_HOME, and those for one product in its notes, under `## What's worked`. `/make-video` and `/make-animation` read them before writing the next script. For GitHub Actions, commit a copy as `.makable-shorts/lessons.md` in the project.
+
+Instagram's API gives no retention curve: just the skip rate (the first 3 seconds) and the average watch time.
+
+```sh
+makable-shorts connect youtube                    # once: Google's consent page opens in the browser
+makable-shorts connect instagram                  # once, with INSTAGRAM_ACCESS_TOKEN in the .env
+makable-shorts insights RUN --youtube LINK --instagram LINK   # into RUN/insights/: the run remembers the links
+makable-shorts insights RUN                       # again later; or, the first time, it finds the video by its title
+makable-shorts posts youtube                      # your Shorts from the last 90 days, with their numbers
+```
+
+**Connecting YouTube** takes an OAuth client of your own: Google doesn't let the numbers be read without one.
+
+1. In [Google Cloud's console](https://console.cloud.google.com), in any project (the one Omni films on works), enable the **YouTube Data API v3** and the **YouTube Analytics API** (APIs & Services, Library).
+2. In **Google Auth Platform**, set up the consent screen for External users. Then, under Audience, **publish the app**. While it's in Testing, add the channel's account under Test users, and the sign-in runs out after 7 days. Publishing asks for a homepage and a privacy policy on a domain of yours. Google hasn't verified it, so its consent page warns you: it's your own app, so go on (Advanced, then Go to …).
+3. Under **Clients**, create one of type **Desktop app**. Put its ID and secret in the `.env` as `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET`.
+4. Run `makable-shorts connect youtube`, and pick the account the channel is on. It keeps a refresh token in `SHORTS_HOME/accounts/youtube.json`, readable by you alone. For GitHub Actions, set `YOUTUBE_REFRESH_TOKEN` instead.
+
+It asks only to read: `yt-analytics.readonly` and `youtube.readonly`.
+
+**Connecting Instagram** works for a professional account (Business or Creator: Instagram's settings, Account type and tools).
+
+1. On [Meta for Developers](https://developers.facebook.com/apps), create an app, and add the **Instagram** product.
+2. In its **API setup with Instagram login**, add your account (it may ask you to add it as an Instagram tester under App roles first), and **generate a token**. It has `instagram_business_basic` and `instagram_business_manage_insights`.
+3. Put the token in the `.env` as `INSTAGRAM_ACCESS_TOKEN`, and run `makable-shorts connect instagram`. A token lasts 60 days, so `connect` keeps it in `SHORTS_HOME/accounts/instagram.json`, and it's renewed whenever it's used once it's a week old. Used at least every 60 days, it never runs out.
+
+YouTube's numbers come a day or two after posting, and Instagram's within two days. Until then, `insights` says there are none yet.
 
 ## How it's built: stages that share a folder
 
@@ -298,13 +346,13 @@ The repo is the plugin and its marketplace (`.claude-plugin/`). `claude --plugin
 `makable-shorts` is `python -m shorts` in its own environments. In a checkout, you can also run the module in one of your own:
 
 ```sh
-uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech,heygen]'
+uv venv --python 3.12 .venv && uv pip install --python .venv -e '.[gemini,assemble,speech,heygen,insights]'
 uv venv --python 3.12 ~/browse-env && uv pip install --python ~/browse-env -e '.[browse]'   # SHORTS_BROWSE_PYTHON
 mkdir -p ~/.config/makable-shorts && cp .env.example ~/.config/makable-shorts/.env          # and fill it in
 .venv/bin/python -m shorts status .makable-shorts/runs/first
 ```
 
-Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `browse` and `kokoro` in environments of their own), so a machine installs only what the stages it runs need. Every environment gets ffmpeg from imageio-ffmpeg (`IMAGEIO_FFMPEG_EXE` names another), with no ffprobe: a file's length and streams are read from what ffmpeg prints about it (`shorts/media.py`). For Kokoro, in a checkout: `uv venv --python 3.12 ~/kokoro-env && UV_TORCH_BACKEND=cpu uv pip install --python ~/kokoro-env -e '.[kokoro]'`, and `SHORTS_KOKORO_PYTHON=~/kokoro-env/bin/python`.
+Each stage's packages are an extra of its own (`gemini`, `assemble`, `speech`, `heygen`; `insights` for `connect`, `insights` and `posts`; `browse` and `kokoro` in environments of their own), so a machine installs only what the stages it runs need. Every environment gets ffmpeg from imageio-ffmpeg (`IMAGEIO_FFMPEG_EXE` names another), with no ffprobe: a file's length and streams are read from what ffmpeg prints about it (`shorts/media.py`). For Kokoro, in a checkout: `uv venv --python 3.12 ~/kokoro-env && UV_TORCH_BACKEND=cpu uv pip install --python ~/kokoro-env -e '.[kokoro]'`, and `SHORTS_KOKORO_PYTHON=~/kokoro-env/bin/python`.
 
 Omni films in your own Google Cloud project, on Agent Platform (Vertex AI). Once:
 
