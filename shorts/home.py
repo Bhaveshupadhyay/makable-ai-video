@@ -10,6 +10,8 @@
                          this machine, or no one: a video without a voice): `python -m shorts me --filmer --narrator`
     products/<name>.md   what the make-video skill knows about each product: its address, how to say its name, ...
     sites/<host>/        a Chrome profile signed in to each site (`python -m shorts signin`)
+    accounts/<name>.json your YouTube channel and Instagram account, connected for the numbers on what you've
+                         posted (`python -m shorts connect`, `shorts.platforms`): readable by you alone
 
 A new run takes a copy of your photo, music and voice from here, and your choices, unless it's given others
 (`shorts.run`).
@@ -25,7 +27,9 @@ import json
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 MINE = ("face", "music", "voice", "subscribe")  # what `me` keeps: run.json's settings of the same names
@@ -154,3 +158,34 @@ def signed_in_sites() -> list[str]:
     """The sites there's a signed-in profile for."""
     folder = home() / "sites"
     return sorted(entry.name for entry in folder.iterdir() if entry.is_dir()) if folder.exists() else []
+
+
+def account(platform: str) -> dict[str, Any]:
+    """What `connect` keeps to use a platform as you (`shorts.platforms`), or {} if it isn't connected."""
+    file = home() / "accounts" / f"{platform}.json"
+    return json.loads(file.read_text()) if file.exists() else {}
+
+
+def keep_account(platform: str, kept: dict[str, Any] | None) -> None:
+    """Keeps what's needed to use a platform as you, in a file only you can read, or forgets it (None)."""
+    file = home() / "accounts" / f"{platform}.json"
+    if kept is None:
+        file.unlink(missing_ok=True)
+        return
+    file.parent.mkdir(parents=True, exist_ok=True)
+    # first into a file of its own (mkstemp: only you can read it), so a failed write, or another at the same time,
+    # loses nothing
+    descriptor, part = tempfile.mkstemp(dir=file.parent, prefix=f"{file.name}.", suffix=".part")
+    try:
+        with os.fdopen(descriptor, "w") as out:
+            json.dump(kept, out, indent=1)
+        os.replace(part, file)
+    except BaseException:
+        Path(part).unlink(missing_ok=True)
+        raise
+
+
+def accounts() -> dict[str, dict[str, Any]]:
+    """The platforms that are connected, and what's kept for each."""
+    folder = home() / "accounts"
+    return {file.stem: json.loads(file.read_text()) for file in sorted(folder.glob("*.json"))}

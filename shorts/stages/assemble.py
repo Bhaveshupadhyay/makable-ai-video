@@ -10,11 +10,16 @@ longer to read, while the captions say them, and holds each card for as long as 
 
 A scene without a stretch plays its recording on from where the scene before on it stopped. Needs only ffmpeg, and
 Pillow for the captions and the cards.
+metadata.json keeps where each part is in the video (`timeline`), to see where viewers left it once it's posted.
 """
 
+import contextlib
+import io
 import json
+import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from ..cards import LOOK
 from ..compose import CAPTION_PLACES, COLOURS, FONT_CACHE, GAP, TAIL, Part, compose, even, whole_frames
@@ -251,7 +256,44 @@ class Assemble(Stage):
             "seconds": round(seconds, 2),
             "kind": settings.kind,  # for the insights to compare demos with animated Shorts
             **({"hook": script.hook} if script.hook else {}),
+            "parts": timeline(parts, script, settings),
         }
         with writing(run.path(METADATA)) as out:
             out.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n")
         print(f"Made {run.path(FINAL)} ({seconds:.1f} s)")
+
+
+def timeline(parts: list[Part], script: Script, settings: Settings) -> list[dict[str, Any]]:
+    """Where each part is in the video, in seconds, and what's said in it: the intro (a filmed one or a title card),
+    scene 1, ..., the outro (or the end card). An animated Short has only its scenes."""
+    intro = ["intro"] if settings.intro == "card" or settings.intro in FILMED else []
+    names = [*intro, *(f"scene {number}" for number in range(1, len(script.scenes) + 1))]
+    names += ["outro"] * (len(parts) - len(names))
+    found, at = [], 0.0
+    for name, part in zip(names, parts, strict=True):
+        found.append({"part": name, "start": round(at, 2), "end": round(at + part.length, 2), "said": part.text})
+        at += part.length
+    return found
+
+
+def made_timeline(run: Run) -> list[dict[str, Any]] | None:
+    """The finished video's parts (`timeline`): as metadata.json keeps them, or worked out again from the files it was
+    made from, for a video assembled before it kept them. None, without them, or when the script, the settings or
+    the files have changed since the video was made: their parts wouldn't be the video's."""
+    metadata = run.path(METADATA)
+    kept = json.loads(metadata.read_text()) if metadata.exists() else {}
+    if "parts" in kept:
+        return kept["parts"]
+    final = run.path(FINAL)
+    made = run.record(Assemble.product).files.get(FINAL)
+    if not final.exists() or made is None or made.sha256 != file_hash(final):
+        return None
+    try:
+        if Assemble().plan(run)[FINAL] != made.source:
+            return None
+        # parts says what it plays, for assemble, and draws the cards: into a folder that's thrown away
+        with contextlib.redirect_stdout(io.StringIO()), tempfile.TemporaryDirectory() as work:
+            settings, script = run.settings(), run.script()
+            return timeline(Assemble().parts(run, settings, script, Path(work)), script, settings)
+    except (OSError, ValueError, NotReady, subprocess.CalledProcessError):
+        return None

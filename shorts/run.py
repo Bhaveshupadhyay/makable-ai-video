@@ -21,7 +21,8 @@ scenes spoken by another tool).
     voice/avatar.wav                 the intro's voice, to speak the narration in (with narration_voice "intro")
     narration/01.wav, 02.wav, ...    each scene's narration (none, with narrator "none")
     narration/intro.wav, outro.wav   the title card's line, and the end card's, said over the cards
-    final.mp4, metadata.json         the video, and what to upload it with
+    final.mp4, metadata.json         the video, and what to upload it with (and where each part is in it)
+    insights/youtube.json, ...       how it did once posted, fetched by `python -m shorts insights` (shorts.insights)
     .records/<product>.json          what made each of a product's files, and from what
     .gitignore                       all of it: a run folder stays out of git (`Run.make`)
 

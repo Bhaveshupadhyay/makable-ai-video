@@ -27,7 +27,14 @@
     python -m shorts prompts RUN               each still and its motion prompt, to animate elsewhere
     python -m shorts check-script RUN [FILE]   what each scene says over which stretch, and what's wrong
     python -m shorts frames RUN NAME [--every SECONDS | --at SECONDS ...]   a recording's frames, labelled
-                                               with their times, in contact sheets (RUN/frames/NAME-1.png, ...)
+                                               with their times, in contact sheets (RUN/frames/NAME-1.png, ...):
+                                               NAME final for the finished video's
+    python -m shorts connect youtube|instagram [--forget]   your channel or account, once, for its numbers
+                                               (see shorts/platforms.py)
+    python -m shorts insights RUN [--youtube LINK] [--instagram LINK] [--days 90]   how the video did once
+                                               posted, against your others, and where viewers left it
+                                               (RUN/insights/: see shorts/insights.py)
+    python -m shorts posts youtube|instagram [--days 90]   your Shorts or Reels, with their numbers
 
 Keys and settings come from the environment, or from a .env file (KEY=value lines) for what the environment doesn't
 set: the one in SHORTS_HOME, or one next to shorts/. Which keys depends on who films you and who speaks the narration
@@ -51,11 +58,13 @@ from .animators import ANIMATORS, take_name
 from .filmers import FILMERS, heygen_voices
 from .home import (
     MINE,
+    accounts,
     character,
     choose,
     chosen,
     home,
     keep,
+    keep_account,
     keep_character,
     mine,
     products,
@@ -66,7 +75,7 @@ from .home import (
 from .images import IMAGE_MODELS
 from .keys import add, env_file, google_signed_in, load, needed, open_in_editor
 from .orchestrator import PACKAGE_ROOT, advice, elsewhere, run_all, run_stage, shorts_in, status
-from .run import FINAL, NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file
+from .run import FINAL, METADATA, NARRATOR_MODELS, SCRIPT, SETTINGS, Run, Settings, footage_file, writing
 from .script import KINDS, LANGUAGES, TONES, Script, shot_seconds, speed, words
 from .stages import STAGES, NotReady, bring_in
 from .stages.animate import choose as choose_take
@@ -239,6 +248,10 @@ def show_me(args: argparse.Namespace) -> None:
         print(f"  {'' if line else 'products':10} {name:{width}}  {path}".rstrip())
     print(f"  {'runs':10} {runs()}")
     print(f"  {'signed in':10} {', '.join(signed_in_sites()) or '(nowhere)'}")
+    connected = [
+        f"{name} ({kept.get('title') or '@' + str(kept.get('username'))})" for name, kept in accounts().items()
+    ]
+    print(f"  {'connected':10} {', '.join(connected) or f'(nothing: {COMMAND} connect youtube|instagram)'}")
     if not (filmer and narrator):
         print(f"  {'keys':10} (they depend on who films you and who speaks: choose them first)")
         return
@@ -352,6 +365,60 @@ def show_frames(run: Run, name: str, times: list[float] | None, every: float, wi
     for number, first in enumerate(range(0, len(times), 30), 1):
         sheet = contact_sheet(video, times[first : first + 30], run.path(f"frames/{name}-{number}.png"), width=width)
         print(f"{sheet}: {times[first]:g}-{times[first : first + 30][-1]:g} s")
+
+
+def connect(platform: str, forget: bool) -> None:
+    """Connects your YouTube channel or Instagram account (`shorts.platforms`), or forgets it."""
+    from .platforms import connect_instagram, connect_youtube
+
+    if forget:
+        keep_account(platform, None)
+        print(f"Forgot {platform}")
+    elif platform == "youtube":
+        print(f"Connected YouTube: {connect_youtube()['title']}, kept in {home() / 'accounts'}")
+    else:
+        print(f"Connected Instagram: @{connect_instagram()['username']}, kept in {home() / 'accounts'}")
+
+
+def show_insights(run: Run, links: dict[str, str | None], days: int) -> None:
+    """Fetches how the video did on each platform it's posted on, keeps it in RUN/insights/, and prints it."""
+    from .insights import find_on_youtube, instagram, report, youtube
+    from .platforms import Instagram, YouTube
+    from .stages.assemble import made_timeline
+
+    made = json.loads(run.path(METADATA).read_text()) if run.path(METADATA).exists() else {}
+    for platform, link in links.items():  # a video looked at before is the same post, unless it's given
+        kept = run.path(f"insights/{platform}.json")
+        if not link and kept.exists():
+            links[platform] = json.loads(kept.read_text())["id"]
+    if not any(links.values()) and made.get("title"):  # posted on YouTube with the title its script gave it
+        links["youtube"] = find_on_youtube(YouTube.connected(), made["title"])
+        if not links["youtube"]:
+            raise ValueError(f"none of your 50 newest videos is titled {made['title']!r}: give its --youtube LINK")
+    if not any(links.values()):
+        raise ValueError("which video? Give its --youtube LINK, its --instagram LINK, or both")
+    parts = made_timeline(run)
+    for platform, link in links.items():
+        if not link:
+            continue
+        if platform == "youtube":
+            found = youtube(YouTube.connected(), link, days=days)
+        else:
+            found = instagram(Instagram.connected(), link, days=days, seconds=made.get("seconds"))
+        with writing(run.path(f"insights/{platform}.json")) as out:
+            out.write_text(json.dumps(found, indent=1, ensure_ascii=False) + "\n")
+        print(report(found, parts, made.get("seconds")))
+        print(f"(all of it in {run.path(f'insights/{platform}.json')})\n")
+
+
+def show_posts(platform: str, days: int) -> None:
+    from .insights import instagram_reels, listing, youtube_shorts
+    from .platforms import Instagram, YouTube
+
+    if platform == "youtube":
+        print(listing(youtube_shorts(YouTube.connected(), days=days)))
+    else:
+        print(listing(instagram_reels(Instagram.connected(), days=days)))
 
 
 def browse_python() -> tuple[str, dict[str, str]]:
@@ -535,6 +602,21 @@ def main() -> None:
     frames.add_argument("--every", type=float, default=2.5, metavar="SECONDS", help="a frame this often")
     frames.add_argument("--width", type=int, default=240, help="each frame's width in pixels (larger to read text)")
 
+    platforms = ("youtube", "instagram")  # shorts.platforms.PLATFORMS, without its httpx
+    connecting = commands.add_parser("connect", help="connect your YouTube channel or Instagram account, once")
+    connecting.add_argument("platform", choices=platforms)
+    connecting.add_argument("--forget", action="store_true", help="forget it instead")
+
+    looking = commands.add_parser("insights", help="how a posted video did, and where viewers left it")
+    looking.add_argument("run", type=Path, help="the video's run folder (any folder, for a video made elsewhere)")
+    looking.add_argument("--youtube", metavar="LINK", help="its link on YouTube, or its id")
+    looking.add_argument("--instagram", metavar="LINK", help="its link on Instagram")
+    looking.add_argument("--days", type=int, default=90, help="compare it with your videos posted in these days")
+
+    posting = commands.add_parser("posts", help="your Shorts or Reels, with their numbers")
+    posting.add_argument("platform", choices=platforms)
+    posting.add_argument("--days", type=int, default=90, help="those posted in these last days")
+
     voices = commands.add_parser("voices", help="HeyGen's voices, for run.json's filmer_voice")
     voices.add_argument("--language", default="English", help='such as "English" or "Hindi" ("" for all)')
     voices.add_argument("--gender", choices=["male", "female"])
@@ -621,6 +703,15 @@ def main() -> None:
         except (NotReady, ValueError, RuntimeError) as problem:
             sys.exit(f"signin: {problem}")
         return
+    if args.command in ("connect", "posts"):
+        try:
+            if args.command == "connect":
+                connect(args.platform, args.forget)
+            else:
+                show_posts(args.platform, args.days)
+        except (ValueError, RuntimeError) as problem:  # not set up, or the platform said no
+            sys.exit(f"{args.command}: {problem}")
+        return
     if args.command == "voices":
         try:
             found = heygen_voices(args.language or None, args.gender)
@@ -658,6 +749,11 @@ def main() -> None:
             show_frames(run, args.name, args.at, args.every, args.width)
         elif args.command == "drive":
             drive(run, args)
+        elif args.command == "insights":
+            try:
+                show_insights(run, {"youtube": args.youtube, "instagram": args.instagram}, args.days)
+            except RuntimeError as problem:  # the platform said no
+                sys.exit(f"insights: {problem}")
         elif python := elsewhere(run, args.command):  # in the Python with its packages
             sys.exit(shorts_in(python, *sys.argv[1:]))
         else:

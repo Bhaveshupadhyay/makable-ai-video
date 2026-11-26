@@ -67,7 +67,7 @@ environment() {
   trap - EXIT
 }
 
-environment pipeline gemini,assemble,speech,heygen
+environment pipeline gemini,assemble,speech,heygen,insights
 if [ -z "${SHORTS_BROWSE_PYTHON:-}" ]; then # unless you've your own environment with browser-use
   case "${1:-}" in
   drive | signin) environment browser browse ;;
