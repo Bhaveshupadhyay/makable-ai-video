@@ -234,6 +234,11 @@ Then add what the next recording should know to the notes' recording tips (produ
 
 ## 6. The script
 
+**First, what the channel's numbers taught.** If `lessons.md` is in SHORTS_HOME (the folder `makable-shorts me`
+prints first), read it before writing a word, and follow each lesson: where viewers left earlier videos, the hook,
+the first seconds after it, the ending, the length, the title. If you go against one, say which and why when you
+show the script. `/review-video` keeps the file up to date from the posted videos' numbers.
+
 Follow [references/script.md](references/script.md). Write it to `RUN/drafts/script.json`. Then run:
 
 ```sh
@@ -281,6 +286,8 @@ a dollar to film again.
 Tell the user:
 - the video's path and length (`RUN/metadata.json` has its seconds, title and description);
 - the scenes as they were made;
+- the title to upload it with, exactly: `metadata.json`'s `title`, never a bare hashtag. If `lessons.md` says what
+  makes a title work (search words, hashtags), the title follows it;
 - anything to check by eye or ear: Omni sometimes says a line a little differently, and the outro's voice
   can differ from the intro's, since each clip is a separate take. If one is off, delete that clip and run
   step 8 again to film it again (about a dollar). A narrator can say a name or a web address wrong (Kokoro

@@ -79,6 +79,11 @@ frame, clear of the pictures, as the user wants them. Only the narration is hear
 
 ## 4. The storyboard
 
+**First, what the channel's numbers taught.** If `lessons.md` is in SHORTS_HOME (the folder `makable-shorts me`
+prints first), read it before writing the storyboard, and follow each lesson: where viewers left earlier videos,
+what shot 1's first frame shows, the hook, the seconds after it, the ending, the length, the title. If you go against one, say which and why when you
+show the script. `/review-video` keeps the file up to date from the posted videos' numbers.
+
 Write `script.json` as [references/script.md](references/script.md) says, with the shots
 [references/shots.md](references/shots.md) describes:
 
@@ -191,7 +196,8 @@ last scene is cut off at the end of the video.
 - whether the subscribe animation is in it (`me --subscribe`), and if not, that it can be;
 - what it cost: the images (count × the image model's price), and the seconds animated × the animator's rate
   ($0.07 with Omni; about $0.02 with H3 at 480p, $0.025 at 720p);
-- the title and description (with the fact's source);
+- the title and description (with the fact's source), and that the video is uploaded with that title, never a
+  bare hashtag;
 - the hook used (`hook`) and the others (`hooks`), so they can upload another version and `/review-video` can
   compare them;
 - anything you decided for them (`--yes`), and anything that didn't come out well.
