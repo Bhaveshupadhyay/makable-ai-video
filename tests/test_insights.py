@@ -52,6 +52,7 @@ def retention_at(ratio: float) -> float:
     return 1 - 4 * ratio if ratio <= 0.1 else 0.6 - (ratio - 0.1) * 0.2 / 0.9
 
 
+TITLES = {"aaaaaaaaaaa": "A store in 60 seconds"}
 VIDEOS = {  # id: (posted, length)
     "aaaaaaaaaaa": ("2026-10-20T10:00:00Z", "PT40S"),  # the video
     "bbbbbbbbbbb": ("2026-09-01T10:00:00Z", "PT55S"),  # another Short
@@ -83,12 +84,18 @@ class FakeYouTube:
             return httpx.Response(
                 200, json={"items": [{"id": "UC1", "snippet": {"title": "Maker"}, "contentDetails": uploads}]}
             )
-        if url.path == "/youtube/v3/playlistItems":
+        if url.path == "/youtube/v3/playlistItems":  # newest first, two to a page
+            newest = sorted(VIDEOS, key=lambda video: VIDEOS[video][0], reverse=True)
+            page = int(query.get("pageToken", "0"))
             items = [
-                {"snippet": {"title": title}, "contentDetails": {"videoId": video, "videoPublishedAt": "2026-10-20"}}
-                for video, title in (("aaaaaaaaaaa", "A store in 60 seconds"), ("bbbbbbbbbbb", "Another"))
+                {
+                    "snippet": {"title": TITLES.get(video, "Another")},
+                    "contentDetails": {"videoId": video, "videoPublishedAt": VIDEOS[video][0]},
+                }
+                for video in newest[2 * page : 2 * page + 2]
             ]
-            return httpx.Response(200, json={"items": items})
+            more = {"nextPageToken": str(page + 1)} if 2 * page + 2 < len(newest) else {}
+            return httpx.Response(200, json={"items": items, **more})
         if url.path == "/youtube/v3/videos":
             items = [
                 {
@@ -123,14 +130,15 @@ class FakeYouTube:
         if dimensions == "day":
             return table([dimensions], metrics, [["2026-10-20", 700, 420], ["2026-10-21", 300, 180]])
         if dimensions == "video,creatorContentType":
-            assert query["sort"] == "-views" and int(query["maxResults"]) <= 200
+            asked = query["filters"].removeprefix("video==").split(",")
+            assert int(query["maxResults"]) <= 200 and len(asked) <= 200
             rows = [
                 ["aaaaaaaaaaa", "SHORTS", 1000, 600, 14.0, 35.0, 30, 4, 5, 2],
                 ["bbbbbbbbbbb", "SHORTS", 4000, 3200, 33.0, 60.0, 200, 20, 40, 10],
                 ["ccccccccccc", "SHORTS", 50, 20, 9.0, 30.0, 1, 0, 0, 0],
                 ["ddddddddddd", "VIDEO_ON_DEMAND", 900, 900, 300.0, 40.0, 50, 9, 3, 4],
             ]
-            return table(["video", "creatorContentType"], metrics, rows)
+            return table(["video", "creatorContentType"], metrics, [row for row in rows if row[0] in asked])
         return httpx.Response(400, json={"error": {"message": "The query is not supported."}})
 
 
@@ -197,7 +205,7 @@ def test_a_videos_numbers_against_your_other_shorts() -> None:
     assert (found["id"], found["seconds"], found["posted"][:10]) == ("aaaaaaaaaaa", 40.0, "2026-10-20")
     assert found["summary"] == {
         "views": 1000,
-        "stayed": 0.6,
+        "engaged": 0.6,
         "watched_seconds": 14.0,
         "watched_share": 0.35,
         "likes": 30.0,
@@ -207,7 +215,7 @@ def test_a_videos_numbers_against_your_other_shorts() -> None:
     }
     # Only the other Shorts posted in the window: not this one, an older one, or a long video.
     assert [video["id"] for video in found["others"]["videos"]] == ["bbbbbbbbbbb"]
-    assert found["others"]["median"]["stayed"] == 0.8
+    assert found["others"]["median"]["engaged"] == 0.8
     assert len(found["retention"]) == 100 and found["missing"] == {}
     assert found["sources"][0]["insightTrafficSourceType"] == "SHORTS"
     assert [video["id"] for video in youtube_shorts(api, days=365, today=TODAY)] == [
@@ -230,7 +238,7 @@ def test_where_viewers_left_part_by_part() -> None:
     assert max(rows, key=lambda row: row["lost_per_second"])["part"] == "intro"
 
     text = report(found, parts, 40.0)
-    assert "didn't swipe away" in text and "60%" in text and "80%" in text  # this one, and the median
+    assert "engaged views, of all views" in text and "60%" in text and "80%" in text  # this one, and the median
     assert "the Shorts feed 90%, search 10%" in text
     assert "intro" in text.split("<- the steepest")[0].splitlines()[-1]
     assert '"Watch me build a store."' in text
@@ -245,39 +253,46 @@ def test_what_youtube_wont_give_is_said_and_the_rest_is_kept() -> None:
     assert "Not given: retention" in report(found)
 
 
+def post(media: str, code: str, kind: str, day: str, **more: str) -> dict[str, str]:
+    """A post as Instagram Login lists it."""
+    found = {
+        "id": media,
+        "shortcode": code,
+        "media_type": more.get("media_type", "VIDEO"),
+        "timestamp": f"{day}T09:00:00+0000",
+    }
+    return found | {"permalink": f"https://www.instagram.com/{kind}/{code}/"}
+
+
 class FakeInstagram:
     """A stand-in for the Instagram API with Instagram Login: two pages of posts, and insights that won't give
     `reposts` (so asking for it with the others fails them all)."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, renews: bool = True) -> None:
         self.asked: list[httpx.Request] = []
+        self.renews = renews
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.asked.append(request)
         path, query = request.url.path, dict(request.url.params)
         assert query.get("access_token"), "every request carries the token"
         if path == "/refresh_access_token":
+            if not self.renews:
+                return httpx.Response(400, json={"error": {"message": "the token is too new to refresh"}})
             return httpx.Response(200, json={"access_token": "renewed", "expires_in": 5184000})
         if path == "/v26.0/me":
             return httpx.Response(200, json={"user_id": "17", "username": "maker"})
-        if path == "/v26.0/me/media":
-            first = {
-                "id": "1",
-                "shortcode": "OTHER",
-                "media_product_type": "REELS",
-                "timestamp": "2026-10-01T09:00:00+0000",
-            }
-            target = {
-                "id": "2",
-                "shortcode": "C9xYz_1-ab",
-                "media_product_type": "REELS",
-                "timestamp": "2026-10-25T09:00:00+0000",
-            }
-            target["permalink"], target["caption"] = "https://www.instagram.com/reel/C9xYz_1-ab/", "A store\n#build"
-            if query.get("after") == "page-2":
-                return httpx.Response(200, json={"data": [target]})
+        if path == "/v26.0/me/media":  # what Instagram Login gives: no caption or media_product_type
+            fields = query["fields"].split(",")
+            assert "caption" not in fields and "media_product_type" not in fields
+            target = post("2", "C9xYz_1-ab", "reel", "2026-10-25")
+            photo = post("3", "PHOTO", "p", "2026-10-10", media_type="IMAGE")
+            other = post("1", "OTHER", "reel", "2026-10-01")
+            old = post("4", "OLD", "reel", "2025-01-01")
+            if query.get("after") == "page-2":  # the Reel to compare with, past the first page
+                return httpx.Response(200, json={"data": [other, old]})
             paging = {"cursors": {"after": "page-2"}, "next": "https://graph.instagram.com/next"}
-            return httpx.Response(200, json={"data": [first], "paging": paging})
+            return httpx.Response(200, json={"data": [target, photo], "paging": paging})
         if path.endswith("/insights"):
             metrics = query["metric"].split(",")
             if "reposts" in metrics:
@@ -293,16 +308,16 @@ def test_a_reels_numbers_against_your_other_reels() -> None:
     fake = FakeInstagram()
     api = Instagram("token-1", client=client(fake))
     found = instagram(api, "https://www.instagram.com/reel/C9xYz_1-ab/", seconds=38.0, today=TODAY)
-    assert (found["id"], found["title"]) == ("2", "A store")
+    assert (found["id"], found["title"]) == ("2", "https://www.instagram.com/reel/C9xYz_1-ab/")
     assert found["summary"]["stayed"] == pytest.approx(0.55)  # a 45% skip rate
     assert found["summary"]["watched_seconds"] == 9.5  # from milliseconds
     assert found["summary"]["watched_share"] == pytest.approx(9.5 / 38)
     assert found["summary"]["saves"] == 6.0
     assert "reposts" in found["missing"] and "total_interactions" not in found["missing"]
-    assert [reel["id"] for reel in found["others"]["videos"]] == ["1"]
+    assert [reel["id"] for reel in found["others"]["videos"]] == ["1"]  # not the photo, or one posted before
     asked = [r.url.params["metric"] for r in fake.asked if r.url.path == "/v26.0/1/insights"]
     assert len(asked) == 1 and "reposts" not in asked[0].split(",")  # once, without what it wouldn't give
-    assert "Instagram" in report(found) and "didn't swipe away" in report(found)
+    assert "Instagram" in report(found) and "didn't skip in the first 3 s" in report(found)
 
 
 def test_instagrams_token_is_kept_and_renewed_once_its_a_week_old(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -316,6 +331,25 @@ def test_instagrams_token_is_kept_and_renewed_once_its_a_week_old(monkeypatch: p
     assert instagram_token(client=client(FakeInstagram()), now=start + timedelta(days=2)) == "kept"
     assert instagram_token(client=client(FakeInstagram()), now=start + timedelta(days=8)) == "renewed"
     assert account("instagram")["renewed"] == (start + timedelta(days=8)).isoformat()
+
+
+def test_an_instagram_token_too_new_to_renew_is_renewed_the_next_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("INSTAGRAM_ACCESS_TOKEN", "from-the-dashboard")
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    kept = connect_instagram(client=client(FakeInstagram(renews=False)), now=start)
+    assert (kept["token"], kept["renewed"]) == ("from-the-dashboard", None)
+    assert instagram_token(client=client(FakeInstagram()), now=start + timedelta(hours=1)) == "renewed"
+    assert account("instagram")["renewed"] == (start + timedelta(hours=1)).isoformat()
+
+
+def test_two_writes_at_once_each_use_a_file_of_their_own() -> None:
+    keep_account("youtube", {"refresh_token": "one"})
+    folder = Path(os.environ["SHORTS_HOME"]) / "accounts"
+    (folder / "youtube.json.part").write_text("another write's")  # left by another writer: not touched
+    keep_account("youtube", {"refresh_token": "two"})
+    assert account("youtube") == {"refresh_token": "two"}
+    assert (folder / "youtube.json.part").read_text() == "another write's"
+    assert (folder / "youtube.json").stat().st_mode & 0o777 == 0o600
 
 
 def test_insights_finds_the_video_by_its_title_and_keeps_what_it_fetched(

@@ -1,6 +1,6 @@
 ---
 name: review-video
-description: Finds out how a posted Short or Reel did on YouTube and Instagram, and why. It covers views, watch time, average view duration, retention, swipe-aways and engagement, compared with the user's other videos. From the retention curve, the script and the frames, it works out where viewers left and what was said and shown there, then says what to change next time and keeps the lessons in the product's notes for the make-video skill. Use when the user asks how a video did, why it flopped or took off, for its analytics, insights, watch time or engagement, or what's working on their channel.
+description: Finds out how a posted Short or Reel did on YouTube and Instagram, and why. It covers views, watch time, average view duration, retention, engaged views, skips and engagement, compared with the user's other videos. From the retention curve, the script and the frames, it works out where viewers left and what was said and shown there, then says what to change next time and keeps the lessons in the product's notes for the make-video skill. Use when the user asks how a video did, why it flopped or took off, for its analytics, insights, watch time or engagement, or what's working on their channel.
 argument-hint: "[run folder, YouTube or Instagram link] [--yes]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(makable-shorts *), Bash(ffprobe *)
 ---
@@ -26,8 +26,11 @@ With `--yes`, never ask anything: decide, and say what you decided in the final 
 - **A link** to a Short or a Reel. If it's one of the run folders' videos (same title as its `metadata.json`),
   use that folder. If not (a video made elsewhere), make a folder for it,
   `.makable-shorts/runs/<yyyy-mm-dd>-posted-<slug>`, from its posting date and title. There's no script there,
-  so retention comes in 10-second stretches instead of parts.
-- **The channel as a whole** ("what's working?", "why do my Shorts flop?"): go to step 5.
+  so retention comes in 10-second stretches instead of parts, and no video to look at either: ask the user for
+  the video file (interactive) and copy it in as `final.mp4`. Without it, or with `--yes`, the review is from the
+  numbers only: skip the frames in step 4, and say in the review that it's numbers only.
+- **The channel as a whole** ("what's working?", "why do my Shorts flop?"): connect the accounts (step 2) first,
+  then go to step 5.
 
 ## 2. The accounts
 
@@ -40,7 +43,8 @@ Run `makable-shorts me`. The `connected` line shows which platforms are connecte
 - **Instagram** needs `INSTAGRAM_ACCESS_TOKEN` in that `.env` (the same README section says how to get one), then
   `makable-shorts connect instagram`.
 
-Connect only the platforms the video is on. With `--yes`, use what's connected, and say what wasn't.
+Connect only the platforms the video is on (for the channel as a whole, those the user posts on). With `--yes`,
+use what's connected, skip the rest, and say in the report which were skipped.
 
 ## 3. Fetch the numbers
 
@@ -56,8 +60,10 @@ has the full retention curve, the views day by day, and every one of the user's 
 
 - **This video against the median** of the user's other Shorts or Reels posted in the last 90 days
   (`--days` changes that). The numbers are shares and per 1,000 views, so videos of any size compare:
-  - didn't swipe away: YouTube's engaged views as a share of views; on Instagram, 1 minus the skip rate (skipped
-    in the first 3 seconds);
+  - on YouTube, engaged views as a share of all views (`engaged`). It's only a sign of how many swiped away:
+    replays count in all views and not in engaged ones, so a Short that's watched again and again has a lower
+    share though no one left. Read it with the retention at 3 s and the average watch share, never alone;
+  - on Instagram, how many didn't skip in the first 3 seconds (`stayed`: 1 minus the skip rate);
   - watched on average, in seconds and as a share of the length;
   - likes, comments, shares, saves and subscribers per 1,000 views.
 - **Where its views came from** (YouTube): the Shorts feed, search, the channel page, and so on.
@@ -77,8 +83,8 @@ screen and said then, and the likely reason. Keep what the numbers show apart fr
 1. **Verdict.** Did it do better or worse than the user's usual, and on what? A video can win on views and lose on
    watch time. Its rank among the others, and its views day by day, show whether the feed kept pushing it or
    stopped after the first day.
-2. **The hook:** the first 3 seconds, where most viewers decide. Compare "didn't swipe away" and the share still
-   watching after 3 s with the median. Look at what opened it: `makable-shorts frames RUN final --at 0 0.5 1 1.5 2
+2. **The hook:** the first 3 seconds, where most viewers decide. Compare the engaged share (YouTube) or "didn't skip"
+   (Instagram), and the share still watching after 3 s, with the median. Look at what opened it: `makable-shorts frames RUN final --at 0 0.5 1 1.5 2
    2.5 3 --width 540`, and the script's `intro_line`. Is the first frame something worth stopping for? Does the
    first sentence promise a concrete payoff? Weak openers include a slow greeting, a name before a reason, or a
    generic claim.
@@ -99,8 +105,8 @@ screen and said then, and the likely reason. Keep what the numbers show apart fr
    1,000 views shows whether it made people want more. Compare each with the median, not with general benchmarks.
 6. **Reach** (where its views came from). Mostly the Shorts feed means the hook and the retention decided it.
    Search or the channel page means the title did.
-7. **Against the user's best videos.** In the JSON's `others`, look at the two or three with the best "didn't swipe
-   away" and watch share. What do their titles, lengths and (if they're run folders too, with `insights` fetched)
+7. **Against the user's best videos.** In the JSON's `others`, look at the two or three with the best share still
+   watching after 3 s and watch share. What do their titles, lengths and (if they're run folders too, with `insights` fetched)
    intros and scenes do that this one doesn't? Run `makable-shorts posts youtube` (or `instagram`) for the list.
 
 ## 5. The channel as a whole

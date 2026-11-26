@@ -77,6 +77,9 @@ def test_the_video_from_files_made_elsewhere(run: Run, tmp_path: Path) -> None:
     edited = script((0, 4), (6, 9))
     edited.scenes[1].text = "Something else."
     run.path("script.json").write_text(edited.model_dump_json())
+    run.path("metadata.json").write_text(json.dumps({"title": "A title"}))
+    assert made_timeline(run) is None  # the script changed since the video was made: its parts aren't the video's
+    run.path("metadata.json").write_text(kept)
     entries = {entry.product: entry for entry in status(run)}
     assert entries["narration"].files == {narration_file(0): CURRENT, narration_file(1): STALE}
     assert not run_all(run)

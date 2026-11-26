@@ -18,12 +18,13 @@ import base64
 import contextlib
 import hashlib
 import http.server
+import itertools
 import os
 import re
 import secrets
 import time
 import webbrowser
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -48,7 +49,8 @@ CONSENT_WAIT = 300  # seconds to wait for Google's consent page to answer
 
 INSTAGRAM = "https://graph.instagram.com"
 INSTAGRAM_VERSION = "v26.0"
-INSTAGRAM_MEDIA = "id,caption,media_type,media_product_type,permalink,shortcode,timestamp,like_count,comments_count"
+# What Instagram Login gives on a post: caption and media_product_type are for Facebook Login only
+INSTAGRAM_MEDIA = "id,media_type,permalink,shortcode,timestamp,like_count,comments_count"
 RENEW = timedelta(days=7)  # how old Instagram's token gets before it's renewed: it lasts 60 days, and must be a day old
 
 
@@ -236,18 +238,33 @@ class YouTube:
             raise PlatformError("this Google account has no YouTube channel")
         return items[0]
 
-    def uploads(self, count: int = 50) -> list[dict[str, Any]]:
-        """Your newest videos, newest first: {id, title, posted}."""
+    def uploads(self, count: int | None = 50, *, since: str | None = None) -> list[dict[str, Any]]:
+        """Your newest videos, newest first: {id, title, posted}. The newest `count`, or (count None) all those
+        posted since the date `since` (yyyy-mm-dd)."""
         playlist = self.channel()["contentDetails"]["relatedPlaylists"]["uploads"]
-        items = self.data("playlistItems", part="snippet,contentDetails", playlistId=playlist, maxResults=count)
-        return [
-            {
-                "id": item["contentDetails"]["videoId"],
-                "title": item["snippet"]["title"],
-                "posted": item["contentDetails"].get("videoPublishedAt", ""),
-            }
-            for item in items.get("items", [])
-        ]
+        found: list[dict[str, Any]] = []
+        page = None
+        while count is None or len(found) < count:
+            items = self.data(
+                "playlistItems",
+                part="snippet,contentDetails",
+                playlistId=playlist,
+                maxResults=50 if count is None else min(count - len(found), 50),
+                **({"pageToken": page} if page else {}),
+            )
+            for item in items.get("items", []):
+                video = {
+                    "id": item["contentDetails"]["videoId"],
+                    "title": item["snippet"]["title"],
+                    "posted": item["contentDetails"].get("videoPublishedAt", ""),
+                }
+                if since and video["posted"] and video["posted"][:10] < since:
+                    return found  # newest first: the rest were posted before
+                found.append(video)
+            page = items.get("nextPageToken")
+            if not page:
+                break
+        return found
 
     def report(self, **params: Any) -> list[dict[str, Any]]:
         """A YouTube Analytics report on your channel: its rows, each by its columns' names. None, when YouTube has
@@ -301,11 +318,12 @@ def connect_instagram(*, client: httpx.Client | None = None, now: datetime | Non
             f"login, Generate token), in .env or the environment ({SETUP})"
         )
     me = Instagram(token, client=client).get("me", fields="user_id,username")
-    with contextlib.suppress(PlatformError):  # less than a day old: it's renewed when it's used, once a week old
-        token = renew(token, client)
+    renewed = None  # less than a day old, it can't be renewed yet: then it's renewed the next time it's used
+    with contextlib.suppress(PlatformError):
+        token, renewed = renew(token, client), (now or datetime.now(UTC)).isoformat()
     kept = {
         "token": token,
-        "renewed": (now or datetime.now(UTC)).isoformat(),
+        "renewed": renewed,
         "username": me.get("username"),
         "user_id": me.get("user_id"),
     }
@@ -324,7 +342,7 @@ def instagram_token(*, client: httpx.Client | None = None, now: datetime | None 
             )
         return token
     now = now or datetime.now(UTC)
-    if now - datetime.fromisoformat(kept["renewed"]) > RENEW:
+    if not kept.get("renewed") or now - datetime.fromisoformat(kept["renewed"]) > RENEW:
         try:
             kept = {**kept, "token": renew(kept["token"], client), "renewed": now.isoformat()}
             keep_account("instagram", kept)
@@ -348,23 +366,20 @@ class Instagram:
         url = f"{INSTAGRAM}/{INSTAGRAM_VERSION}/{path}"
         return ask(self.http, "Instagram", "GET", url, params={**params, "access_token": self.token})
 
-    def media(self, count: int = 50) -> list[dict[str, Any]]:
-        """Your newest posts, newest first, up to `count`."""
-        found: list[dict[str, Any]] = []
+    def posts(self) -> Iterator[dict[str, Any]]:
+        """Your posts, newest first, a page at a time, for as long as they're asked for."""
         after = None
-        while len(found) < count:
-            page = self.get(
-                "me/media",
-                fields=INSTAGRAM_MEDIA,
-                limit=min(count - len(found), 50),
-                **({"after": after} if after else {}),
-            )
-            found += page.get("data", [])
+        while True:
+            page = self.get("me/media", fields=INSTAGRAM_MEDIA, limit=50, **({"after": after} if after else {}))
+            yield from page.get("data", [])
             paging = page.get("paging", {})
             after = paging.get("cursors", {}).get("after")
             if not paging.get("next") or not after:
-                break
-        return found
+                return
+
+    def media(self, count: int = 50) -> list[dict[str, Any]]:
+        """Your newest posts, newest first, up to `count`."""
+        return list(itertools.islice(self.posts(), count))
 
     def post(self, code: str, *, among: int = 200) -> dict[str, Any]:
         """A post of yours, by its media id (digits) or its shortcode (from its link), looked for among your
@@ -394,6 +409,14 @@ class Instagram:
     def _insights(self, media: str, metrics: list[str]) -> dict[str, Any]:
         data = self.get(f"{media}/insights", metric=",".join(metrics)).get("data", [])
         return {item["name"]: item["values"][0]["value"] for item in data if item.get("values")}
+
+
+def is_reel(post: dict[str, Any]) -> bool:
+    """Whether a post is a Reel. Instagram Login doesn't give media_product_type, and a Reel's media_type is VIDEO,
+    like any video's: its link says, instagram.com/reel/CODE/."""
+    return post.get("media_product_type") == "REELS" or (
+        post.get("media_type") == "VIDEO" and "/reel/" in (post.get("permalink") or "")
+    )
 
 
 def instagram_code(link: str) -> str:

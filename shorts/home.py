@@ -27,6 +27,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -172,11 +173,16 @@ def keep_account(platform: str, kept: dict[str, Any] | None) -> None:
         file.unlink(missing_ok=True)
         return
     file.parent.mkdir(parents=True, exist_ok=True)
-    part = file.with_name(f"{file.name}.part")  # first, so a failed write loses nothing
-    part.unlink(missing_ok=True)
-    with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as out:
-        json.dump(kept, out, indent=1)
-    part.replace(file)
+    # first into a file of its own (mkstemp: only you can read it), so a failed write, or another at the same time,
+    # loses nothing
+    descriptor, part = tempfile.mkstemp(dir=file.parent, prefix=f"{file.name}.", suffix=".part")
+    try:
+        with os.fdopen(descriptor, "w") as out:
+            json.dump(kept, out, indent=1)
+        os.replace(part, file)
+    except BaseException:
+        Path(part).unlink(missing_ok=True)
+        raise
 
 
 def accounts() -> dict[str, dict[str, Any]]:

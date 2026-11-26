@@ -10,8 +10,9 @@ viewers left it, part by part (YouTube's audience retention over the intro, each
 
 Each has a `summary`: the same few numbers on both platforms, as shares and per 1,000 views, so videos of any
 size compare. A Short's views count every play and replay; its engaged views, the plays that went on past the
-first moments, so their share is about how many didn't swipe away. Instagram's skip rate is the share of views
-that skipped in the first 3 seconds.
+first moments, and not its loops. So their share (`engaged`) is only a sign of how many swiped away: a Short
+watched again and again has a lower one, though no one left. Instagram's skip rate is the share of views that
+skipped in the first 3 seconds, so 1 minus it (`stayed`) is how many didn't.
 """
 
 import re
@@ -20,7 +21,7 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from .platforms import Instagram, PlatformError, YouTube, instagram_code, youtube_id
+from .platforms import Instagram, PlatformError, YouTube, instagram_code, is_reel, youtube_id
 
 YOUTUBE_METRICS = (
     "views",
@@ -44,6 +45,7 @@ YOUTUBE_OTHERS = (  # what the top videos report has of those
     "shares",
     "subscribersGained",
 )
+REPORT_BATCH = 200  # videos a report is asked about at once: the most rows it gives
 LONGEST_SHORT = 180  # seconds, for telling Shorts apart when YouTube won't
 INSTAGRAM_METRICS = (
     "views",
@@ -69,7 +71,8 @@ def percent(value: float) -> str:
 SUMMARY: dict[str, tuple[str, Callable[[float], str]]] = {
     "views": ("views", "{:,.0f}".format),
     "reach": ("accounts reached", "{:,.0f}".format),
-    "stayed": ("didn't swipe away", percent),  # YouTube: engaged views / views. Instagram: 1 - the skip rate
+    "engaged": ("engaged views, of all views (replays count in all)", percent),  # YouTube's
+    "stayed": ("didn't skip in the first 3 s", percent),  # Instagram's: 1 - the skip rate
     "watched_seconds": ("watched, on average", "{:.1f} s".format),
     "watched_share": ("  of its length", percent),
     "likes": ("likes per 1k views", "{:.1f}".format),
@@ -114,7 +117,7 @@ def youtube_summary(numbers: dict[str, Any]) -> dict[str, float]:
     return kept(
         {
             "views": views,
-            "stayed": share(numbers.get("engagedViews"), views),
+            "engaged": share(numbers.get("engagedViews"), views),
             "watched_seconds": numbers.get("averageViewDuration"),
             "watched_share": viewed / 100 if viewed is not None else None,
             "likes": per_thousand(numbers.get("likes"), views),
@@ -127,9 +130,8 @@ def youtube_summary(numbers: dict[str, Any]) -> dict[str, float]:
 
 def instagram_summary(numbers: dict[str, Any], seconds: float | None = None) -> dict[str, float]:
     views = numbers.get("views")
-    skipped = numbers.get("reels_skip_rate")
-    if skipped is not None and skipped > 1:  # a percentage, not a share
-        skipped /= 100
+    skipped = numbers.get("reels_skip_rate")  # a percentage
+    skipped = skipped / 100 if skipped is not None else None
     watched = numbers.get("ig_reels_avg_watch_time")
     watched = watched / 1000 if watched is not None else None
     return kept(
@@ -228,15 +230,27 @@ def youtube_shorts(api: YouTube, *, days: int = 90, today: date | None = None) -
     """Your Shorts posted in the last `days`, newest first, with their numbers: all their life's, so they compare."""
     today = today or datetime.now(UTC).date()
     since = (today - timedelta(days=days)).isoformat()
-    window = {"startDate": since, "endDate": today.isoformat(), "sort": "-views", "maxResults": 200}
+    # Your uploads in the window first, then their numbers, a batch at a time: a report of your top videos would
+    # leave out a new Short that older videos outrank
+    recent = [video["id"] for video in api.uploads(None, since=since)]
     metrics = ",".join(YOUTUBE_OTHERS)
-    try:
-        rows = api.report(dimensions="video,creatorContentType", metrics=metrics, **window)
-        numbers = {row["video"]: row for row in rows if row.get("creatorContentType") == "SHORTS"}
-        longest = None
-    except PlatformError:  # it won't tell them apart: a Short is a video no longer than one can be
-        numbers = {row["video"]: row for row in api.report(dimensions="video", metrics=metrics, **window)}
-        longest = LONGEST_SHORT
+    numbers: dict[str, dict[str, Any]] = {}
+    longest = None
+    for first in range(0, len(recent), REPORT_BATCH):
+        batch = recent[first : first + REPORT_BATCH]
+        window = {
+            "startDate": since,
+            "endDate": today.isoformat(),
+            "filters": "video==" + ",".join(batch),
+            "sort": "-views",
+            "maxResults": len(batch),
+        }
+        try:
+            rows = api.report(dimensions="video,creatorContentType", metrics=metrics, **window)
+            numbers |= {row["video"]: row for row in rows if row.get("creatorContentType") == "SHORTS"}
+        except PlatformError:  # it won't tell them apart: a Short is a video no longer than one can be
+            numbers |= {row["video"]: row for row in api.report(dimensions="video", metrics=metrics, **window)}
+            longest = LONGEST_SHORT
     shorts = []
     for item in api.videos(list(numbers)):
         posted, seconds = item["snippet"]["publishedAt"], iso_seconds(item["contentDetails"]["duration"])
@@ -286,7 +300,7 @@ def instagram(
         "platform": "instagram",
         "id": post["id"],
         "link": post.get("permalink"),
-        "title": (post.get("caption") or "").split("\n")[0][:120],
+        "title": title(post),
         "posted": post.get("timestamp"),
         "fetched": now(),
         "seconds": seconds,
@@ -297,6 +311,13 @@ def instagram(
     }
 
 
+def title(post: dict[str, Any]) -> str:
+    """What a post is called in a report: its caption's first line where Instagram gives it (it doesn't with
+    Instagram Login), or its link."""
+    caption = (post.get("caption") or "").split("\n")[0][:120]
+    return caption or post.get("permalink") or post.get("shortcode") or post.get("id", "")
+
+
 def instagram_reels(
     api: Instagram, *, days: int = 90, today: date | None = None, metrics: list[str] | None = None, count: int = 25
 ) -> list[dict[str, Any]]:
@@ -304,14 +325,16 @@ def instagram_reels(
     today = today or datetime.now(UTC).date()
     since = (today - timedelta(days=days)).isoformat()
     reels = []
-    for post in api.media(50):
-        if post.get("media_product_type") != "REELS" or post.get("timestamp", "")[:10] < since:
+    for post in api.posts():  # newest first, a page at a time, until there are `count` or they're too old
+        if post.get("timestamp", "")[:10] < since:
+            break
+        if not is_reel(post):
             continue
         numbers, _ = api.insights(post["id"], list(metrics or INSTAGRAM_METRICS))
         reels.append(
             {
                 "id": post["id"],
-                "title": (post.get("caption") or "").split("\n")[0][:120],
+                "title": title(post),
                 "posted": post.get("timestamp"),
                 "link": post.get("permalink"),
                 "numbers": numbers,
@@ -433,7 +456,11 @@ def listing(videos: list[dict[str, Any]]) -> str:
         summary = video["summary"]
         numbers = [
             f"{summary['views']:>9,.0f} views" if "views" in summary else f"{'':15}",
-            f"{summary['stayed']:4.0%} stayed" if "stayed" in summary else f"{'':11}",
+            f"{summary['stayed']:4.0%} stayed"
+            if "stayed" in summary
+            else f"{summary['engaged']:4.0%} engaged"
+            if "engaged" in summary
+            else f"{'':12}",
             f"{summary['watched_share']:4.0%} watched" if "watched_share" in summary else f"{'':12}",
             f"{summary['likes']:5.1f} likes/1k" if "likes" in summary else f"{'':14}",
         ]

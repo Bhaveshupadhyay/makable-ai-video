@@ -159,7 +159,7 @@ Once a video is posted, ask Claude how it did, or:
 The skill (`skills/review-video/`) fetches the video's numbers with `makable-shorts insights`, compares them with your other Shorts and Reels, and works out why it did as it did:
 
 - **The numbers,** against the median of your videos posted in the 90 days before:
-  - how many didn't swipe away: YouTube's engaged views as a share of all views, or 1 minus Instagram's skip rate;
+  - on YouTube, engaged views as a share of all views. It's only a sign of how many swiped away: replays count in all views and not in engaged ones, so a Short watched again and again has a lower share though no one left. On Instagram, how many didn't skip in the first 3 seconds (1 minus the skip rate);
   - how long they watched, in seconds and as a share of the video;
   - likes, comments, shares, saves and subscribers per 1,000 views;
   - where the views came from (the Shorts feed, search, your channel), and views day by day.

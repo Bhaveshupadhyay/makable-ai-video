@@ -278,23 +278,22 @@ def timeline(parts: list[Part], script: Script, settings: Settings) -> list[dict
 
 def made_timeline(run: Run) -> list[dict[str, Any]] | None:
     """The finished video's parts (`timeline`): as metadata.json keeps them, or worked out again from the files it was
-    made from, for a video assembled before it kept them. None, without them."""
+    made from, for a video assembled before it kept them. None, without them, or when the script, the settings or
+    the files have changed since the video was made: their parts wouldn't be the video's."""
     metadata = run.path(METADATA)
     kept = json.loads(metadata.read_text()) if metadata.exists() else {}
     if "parts" in kept:
         return kept["parts"]
-    if not run.path(FINAL).exists():
+    final = run.path(FINAL)
+    made = run.record(Assemble.product).files.get(FINAL)
+    if not final.exists() or made is None or made.sha256 != file_hash(final):
         return None
     try:
+        if Assemble().plan(run)[FINAL] != made.source:
+            return None
         # parts says what it plays, for assemble, and draws the cards: into a folder that's thrown away
         with contextlib.redirect_stdout(io.StringIO()), tempfile.TemporaryDirectory() as work:
             settings, script = run.settings(), run.script()
             return timeline(Assemble().parts(run, settings, script, Path(work)), script, settings)
-    except (OSError, ValueError, NotReady, subprocess.CalledProcessError):
-        return None
-    try:
-        with contextlib.redirect_stdout(io.StringIO()):  # parts says what it plays, for assemble
-            script = run.script()
-            return timeline(Assemble().parts(run, run.settings(), script), script)
     except (OSError, ValueError, NotReady, subprocess.CalledProcessError):
         return None
