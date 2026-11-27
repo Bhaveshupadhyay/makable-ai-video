@@ -19,7 +19,8 @@ may still be loading, or show only the top of a page. Say only what's visible du
 1. **Intro**, about 10 s. The avatar (Gemini Omni, HeyGen, or a clip the user films) talks to the camera.
    - `intro_line`: one hook of 14 to 20 words. Make people want to see the payoff, the thing the recording
      ends on. Make it concrete ("a bakery website from one sentence") rather than generic ("the future of
-     web design").
+     web design"). Pick its kind from [hooks.md](hooks.md), which also says what the first frame and the
+     seconds after it must do.
    - `intro_setting`: the shot in one sentence: place, light, framing. Don't describe the person (Omni
      films them from their photo). Example: "A bright home office with a laptop on the desk, soft window
      light, framed from the chest up."
@@ -43,6 +44,7 @@ an **end card**: a blurred still of the recording, where the first scene starts 
 the narrator says the line, the captions show it as it's said; with no voice, the card shows it in big letters.
 
 - `intro_line`: the hook, **12 words at most**, read at a glance: "A whole clothing store website from one sentence."
+  Pick its kind from [hooks.md](hooks.md).
   The narrator says it over the card, and the card stays up while it does. With no voice, the card stays up for as
   long as it takes to read.
 - `outro_line`: the sign-off, 12 words at most: "Try Acme Notes free at acme.com."

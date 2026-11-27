@@ -3,7 +3,9 @@
 One question, answered with one surprising number, in 25 to 35 seconds. The shape that holds viewers:
 
 1. **Hook (shot 1): a question the viewer can't answer.** "If a coconut fell 25 metres onto your head, would your
-   skull survive?" It's concrete, a little scary and visual, and it names the stakes in the first second.
+   skull survive?" It's concrete, a little scary and visual, and it names the stakes in the first second. See
+   `/make-video`'s [hooks.md](../../make-video/references/hooks.md) for the kinds of hook, and for opening on the
+   climax, cut just before it resolves.
 2. **The fact, with a number (shot 2).** "A coconut weighs 1.5 to 2 kg, and from that height it reaches about
    80 km/h." One number per sentence, said in words the viewer already uses (km/h, not m/s).
 3. **The comparison or the consequence (shot 3).** What the number means: "a blow like that really can fracture a
