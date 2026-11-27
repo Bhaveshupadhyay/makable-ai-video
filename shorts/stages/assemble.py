@@ -256,6 +256,7 @@ class Assemble(Stage):
             "seconds": round(seconds, 2),
             "kind": settings.kind,  # for the insights to compare demos with animated Shorts
             **({"hook": script.hook} if script.hook else {}),
+            **({"hook_kind": script.hook_kinds[script.hook]} if script.hook in script.hook_kinds else {}),
             "parts": timeline(parts, script, settings),
         }
         with writing(run.path(METADATA)) as out:
