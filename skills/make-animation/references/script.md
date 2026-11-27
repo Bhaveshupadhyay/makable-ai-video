@@ -36,7 +36,8 @@ or outro: the video opens on its first shot and ends on its last.
     "H2": "एक नारियल आपकी खोपड़ी तोड़ सकता है, और ये मज़ाक नहीं है।",
     "H3": "अस्सी किलोमीटर प्रति घंटे की रफ़्तार से आता एक नारियल… सीधा आपके सिर की तरफ़।"
   },
-  "hook": "H1"
+  "hook": "H1",
+  "hook_kinds": {"H1": "climax first", "H2": "contrarian", "H3": "did you know"}
 }
 ```
 

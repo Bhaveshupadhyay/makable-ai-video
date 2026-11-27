@@ -6,13 +6,15 @@ One question, answered with one surprising number, in 25 to 35 seconds. The shap
    skull survive?" It's concrete, a little scary and visual, and it names the stakes in the first second. See
    `/make-video`'s [hooks.md](../../make-video/references/hooks.md) for the kinds of hook, and for opening on the
    climax, cut just before it resolves.
-2. **The fact, with a number (shot 2).** "A coconut weighs 1.5 to 2 kg, and from that height it reaches about
-   80 km/h." One number per sentence, said in words the viewer already uses (km/h, not m/s).
-3. **The comparison or the consequence (shot 3).** What the number means: "a blow like that really can fracture a
-   skull, and doctors have recorded such cases."
-4. **The twist or the payoff (shot 4).** Something they didn't expect, or a light, funny release.
-5. **The sign-off (the last shot, or the end of shot 4).** "Look up before you nap under a palm! Follow for more
-   facts like this." Short: it's said over the last shot, not a card.
+2. **The clues, with numbers (shots 2 and 3).** Facts that raise the stakes without answering the question yet: "A
+   coconut weighs 1.5 to 2 kg, and from that height it reaches about 80 km/h." One number per sentence, said in
+   words the viewer already uses (km/h, not m/s).
+3. **The guess (the end of shot 3).** Ask the viewer to answer before you do: "So, would your skull survive?
+   Guess in the comments." It gets comments, and gives them a reason to stay for the answer.
+4. **The answer (the last shot).** Only now: "A blow like that really can fracture a skull, and doctors have
+   recorded such cases." Add the twist or a light, funny release if there is one: "Look up before you nap under
+   a palm!" End on it. Don't say "follow": the subscribe animation over the last shot asks for that, if there
+   is one. Best of all, the last shot runs back into shot 1, so the video loops.
 
 ## Checking the facts
 

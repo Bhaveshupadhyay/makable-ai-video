@@ -166,6 +166,7 @@ def test_saying_not_to_show_text_is_fine() -> None:
 def test_the_hook_named_is_what_the_video_opens_with() -> None:
     script = storyboard()
     script.hooks = {"H1": script.scenes[0].text, "H2": "Something else entirely."}
+    script.hook_kinds = {"H1": "did you know", "H2": "contrarian"}
     script.hook = "H1"
     assert checked(script) == ([], [])
     script.hook = "H2"
@@ -174,6 +175,23 @@ def test_the_hook_named_is_what_the_video_opens_with() -> None:
     ]
     script.hook = "H9"
     assert checked(script)[0] == ["The hook 'H9' isn't one of the hooks (H1, H2)"]
+
+
+def test_each_hook_has_a_kind_of_hook() -> None:
+    script = storyboard()
+    script.hooks = {"H1": script.scenes[0].text, "H2": "Something else entirely."}
+    script.hook = "H1"
+    script.hook_kinds = {"H1": "climax first"}
+    assert checked(script) == (
+        [],
+        ["No kind for the hook H2 in hook_kinds: name each, so the insights can learn which kind works"],
+    )
+    script.hook_kinds = {"H1": "climax first", "H2": "did you know"}
+    assert checked(script) == ([], [])
+    script.hook_kinds = {"H1": "shock", "H2": "did you know", "H3": "listicle"}
+    errors = checked(script)[0]
+    assert errors[0].startswith("The hook 'H1''s kind, 'shock', isn't one of: climax first, contrarian")
+    assert errors[1] == "hook_kinds names 'H3', which isn't one of the hooks"
 
 
 def test_a_demo_without_an_intro_needs_no_intro_line() -> None:

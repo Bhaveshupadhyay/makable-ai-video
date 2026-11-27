@@ -20,7 +20,7 @@ may still be loading, or show only the top of a page. Say only what's visible du
    - `intro_line`: one hook of 14 to 20 words. Make people want to see the payoff, the thing the recording
      ends on. Make it concrete ("a bakery website from one sentence") rather than generic ("the future of
      web design"). Pick its kind from [hooks.md](hooks.md), which also says what the first frame and the
-     seconds after it must do.
+     seconds after it must do. Write three versions in `hooks`, as below.
    - `intro_setting`: the shot in one sentence: place, light, framing. Don't describe the person (Omni
      films them from their photo). Example: "A bright home office with a laptop on the desk, soft window
      light, framed from the chest up."
@@ -37,6 +37,10 @@ may still be loading, or show only the top of a page. Say only what's visible du
 
 Also write a YouTube `title` (under 70 characters) and a `description` of 2 or 3 sentences.
 
+**Three hooks.** Write three versions of the intro line, each a different kind from [hooks.md](hooks.md), in
+`hooks` (`H1`, `H2`, `H3`), with the one in `intro_line` named in `hook` and each one's kind in `hook_kinds`.
+Show the user all three, with their kinds, when you show the script.
+
 ## A product demo, with no avatar
 
 When `run.json`'s `intro` and `outro` are `card`, there's no avatar. The video opens on a **title card** and ends on
@@ -44,7 +48,7 @@ an **end card**: a blurred still of the recording, where the first scene starts 
 the narrator says the line, the captions show it as it's said; with no voice, the card shows it in big letters.
 
 - `intro_line`: the hook, **12 words at most**, read at a glance: "A whole clothing store website from one sentence."
-  Pick its kind from [hooks.md](hooks.md).
+  Pick its kind from [hooks.md](hooks.md), and write three versions in `hooks`, as below.
   The narrator says it over the card, and the card stays up while it does. With no voice, the card stays up for as
   long as it takes to read.
 - `outro_line`: the sign-off, 12 words at most: "Try Acme Notes free at acme.com."
@@ -176,7 +180,7 @@ For a website builder, say:
 
 ```json
 {
-  "intro_line": "A whole bakery website from one sentence, and it lands on your own GitHub. Watch this.",
+  "intro_line": "Did you know one sentence can build a whole bakery website, right on your own GitHub? Watch this.",
   "intro_setting": "A bright home office with a laptop on the desk, soft window light, framed from the chest up.",
   "scenes": [
     {"text": "To start a new site, just describe it in one sentence.", "footage": "demo", "start": 0.6, "end": 5.4},
@@ -186,7 +190,14 @@ For a website builder, say:
   "outro_setting": "",
   "title": "One sentence to a live bakery website",
   "description": "…",
-  "language": "en"
+  "language": "en",
+  "hooks": {
+    "H1": "Did you know one sentence can build a whole bakery website, right on your own GitHub? Watch this.",
+    "H2": "Bakery owners, stop scrolling: your website takes one sentence now, and it's free.",
+    "H3": "If you want a website without writing code or paying anyone, this is for you."
+  },
+  "hook": "H1",
+  "hook_kinds": {"H1": "did you know", "H2": "stop scrolling", "H3": "if you want"}
 }
 ```
 

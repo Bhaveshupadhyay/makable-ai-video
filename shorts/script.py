@@ -75,6 +75,9 @@ class Script(BaseModel):
     # this video opens with ("H1"), which metadata.json notes for the insights to compare
     hooks: dict[str, str] = {}
     hook: str = ""
+    # Each hook's kind, by its id ("H1": "climax first"), one of HOOK_KINDS: metadata.json notes the one used, so the
+    # insights can learn which kind of hook works on the channel
+    hook_kinds: dict[str, str] = {}
 
 
 def recording_length(steps: list[dict[str, Any]]) -> float:
@@ -87,7 +90,20 @@ INTRO_WORDS = (14, 20)  # the intro line, to fit Omni's 10-second clip
 OUTRO_WORDS = 20  # at most, for the outro's clip
 CARD_WORDS = 12  # at most, for a title card or an end card to read at a glance
 SCENES = (3, 8)
-KINDS = ("demo", "animated")  # a product demo said over recordings, or an animated Short drawn shot by shot
+KINDS = ("demo", "animated")
+# The kinds of hook the make-video skill's references/hooks.md describes
+HOOK_KINDS = (
+    "climax first",
+    "contrarian",
+    "stop scrolling",
+    "fear of missing out",
+    "authority",
+    "time-sensitive",
+    "abstract concept",
+    "did you know",
+    "if you want",
+    "listicle",
+)  # a product demo said over recordings, or an animated Short drawn shot by shot
 # An animated Short's numbers: its shots, the narration in all, and each shot's, which its clip is made to fit (the
 # lengths Omni makes, and pays for by the second)
 SHOTS = (4, 6)
@@ -251,15 +267,26 @@ def check(
     if silent and any(not scene.text.strip() for scene in script.scenes):
         warnings.append("A scene has no text: without a voice, the captions are all that says what's happening")
     check_tags(script, errors, warnings, cards=cards, narrator=narrator, outro=outro or "outro" in cards, intro=opens)
-    check_hook(script, errors, opens=opens)
+    check_hook(script, errors, warnings, opens=opens)
     if animated:
         check_storyboard(script, errors, warnings, animator)
     return errors, warnings
 
 
-def check_hook(script: Script, errors: list[str], *, opens: bool) -> None:
+def check_hook(script: Script, errors: list[str], warnings: list[str], *, opens: bool) -> None:
     """Whether the hook the script names (`hook`) is one of its `hooks`, and what the video opens with (the intro
-    line, or without an intro, the first scene's text): metadata.json names it, for the insights to compare hooks."""
+    line, or without an intro, the first scene's text): metadata.json names it, for the insights to compare hooks.
+    And whether each hook's kind (`hook_kinds`) is one of HOOK_KINDS, for a hook there is."""
+    for name, kind in script.hook_kinds.items():
+        if name not in script.hooks:
+            errors.append(f"hook_kinds names {name!r}, which isn't one of the hooks")
+        elif kind not in HOOK_KINDS:
+            errors.append(f"The hook {name!r}'s kind, {kind!r}, isn't one of: {', '.join(HOOK_KINDS)}")
+    if unknown := [name for name in script.hooks if name not in script.hook_kinds]:
+        warnings.append(
+            f"No kind for the hook{'s' if len(unknown) > 1 else ''} {', '.join(unknown)} in hook_kinds: "
+            "name each, so the insights can learn which kind works"
+        )
     if not script.hook:
         return
     if script.hook not in script.hooks:

@@ -98,9 +98,9 @@ Write `script.json` as [references/script.md](references/script.md) says, with t
   (`text`, with emotion tags if the narrator performs them), its `caption` (Hinglish for a Hindi line, numbers in
   digits), its footage name (`shot-01`, …), and its `shot`: the `still`, the `motion`, who's in it, whether it
   `follows` the shot before, and with H3 an `end_still` where the shot must end exactly;
-- three versions of the opening line in `hooks` (`H1`, `H2`, `H3`), and the one used in `hook`. Make them three
-  different kinds of hook from `/make-video`'s [hooks.md](../make-video/references/hooks.md), and say which kind each
-  is when you show the script;
+- three versions of the opening line in `hooks` (`H1`, `H2`, `H3`), the one used in `hook`, and each one's kind in
+  `hook_kinds`: three different kinds of hook from `/make-video`'s
+  [hooks.md](../make-video/references/hooks.md). Say which kind each is when you show the script;
 - the `title`, never a bare hashtag (`#shorts`, `#bts`): the question or the promise, in words people search
   for, then a few hashtags if the lessons say so.
 
