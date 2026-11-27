@@ -12,6 +12,26 @@ One sentence, written once, that every image prompt starts with. Name the render
 If some shots happen outdoors, say so in the style ("…, outdoor shots in warm afternoon sun"). Otherwise the model
 picks its own background for each still, and the shots stop looking like one video.
 
+### Ready-made styles
+
+Use one as it is when the user names it, or asks for that look in other words. Add the place to the end of the
+sentence ("…, a desert at noon").
+
+- **Glossy explainer** (the default): the sentence above.
+- **Cutaway** (also "Blender", "Blender cross-section", "like those 3D Blender Shorts"): a plain Blender render with
+  the ground cut open, so the viewer sees what happens underground, underwater or inside a wall.
+
+  > Simple 3D Blender Eevee render in the style of a cutaway explainer: plain matte materials with no textures,
+  > simple props, simple stylized characters, flat soft daylight, a straight-on side view with the ground cut away
+  > as a cross-section filling the lower half of the frame, soil in sandy-brown layers with faint strata lines, a
+  > blue sky with soft realistic clouds, not glossy, not cinematic, no depth of field
+
+  It needs the same view in every shot, so write every still as a straight-on side view of the cutaway, and every
+  motion with the camera holding still or panning sideways along the cut ("the camera pans right along the cut").
+  Say what moves in plain physical terms ("sand falls into the hole in chunky clumps", "water rises in the hole
+  and fills it to the brim"). Water, splashes and flying sand are where H3 goes wrong most (stray rocks in the sky,
+  a blob of a splash), so give those shots an `end_still` that shows where the water or the sand ends up.
+
 ## A still
 
 What the first frame shows: who, where, doing what, and from where the camera sees it.

@@ -62,6 +62,8 @@ The image model and Omni need `GOOGLE_CLOUD_PROJECT` and Google Cloud's sign-in,
 ## 2. The topic
 
 Take it from the request. If the user asks for ideas, suggest three in the channel's style, and let them pick.
+If they ask for a look (glossy, or the cutaway "Blender" look), take its style sentence from
+[references/shots.md](references/shots.md)'s ready-made styles.
 
 Check the key fact with a web search before writing a word, and keep the source: it goes in the description.
 [references/story.md](references/story.md) says how to turn a fact into a 25 to 35 second story, and what to leave
