@@ -12,6 +12,35 @@ One sentence, written once, that every image prompt starts with. Name the render
 If some shots happen outdoors, say so in the style ("…, outdoor shots in warm afternoon sun"). Otherwise the model
 picks its own background for each still, and the shots stop looking like one video.
 
+### Ready-made styles
+
+Use one when the user names it, or asks for that look in other words.
+
+- **Glossy explainer** (the default): the sentence above.
+- **Cutaway** (also "Blender", "Blender cross-section", "like those 3D Blender Shorts"): a plain Blender render with
+  the scene cut open, so the viewer sees what happens underground, underwater or inside a wall.
+
+  > Simple 3D Blender Eevee render: plain matte materials with no textures, simple props, simple stylized
+  > characters, flat soft daylight, not glossy, not cinematic, no depth of field
+
+  The style is the look alone, because it starts the character sheets' prompts too, and a sheet needs its plain
+  background and its three clean views. The cut goes in each still instead. Start every still with the same
+  framing, written once for the Short and fitted to what's cut open:
+
+  - underground: "Straight-on side view, the ground cut away as a cross-section filling the lower half of the
+    frame, soil in sandy-brown layers with faint strata lines, a blue sky with soft realistic clouds above";
+  - underwater: "Straight-on side view, the sea cut away as a cross-section, clear blue water in the upper half,
+    the seabed in layers of sand and rock below";
+  - inside a wall or a body: "Straight-on side view, the wall cut open as a cross-section, its layers of plaster,
+    brick and insulation showing", with the room or the place around it.
+
+  Keep the camera the same in every motion: it holds still or pans sideways along the cut ("the camera pans right
+  along the cut"). Say what moves in plain physical terms ("sand falls into the hole in chunky clumps", "water
+  rises in the hole and fills it to the brim"). Water, splashes and flying sand are where a video model goes wrong
+  most (stray rocks in the sky, a blob of a splash). With H3, give those shots an `end_still` that shows where the
+  water or the sand ends up. Omni takes no last frame, so with Omni say that end state in the motion instead ("…
+  and settles, the water still and level with the brim").
+
 ## A still
 
 What the first frame shows: who, where, doing what, and from where the camera sees it.
