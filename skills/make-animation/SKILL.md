@@ -89,7 +89,8 @@ For the devotional style, make it with no captions (`new --no-captions`, the use
 voice carry it), and keep H3 at 480p, the default (the user's choice; `--animator-model 720` is sharper, for
 about a third more GPU time). Add `--narrator-option speed=0.9` for a slower, reverent voice, and, if the user has a
 track for the channel, `--music FILE`: their usual light track doesn't suit it. It wants an epic, devotional cue (low
-brass, a choir, a slow swell), with a licence that allows monetised Shorts. Ask once which track, if they haven't
+brass, a choir, a slow swell), with a licence that allows monetised Shorts and no YouTube Content ID: on Pixabay, a track page that
+says "Content ID Registered" gets the Short a copyright claim, and most of its popular epic Indian tracks do. Ask once which track, if they haven't
 said.
 
 ## 4. The storyboard
