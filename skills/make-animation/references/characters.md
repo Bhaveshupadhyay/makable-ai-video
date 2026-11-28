@@ -15,6 +15,28 @@ body and clothes stay the same from shot to shot.
 - **No text on clothes**, no brands, no one real.
 - Give each character a name the shots use (`man`, `doctor`, `cat`), with letters, digits, - and _ only.
 
+## Gods and sages (the devotional style)
+
+Write the look from how the scriptures and temple art show them, in plain words, and keep it the same across the
+channel's Shorts: devotees know these figures, and notice when one changes.
+
+> a five-year-old boy, curly black shoulder-length hair, big dark eyes, white U-shaped Vaishnava tilak on his
+> forehead, bare-chested, a rudraksha mala, a white dhoti with a red border, barefoot
+
+> an old sage, long white hair in a top knot wrapped with rudraksha beads, long white beard, three white lines of
+> ash and a saffron dot on his forehead, saffron robe over one shoulder, rudraksha malas
+
+- **Say an adult is an adult**: "a tall adult god in his thirties with adult body proportions and broad
+  shoulders". The style's big eyes and soft rounded features draw everyone as a child otherwise: Shani, Vishnu,
+  Parvati and Shani's wife all came out as children or teenagers on their first sheets (2026-11-28). Children and
+  babies need no help.
+- **Say the clothes exactly**, colour by colour. Without a sheet, the same boy came back in a saffron cloth in
+  place of his white dhoti one shot later.
+- **The god's marks belong in the look:** blue skin, a peacock feather, a crescent moon in the hair, a conch and a
+  discus. Anything the god holds goes in the look too, so it's in every shot.
+- **A figure the channel comes back to** (Krishna, Hanuman, Narada as a storyteller) is a mascot: keep its sheet
+  with `me --character`, so it looks the same in every Short.
+
 ## Choosing a take
 
 `cast` draws `cast_takes` takes. A good sheet has:

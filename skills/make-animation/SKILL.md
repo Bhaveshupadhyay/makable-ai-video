@@ -1,6 +1,6 @@
 ---
 name: make-animation
-description: Makes an animated explainer Short (3D-style animation, a fact or a "what if" question) for YouTube Shorts and Instagram Reels. It designs consistent characters, draws each shot, animates it with Omni or MiniMax H3 and narrates it in your cloned voice. Use when the user asks for an animated video, an explainer, a "what happens if" Short, or a video that isn't about their product.
+description: Makes an animated Short (3D-style animation: a fact, a "what if" question, or a story from the Hindu scriptures) for YouTube Shorts and Instagram Reels. It designs consistent characters, draws each shot, animates it with Omni or MiniMax H3 and narrates it in your cloned voice. Use when the user asks for an animated video, an explainer, a "what happens if" Short, a mythology or devotional Short (Krishna, Shiva, Hanuman, the Puranas), or a video that isn't about their product.
 argument-hint: "[topic or question] [--language hi] [--tone hype] [--yes] [--paid]"
 allowed-tools: Read, Write, Edit, Glob, Bash(makable-shorts *), Bash(ffprobe *), WebSearch
 ---
@@ -62,8 +62,14 @@ The image model and Omni need `GOOGLE_CLOUD_PROJECT` and Google Cloud's sign-in,
 ## 2. The topic
 
 Take it from the request. If the user asks for ideas, suggest three in the channel's style, and let them pick.
-If they ask for a look (glossy, or the cutaway "Blender" look), take its style sentence from
-[references/shots.md](references/shots.md)'s ready-made styles.
+If they ask for a look (glossy, the cutaway "Blender" look, or the devotional look for a story from the
+scriptures), take its style sentence from [references/shots.md](references/shots.md)'s ready-made styles.
+
+A story from the scriptures (Dhruva, Prahlada, Hanuman, Shiva…) is told differently from a fact: one moment of
+revelation, from the middle, then who and why, then the divine peak.
+[references/story.md](references/story.md)'s "A story from the scriptures" has the shape, where stories come from,
+and how to stay faithful to them. Check the version you tell, as you would a fact, and name the text in the
+description.
 
 Check the key fact with a web search before writing a word, and keep the source: it goes in the description.
 [references/story.md](references/story.md) says how to turn a fact into a 25 to 35 second story, and what to leave
@@ -78,6 +84,14 @@ makable-shorts new .makable-shorts/runs/<date>-<topic> --kind animated --languag
 Name the run by the date and the topic (`2026-11-24-coconut-skull`). `--kind animated` makes it open on its first
 shot, with no intro or outro, and narrate in the user's voice. `--captions-at bottom` puts the captions low in the
 frame, clear of the pictures, as the user wants them. Only the narration is heard: the clips' own sound is off.
+
+For the devotional style, make it with no captions (`new --no-captions`, the user's choice: the pictures and the
+voice carry it), and keep H3 at 480p, the default (the user's choice; `--animator-model 720` is sharper, for
+about a third more GPU time). Add `--narrator-option speed=0.9` for a slower, reverent voice, and, if the user has a
+track for the channel, `--music FILE`: their usual light track doesn't suit it. It wants an epic, devotional cue (low
+brass, a choir, a slow swell), with a licence that allows monetised Shorts and no YouTube Content ID: on Pixabay, a track page that
+says "Content ID Registered" gets the Short a copyright claim, and most of its popular epic Indian tracks do. Ask once which track, if they haven't
+said.
 
 ## 4. The storyboard
 
@@ -96,7 +110,8 @@ Write `script.json` as [references/script.md](references/script.md) says, with t
 
 - the `style`, one sentence every image starts with;
 - the `characters`, each with a `look`;
-- the scenes: 4 to 6 with Omni, 6 to 8 with H3 (its clips are best at 5 s or less). Each has its narration
+- the scenes: 4 to 6 with Omni, 6 to 8 with H3 (its clips are best at 5 s or less), or for a devotional Short
+  of about 60 s, 12 to 15 with H3 ([references/story.md](references/story.md)). Each has its narration
   (`text`, with emotion tags if the narrator performs them), its `caption` (Hinglish for a Hindi line, numbers in
   digits), its footage name (`shot-01`, …), and its `shot`: the `still`, the `motion`, who's in it, whether it
   `follows` the shot before, and with H3 an `end_still` where the shot must end exactly;

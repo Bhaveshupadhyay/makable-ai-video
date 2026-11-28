@@ -40,6 +40,52 @@ Use one when the user names it, or asks for that look in other words.
   most (stray rocks in the sky, a blob of a splash). With H3, give those shots an `end_still` that shows where the
   water or the sand ends up. Omni takes no last frame, so with Omni say that end state in the motion instead ("…
   and settles, the water still and level with the brim").
+- **Devotional** (also "mythology", "bhakti", "like those AI Bhagwan / Mahadev / Krishna Shorts", "AI 3D animation"
+  of a story from the scriptures): an animated-feature look, with big-eyed stylised sages, gods and children, deep
+  teal sky and sea against saffron and gold, and divine light. It isn't a Blender render: it's drawn and animated
+  by AI, like every other style here.
+
+  > High-end 3D animated feature film still, Indian devotional mythology: stylised characters with big expressive
+  > eyes and soft rounded features, richly detailed glossy skin, hair and fabric, subsurface-scattered skin,
+  > cinematic rim light, vivid saturated colours with deep teal-blue skies and sea against warm saffron, gold and
+  > orange, glowing divine golden light with soft sparkles and volumetric god rays, shallow depth of field, crisp
+  > sharp detail
+
+  Add the setting to the style when the whole Short happens in one place ("…, a rocky seashore under a stormy
+  sky"), so the backgrounds match. Tested on H3 (2026-11-28): faces, beads and tilak held through 4.5 s clips at
+  720p. 720p was sharper than 480p for this look, but these are made at 480p, H3's default, by the user's
+  choice (2026-11-28); `new --animator-model 720` when a Short needs the detail.
+
+  - **The shots:** close-ups of faces carry these Shorts: a sage's tears, a child's eyes opening, a god's calm
+    smile. Mix them with a few wide shots of the place (the sea, the forest, Kailash, the cosmos) for scale.
+  - **The light is the action.** Divine moments are light, not explosions: an aura brightens, ribbons of gold
+    light circle a figure, an orb of light opens to show a child, beams rise from the eyes into the sky. Say how
+    the light moves in the motion, and keep the people still apart from one gesture ("Only the light changes: the
+    golden aura around the boy glows brighter and the ribbons circle slowly around him").
+  - **Motion that came out clean:** "Only the sage moves: his lips tremble, a tear rolls down his cheek, his eyes
+    lift slowly upward in awe … A slow, gentle push in toward his face. Everything else stays exactly as drawn."
+    A slow push in suits nearly every shot here.
+  - **Cut fast.** These Shorts cut every one to two seconds at their peak. With H3, keep the clips short (3 to
+    4.5 s) and let a line run over two shots rather than holding one.
+  - **Respect:** a god is never comic, harmed, or shown in a way their devotees would find mocking. Keep each
+    god's traditional marks: Vishnu's and Krishna's blue skin, Shiva's third eye, crescent moon and snake, a
+    Vaishnava U-shaped tilak or Shaiva ash lines as the story's tradition has them.
+  - **A violent moment is never shown.** Show the cause and the reaction instead: the glance, a blinding flash that
+    hides the throne, the mother's horror, the gods recoiling.
+  - **Say a god's skin colour in every still they're in** when the Short has two dark or blue gods: with Shani in
+    the Short, Vishnu came out with Shani's blue-black skin until his still said "his bright light sky-blue skin
+    exactly as on his character sheet".
+  - **What H3 got wrong, and the words that fixed it** (the Ganesha and Shani Short, 2026-11-28, 4 of 15 clips):
+    - an expression drifts: a mother's horror turned into a smile mid-line. Say it holds: "Parvati stays frozen in
+      horror the whole time: her eyes stay wide and full of tears and her mouth stays open in a cry";
+    - a push in pulls a character toward the camera: Shani's wife walked in front of him. Say "stays standing
+      exactly where she is", and let the camera hold still;
+    - "bows his head" became crouching: say "his body and feet perfectly still. Only his head moves";
+    - "lifts the baby higher, nodding" brought in a giant ghost of her face: a gentle push in and one nod came out
+      clean.
+  - **With narration from elsewhere** (ElevenLabs' website, say), cut it at the speaker's own pauses, one piece per
+    shot, and bring the pieces in with `import RUN narration`: every cut lands between phrases. assemble adds a
+    short pause after each scene, so 15 shots of a 65 s take made a 71 s video.
 
 ## A still
 
