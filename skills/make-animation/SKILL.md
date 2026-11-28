@@ -110,7 +110,8 @@ Write `script.json` as [references/script.md](references/script.md) says, with t
 
 - the `style`, one sentence every image starts with;
 - the `characters`, each with a `look`;
-- the scenes: 4 to 6 with Omni, 6 to 8 with H3 (its clips are best at 5 s or less). Each has its narration
+- the scenes: 4 to 6 with Omni, 6 to 8 with H3 (its clips are best at 5 s or less), or for a devotional Short
+  of about 60 s, 12 to 15 with H3 ([references/story.md](references/story.md)). Each has its narration
   (`text`, with emotion tags if the narrator performs them), its `caption` (Hinglish for a Hindi line, numbers in
   digits), its footage name (`shot-01`, …), and its `shot`: the `still`, the `motion`, who's in it, whether it
   `follows` the shot before, and with H3 an `end_still` where the shot must end exactly;

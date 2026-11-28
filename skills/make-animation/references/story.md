@@ -21,21 +21,24 @@ One question, answered with one surprising number, in 25 to 35 seconds. The shap
 A mythology Short isn't a question and an answer: it's one moment of a story, told so the viewer feels it.
 The shape:
 
-1. **Hook (shot 1): the shocking moment, as a question.** "आखिर क्यों [something no one expects of a god] … और
+1. **Hook (shots 1 to 3): the shocking moment, as a question.** "आखिर क्यों [something no one expects of a god] … और
    क्यों/कैसे [something devotees still see today]": "आखिर क्यों शनिदेव की सिर्फ़ एक नज़र पड़ते ही माता पार्वती
    के नन्हे पुत्र का सिर धड़ से अलग हो गया, और क्यों शनिदेव आज भी नज़रें झुकाकर रहते हैं?" Show the moment
    (the glance, the mother's horror), not its answer. Or open on someone's reaction, with a line spoken to the god
    by name. Either way the viewer doesn't know yet who or why, and stays to find out: a climax-first hook
-   (`/make-video`'s [hooks.md](../../make-video/references/hooks.md)).
-2. **Who and why (shots 2 to 4).** Step back just enough: who this is, what they wanted, what it cost them. A
+   (`/make-video`'s [hooks.md](../../make-video/references/hooks.md)). A question this long (about 30 words,
+   11 s spoken) is more than one shot: split it at the narrator's pauses over two or three shots ("आखिर क्यों…
+   शनिदेव की सिर्फ़ एक नज़र पड़ते ही," is shot 1, 3.6 s), and `hooks[hook]` is shot 1's piece.
+2. **Who and why (the next three or four shots).** Step back just enough: who this is, what they wanted, what it cost them. A
    child who left the palace, months of tapasya in the forest. One fact of the story a line.
-3. **The peak (shots 5 to 7).** The divine moment itself, in light: the god appears, the child's eyes open, the
+3. **The peak (about six shots).** The divine moment itself, in light: the god appears, the child's eyes open, the
    beam reaches the sky. Short shots, cut fast.
-4. **The meaning (the last shot).** One line of what it means, or the boon given, said simply, tied back to the
+4. **The meaning (the last two shots).** One line of what it means, or the boon given, said simply, tied back to the
    hook's second question: "इसीलिए शनिदेव की नज़रें आज भी झुकी रहती हैं।" Then ask for a comment the devotee
    wants to write: "कमेंट में जय श्री गणेश ज़रूर लिखें।" The last shot can echo the first, so the video loops.
 
-About 60 seconds is the length the user wants for these: 150 to 160 words, 12 to 15 shots with H3.
+About 60 seconds is the length the user wants for these: 150 to 160 words at the 2.4 words a second below, 12 to
+15 shots with H3 (`check-script` warns about the count and the length: expected here).
 
 **Where stories come from.** The scriptures and their traditional retellings: the Bhagavata Purana, Vishnu Purana,
 Shiva Purana, Ramayana and Mahabharata, and the Gita Press (Gorakhpur) Hindi editions of them. Good ones are short
@@ -49,7 +52,8 @@ text in the description ("Source: Bhagavata Purana, Canto 4"). Don't present a s
 don't mock or argue with any belief.
 
 **Words for it.** Reverent, simple Hindi, a little more formal than a fact Short (तपस्या, वरदान, प्रभु), said
-slowly: about 2 words a second, so a 5-second shot has 9 or 10 words. A spoken line can be a character's, in the
+slowly: about 2.4 words a second (the first Short's ElevenLabs take: 157 words in 65 s), so a 5-second shot has
+about 12 words. A spoken line can be a character's, in the
 first person ("मैं तुम्हें वर देता हूँ…"), and the narrator speaks it. Use the `friendly` tone, not `hype`, and
 a slower voice (`new --narrator-option speed=0.9`). No `[laughter]` or `[surprise-wa]`: a `[sigh]` at most, where a
 character is moved.
