@@ -108,6 +108,7 @@ the end.
 | Video | Try first | Also good |
 |---|---|---|
 | "What if…" or fact animation | Climax first, Did you know | Contrarian, Abstract concept |
+| Story from the scriptures (devotional) | Climax first | Did you know |
 | Product demo (one tool) | If you want ___, ___ stop scrolling | Fear of missing out, Time-sensitive |
 | "Useful website" Short | ___ stop scrolling, Did you know | Listicle |
 | Tool comparison or roundup | Authority, Listicle | Contrarian |
